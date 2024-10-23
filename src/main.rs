@@ -21,7 +21,7 @@ pub fn main() -> iced::Result {
         .run()
 }
 
-pub struct TCCScreen {
+pub struct TCCScreen<'screen> {
     screen: Screen,
     err_message: String,
     contact_list: Option<Vec<contact::Contact>>,
@@ -29,8 +29,8 @@ pub struct TCCScreen {
     start_point_longitude: String,
     goal_point_latitude: String,
     goal_point_longitude: String,
-    courses: String,
-    calculator: Option<Calculator>,
+    course_name_list: Vec<String>,
+    calculator: Option<Calculator<'screen>>,
 }
 
 #[derive(Debug, Clone)]
@@ -43,7 +43,7 @@ pub enum Message {
     GoToCalculateScreen,
 }
 
-impl TCCScreen {
+impl<'screen> TCCScreen<'screen> {
     fn update(&mut self, event: Message) {
         match event {
             Message::LoadData => {
@@ -85,8 +85,8 @@ impl TCCScreen {
                     self.start_point_longitude.clone(),
                     self.goal_point_latitude.clone(),
                     self.goal_point_longitude.clone(),
-                    self.courses.clone(),
-                    self.contact_list.as_mut().unwrap().clone(),
+                    &self.course_name_list,
+                    self.contact_list.as_ref().unwrap(),
                 );
                 if calculator_result.is_err() == true {
                     self.err_message = calculator_result.unwrap_err().to_string();
@@ -222,7 +222,7 @@ impl TCCScreen {
                 text_input("longitude", &self.goal_point_longitude)
             ]
         ])
-        .push(row!["Courses:", text_input("", &self.courses)])
+        .push(row!["Courses:", text_input("", &self.course_name_list[0])])
         .push(button("Next").on_press(Message::GoToCalculateScreen))
     }
 
@@ -253,7 +253,7 @@ pub enum Layout {
     Column,
 }
 
-impl Default for TCCScreen {
+impl Default for TCCScreen<'_> {
     fn default() -> Self {
         Self {
             screen: Screen::LoadData,
@@ -263,7 +263,7 @@ impl Default for TCCScreen {
             start_point_longitude: "".to_string(),
             goal_point_latitude: "".to_string(),
             goal_point_longitude: "".to_string(),
-            courses: "".to_string(),
+            course_name_list: Vec::new(),
             calculator: None,
         }
     }
