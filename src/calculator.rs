@@ -1,22 +1,24 @@
 use std::{
     collections::{HashMap, HashSet},
-    io::{Error, ErrorKind},
+    io::Error,
 };
 
 use crate::contact::Contact;
 
 #[derive(Debug)]
-pub struct Calculator<'calc> {
+pub struct Calculator {
     start_point_latitude: f64,
     start_point_longitude: f64,
     goal_point_latitude: f64,
     goal_point_longitude: f64,
-    course_name_list: &'calc Vec<String>,
-    contact_list: &'calc Vec<Contact>,
+    course_name_list: Vec<String>,
+    contact_list: Vec<Contact>,
+    best_score: Option<f64>,
+    best_seed: Option<Vec<u8>>,
 }
 
 struct Plan<'calc> {
-    course_list: Vec<&'calc Contact>,
+    course_list: Vec<Course<'calc>>,
     score: u8,
 }
 
@@ -26,76 +28,52 @@ struct Course<'calc> {
     guest_list: Vec<&'calc Contact>,
 }
 
-impl<'calc> Calculator<'calc> {
-    pub fn calculate(self) {
+impl Calculator {
+    pub fn calculate(&self) {
         //()-()
         //()-()
         //TODO
     }
 
     pub fn new(
-        start_point_latitude_str: String,
-        start_point_longitude_str: String,
-        goal_point_latitude_str: String,
-        goal_point_longitude_str: String,
-        course_name_list: &'calc Vec<String>,
-        contact_list: &'calc Vec<Contact>,
-    ) -> Result<Self, Error> {
-        let start_point_latitude = start_point_latitude_str.parse::<f64>().map_err(|err| {
-            println!("Can't parse start_point_latitude string to f64 : {err}");
-            return Error::new(
-                ErrorKind::InvalidData,
-                "Format of start point latitude is not a number!",
-            );
-        })?;
-
-        let start_point_longitude = start_point_longitude_str.parse::<f64>().map_err(|err| {
-            println!("Can't parse start_point_longitude string to f64 : {err}");
-            return Error::new(
-                ErrorKind::InvalidData,
-                "Format of start point longitude is not a number!",
-            );
-        })?;
-
-        let goal_point_latitude = goal_point_latitude_str.parse::<f64>().map_err(|err| {
-            println!("Can't parse goal_point_latitude string to f64 : {err}");
-            return Error::new(
-                ErrorKind::InvalidData,
-                "Format of start goal latitude is not a number!",
-            );
-        })?;
-
-        let goal_point_longitude = goal_point_longitude_str.parse::<f64>().map_err(|err| {
-            println!("Can't parse goal_point_longitude string to f64 : {err}");
-            return Error::new(
-                ErrorKind::InvalidData,
-                "Format of start goal longitude is not a number!",
-            );
-        })?;
-
-        Ok(Calculator {
+        start_point_latitude: f64,
+        start_point_longitude: f64,
+        goal_point_latitude: f64,
+        goal_point_longitude: f64,
+        course_name_list: Vec<String>,
+        contact_list: Vec<Contact>,
+    ) -> Self {
+        Calculator {
             start_point_latitude,
             start_point_longitude,
             goal_point_latitude,
             goal_point_longitude,
             course_name_list,
             contact_list,
-        })
+            best_score: None,
+            best_seed: None,
+        }
     }
 
     fn seed_to_plan(&self, seed: &Vec<u8>) -> Plan {
         let course_list = self.assign_courses(seed);
         self.assign_guests(seed, &course_list);
-
+        let score = calc_score(
+            self.start_point_latitude,
+            self.start_point_longitude,
+            self.goal_point_latitude,
+            self.goal_point_longitude,
+            &course_list,
+        );
         Plan {
-            course_list: vec![],
+            course_list,
             score: 1,
         }
     }
 
-    fn assign_guests(&self, seed: &Vec<u8>, course_list: &'calc Vec<Course>) {
-        let mut seen_contact_map: HashMap<&'calc Contact, HashSet<&'calc Contact>> = HashMap::new();
-        for contact in self.contact_list {
+    fn assign_guests(&self, seed: &Vec<u8>, course_list: &Vec<Course>) {
+        let mut seen_contact_map: HashMap<&Contact, HashSet<&Contact>> = HashMap::new();
+        for contact in &self.contact_list {
             seen_contact_map.insert(contact, HashSet::new());
         }
         let course_map = course_list_to_map(course_list);
@@ -105,23 +83,25 @@ impl<'calc> Calculator<'calc> {
         let seed_len = seed.len();
         for (_, course_sub_list) in course_map.into_iter() {
             for course in course_sub_list {
-                for index in 0..number_of_guests_per_course {
+                for _ in 0..number_of_guests_per_course {
                     let guest = self.get_contact(
                         *seed.get(index % seed_len).unwrap(),
                         course,
                         &seen_contact_map,
                     );
+                    set_seen_people(&mut seen_contact_map, course, guest);
+                    index += 1;
                 }
             }
         }
     }
 
-    fn get_contact<'b>(
+    fn get_contact(
         &self,
         mut seed: u8,
-        course: &'b Course,
-        seen_contact_map: &HashMap<&'calc Contact, HashSet<&'calc Contact>>,
-    ) -> &'calc Contact {
+        course: &Course,
+        seen_contact_map: &HashMap<&Contact, HashSet<&Contact>>,
+    ) -> &Contact {
         let mut contact;
         let contact_list_len = self.contact_list.len();
         loop {
@@ -165,7 +145,7 @@ impl<'calc> Calculator<'calc> {
             let contact_index = usize::from(seed_id) % contact_for_courses_list.len();
 
             {
-                let contact = contact_for_courses_list.get(contact_index).unwrap();
+                let contact = *contact_for_courses_list.get(contact_index).unwrap();
                 course_list.push(Course::new(course_name, contact));
             }
 
@@ -191,7 +171,7 @@ impl<'calc> Course<'calc> {
     }
 }
 
-fn calcDistance(
+fn calc_distance(
     start_point_latitude: f64,
     start_point_longitude: f64,
     goal_point_latitude: f64,
@@ -201,6 +181,30 @@ fn calcDistance(
         (goal_point_latitude - start_point_latitude).powf(2_f64)
             + (goal_point_longitude - start_point_longitude).powf(2_f64),
     )
+}
+
+fn calc_score(
+    start_point_latitude: f64,
+    start_point_longitude: f64,
+    goal_point_latitude: f64,
+    goal_point_longitude: f64,
+    course_list: &Vec<Course>,
+) -> f64 {
+    let contact_map = course_list_to_map(course_list.clone());
+    let mut contact_walking_path: HashMap<&Contact, Vec<&Contact>> = HashMap::new();
+    for (_, course_list) in contact_map.iter() {
+        for &course in course_list {
+            let path = contact_walking_path.entry(course.host).or_insert(vec![]);
+            path.push(course.host);
+            let guest_list = &course.guest_list;
+            for guest in guest_list {
+                let path = contact_walking_path.entry(guest).or_insert(vec![]);
+                path.push(course.host);
+            }
+        }
+    }
+
+    0_f64
 }
 
 fn course_list_to_map<'calc>(
@@ -218,24 +222,26 @@ fn course_list_to_map<'calc>(
     }
     course_map
 }
-/*
-fn setSeenPeople(
-    seen_contact_map: &HashMap<&Contact, HashSet<&Contact>>,
-    course: &Course,
-    new_guest: &Contact,
+
+fn set_seen_people<'calc>(
+    seen_contact_map: &mut HashMap<&Contact, HashSet<&'calc Contact>>,
+    course: &Course<'calc>,
+    new_guest: &'calc Contact,
 ) {
-    let seen_guest_set_guest = seen_contact_map.get_mut(new_guest).unwrap();
-    seen_guest_set_guest.insert(&course.host);
+    {
+        let seen_guest_set_guest = seen_contact_map.get_mut(new_guest).unwrap();
+        seen_guest_set_guest.insert(course.host);
+    }
+    {
+        let seen_guest_set_host = seen_contact_map.get_mut(course.host).unwrap();
+        seen_guest_set_host.insert(new_guest);
+    }
 
-
-    let seen_guest_set_host = seen_contact_map.get_mut(&course.host).unwrap();
-    seen_guest_set_host.insert(new_guest);
-
-    for guest in &course.guest_list {
+    for &guest in &course.guest_list {
         let seen_guest_set = seen_contact_map.get_mut(new_guest).unwrap();
         seen_guest_set.insert(&guest);
 
-        let seen_guest_set = seen_contact_map.get_mut(&guest).unwrap();
+        let seen_guest_set = seen_contact_map.get_mut(guest).unwrap();
         seen_guest_set.insert(new_guest);
     }
-}*/
+}

@@ -21,7 +21,7 @@ pub fn main() -> iced::Result {
         .run()
 }
 
-pub struct TCCScreen<'screen> {
+pub struct TCCScreen {
     screen: Screen,
     err_message: String,
     contact_list: Option<Vec<contact::Contact>>,
@@ -30,7 +30,7 @@ pub struct TCCScreen<'screen> {
     goal_point_latitude: String,
     goal_point_longitude: String,
     course_name_list: Vec<String>,
-    calculator: Option<Calculator<'screen>>,
+    calculator: Option<Calculator>,
 }
 
 #[derive(Debug, Clone)]
@@ -43,7 +43,7 @@ pub enum Message {
     GoToCalculateScreen,
 }
 
-impl<'screen> TCCScreen<'screen> {
+impl TCCScreen {
     fn update(&mut self, event: Message) {
         match event {
             Message::LoadData => {
@@ -80,22 +80,47 @@ impl<'screen> TCCScreen<'screen> {
                 self.screen = Screen::AddRules;
             }
             Message::GoToCalculateScreen => {
-                let calculator_result = Calculator::new(
-                    self.start_point_latitude.clone(),
-                    self.start_point_longitude.clone(),
-                    self.goal_point_latitude.clone(),
-                    self.goal_point_longitude.clone(),
-                    &self.course_name_list,
-                    self.contact_list.as_ref().unwrap(),
-                );
-                if calculator_result.is_err() == true {
-                    self.err_message = calculator_result.unwrap_err().to_string();
-                    return;
+                let start_point_latitude = self.start_point_latitude.parse::<f64>();
+                let start_point_longitude = self.start_point_longitude.parse::<f64>();
+                let goal_point_latitude = self.goal_point_latitude.parse::<f64>();
+                let goal_point_longitude = self.goal_point_longitude.parse::<f64>();
+
+                if start_point_latitude.is_ok()
+                    && start_point_longitude.is_ok()
+                    && goal_point_latitude.is_ok()
+                    && goal_point_longitude.is_ok()
+                {
+                    let calculator = Calculator::new(
+                        start_point_latitude.unwrap(),
+                        start_point_longitude.unwrap(),
+                        goal_point_latitude.unwrap(),
+                        goal_point_longitude.unwrap(),
+                        self.course_name_list.clone(),
+                        self.contact_list.clone().unwrap(),
+                    );
+
+                    calculator.calculate();
+
+                    self.calculator = Some(calculator);
+                    self.screen = Screen::Calculate;
+                } else {
+                    let mut error_message: String = "Format of ".to_owned();
+                    if start_point_latitude.is_err() {
+                        error_message.push_str("start point latitude,");
+                    }
+                    if start_point_longitude.is_err() {
+                        error_message.push_str("start point longitude,");
+                    }
+                    if goal_point_latitude.is_err() {
+                        error_message.push_str("goal point latitude,");
+                    }
+                    if goal_point_longitude.is_err() {
+                        error_message.push_str("goal point longitude,");
+                    }
+                    error_message = error_message[..error_message.len() - 2].to_owned();
+                    error_message.push_str("is not a number!");
+                    self.err_message = error_message;
                 }
-                let calculator = calculator_result.unwrap();
-                calculator.calculate();
-                self.calculator = Some(calculator);
-                self.screen = Screen::Calculate;
             }
         }
     }
@@ -253,7 +278,7 @@ pub enum Layout {
     Column,
 }
 
-impl Default for TCCScreen<'_> {
+impl Default for TCCScreen {
     fn default() -> Self {
         Self {
             screen: Screen::LoadData,
