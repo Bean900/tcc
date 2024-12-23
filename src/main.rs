@@ -25,10 +25,10 @@ pub struct TCCScreen {
     screen: Screen,
     err_message: String,
     contact_list: Option<Vec<contact::Contact>>,
-    start_point_latitude: String,
-    start_point_longitude: String,
-    goal_point_latitude: String,
-    goal_point_longitude: String,
+    start_point_latitude: f64,
+    start_point_longitude: f64,
+    goal_point_latitude: f64,
+    goal_point_longitude: f64,
     course_name_list: Vec<String>,
     calculator: Option<Calculator>,
 }
@@ -41,6 +41,12 @@ pub enum Message {
     GoToCheckDataScreen,
     GoToAddRulesScreen,
     GoToCalculateScreen,
+    UpdateStartPointLatitude(String),
+    UpdateStartPointLongitude(String),
+    UpdateGoalPointLatitude(String),
+    UpdateGoalPointLongitude(String),
+    UpdateCourseNameList(usize, String),
+    DeleteCourseName(usize),
 }
 
 impl TCCScreen {
@@ -80,46 +86,74 @@ impl TCCScreen {
                 self.screen = Screen::AddRules;
             }
             Message::GoToCalculateScreen => {
-                let start_point_latitude = self.start_point_latitude.parse::<f64>();
-                let start_point_longitude = self.start_point_longitude.parse::<f64>();
-                let goal_point_latitude = self.goal_point_latitude.parse::<f64>();
-                let goal_point_longitude = self.goal_point_longitude.parse::<f64>();
+                let calculator = Calculator::new(
+                    self.start_point_latitude,
+                    self.start_point_longitude,
+                    self.goal_point_latitude,
+                    self.goal_point_longitude,
+                    self.course_name_list.clone(),
+                    self.contact_list.clone().unwrap(),
+                );
 
-                if start_point_latitude.is_ok()
-                    && start_point_longitude.is_ok()
-                    && goal_point_latitude.is_ok()
-                    && goal_point_longitude.is_ok()
-                {
-                    let calculator = Calculator::new(
-                        start_point_latitude.unwrap(),
-                        start_point_longitude.unwrap(),
-                        goal_point_latitude.unwrap(),
-                        goal_point_longitude.unwrap(),
-                        self.course_name_list.clone(),
-                        self.contact_list.clone().unwrap(),
-                    );
+                calculator.calculate();
 
-                    calculator.calculate();
-
-                    self.calculator = Some(calculator);
-                    self.screen = Screen::Calculate;
+                self.calculator = Some(calculator);
+                self.screen = Screen::Calculate;
+            }
+            Message::UpdateStartPointLatitude(content) => {
+                let number = content.parse::<f64>();
+                if number.is_err() {
+                    self.err_message =
+                        "Format of start point latitude is not a number!".to_string();
                 } else {
-                    let mut error_message: String = "Format of ".to_owned();
-                    if start_point_latitude.is_err() {
-                        error_message.push_str("start point latitude,");
-                    }
-                    if start_point_longitude.is_err() {
-                        error_message.push_str("start point longitude,");
-                    }
-                    if goal_point_latitude.is_err() {
-                        error_message.push_str("goal point latitude,");
-                    }
-                    if goal_point_longitude.is_err() {
-                        error_message.push_str("goal point longitude,");
-                    }
-                    error_message = error_message[..error_message.len() - 2].to_owned();
-                    error_message.push_str("is not a number!");
-                    self.err_message = error_message;
+                    self.start_point_latitude = number.unwrap();
+                }
+            }
+            Message::UpdateStartPointLongitude(content) => {
+                let number = content.parse::<f64>();
+                if number.is_err() {
+                    self.err_message =
+                        "Format of start point longitude is not a number!".to_string();
+                } else {
+                    self.start_point_longitude = number.unwrap();
+                }
+            }
+            Message::UpdateGoalPointLatitude(content) => {
+                let number = content.parse::<f64>();
+                if number.is_err() {
+                    self.err_message = "Format of goal point latitude is not a number!".to_string();
+                } else {
+                    self.goal_point_latitude = number.unwrap();
+                }
+            }
+            Message::UpdateGoalPointLongitude(content) => {
+                let number = content.parse::<f64>();
+                if number.is_err() {
+                    self.err_message =
+                        "Format of goal point longitude is not a number!".to_string();
+                } else {
+                    self.goal_point_longitude = number.unwrap();
+                }
+            }
+            Message::UpdateCourseNameList(index, value) => {
+                self.course_name_list[index] = value;
+                let len = self.course_name_list.len();
+                if len > 1 && self.course_name_list[len - 1].is_empty() {
+                    self.course_name_list.remove(len - 1);
+                }
+
+                if self.course_name_list.is_empty()
+                    || !self.course_name_list[self.course_name_list.len() - 1].is_empty()
+                {
+                    self.course_name_list.push("".to_string());
+                }
+            }
+            Message::DeleteCourseName(index) => {
+                self.course_name_list.remove(index);
+                if self.course_name_list.is_empty()
+                    || !self.course_name_list[self.course_name_list.len() - 1].is_empty()
+                {
+                    self.course_name_list.push("".to_string());
                 }
             }
         }
@@ -206,7 +240,7 @@ impl TCCScreen {
                         text(contact.team_name.clone()),
                         text(contact.address.clone()),
                         text(contact.latitude.clone()),
-                        text(contact.longitude.clone())
+                        text(contact.longitude.clone()),
                     ]
                     .spacing(20)
                     .into()
@@ -233,22 +267,35 @@ impl TCCScreen {
     }
 
     fn add_rule(&self) -> Column<Message> {
-        column![row![
+        let mut course_name_rows: Column<Message> = column![];
+        for (i, el) in self.course_name_list.iter().enumerate() {
+            course_name_rows = course_name_rows.push(row!(
+                text_input("Course name", el)
+                    .on_input(move |content| Message::UpdateCourseNameList(i, content)),
+                button("-").on_press(Message::DeleteCourseName(i))
+            ));
+        }
+
+        return column![row![
             "Start point (optional):",
             column![
-                text_input("latitude", &self.start_point_latitude),
-                text_input("longitude", &self.start_point_longitude),
+                text_input("latitude", &self.start_point_latitude.to_string())
+                    .on_input(Message::UpdateStartPointLatitude),
+                text_input("longitude", &self.start_point_longitude.to_string())
+                    .on_input(Message::UpdateStartPointLongitude),
             ]
         ]]
         .push(row![
             "Goal point (optional):",
             column![
-                text_input("latitude", &self.goal_point_latitude),
-                text_input("longitude", &self.goal_point_longitude)
+                text_input("latitude", &self.goal_point_latitude.to_string())
+                    .on_input(Message::UpdateGoalPointLatitude),
+                text_input("longitude", &self.goal_point_longitude.to_string())
+                    .on_input(Message::UpdateGoalPointLongitude)
             ]
         ])
-        .push(row!["Courses:", text_input("", &self.course_name_list[0])])
-        .push(button("Next").on_press(Message::GoToCalculateScreen))
+        .push(course_name_rows)
+        .push(button("Next").on_press(Message::GoToCalculateScreen));
     }
 
     fn calculate(&self) -> Column<Message> {
@@ -284,11 +331,11 @@ impl Default for TCCScreen {
             screen: Screen::LoadData,
             err_message: "".to_string(),
             contact_list: None,
-            start_point_latitude: "".to_string(),
-            start_point_longitude: "".to_string(),
-            goal_point_latitude: "".to_string(),
-            goal_point_longitude: "".to_string(),
-            course_name_list: Vec::new(),
+            start_point_latitude: 0_f64,
+            start_point_longitude: 0_f64,
+            goal_point_latitude: 0_f64,
+            goal_point_longitude: 0_f64,
+            course_name_list: vec!["".to_string()],
             calculator: None,
         }
     }
