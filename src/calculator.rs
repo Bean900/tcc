@@ -1,9 +1,12 @@
 use std::{
     collections::{HashMap, HashSet},
-    io::Error,
+    sync::{Arc, Mutex},
 };
 
 use crate::contact::Contact;
+
+use rand::Rng;
+use threadpool::ThreadPool;
 
 #[derive(Debug)]
 pub struct Calculator {
@@ -13,13 +16,19 @@ pub struct Calculator {
     goal_point_longitude: f64,
     course_name_list: Vec<String>,
     contact_list: Vec<Contact>,
-    best_score: Option<f64>,
-    best_seed: Option<Vec<u8>>,
+    pub top_score: Arc<Mutex<TopScore>>,
+}
+
+#[derive(Debug)]
+pub struct TopScore {
+    pub score: Option<f64>,
+    pub seed: Option<Vec<u8>>,
 }
 
 struct Plan<'calc> {
+    seed: Vec<u8>,
     course_list: Vec<Course<'calc>>,
-    score: u8,
+    score: f64,
 }
 
 struct Course<'calc> {
@@ -29,12 +38,6 @@ struct Course<'calc> {
 }
 
 impl Calculator {
-    pub fn calculate(&self) {
-        //()-()
-        //()-()
-        //TODO
-    }
-
     pub fn new(
         start_point_latitude: f64,
         start_point_longitude: f64,
@@ -43,6 +46,12 @@ impl Calculator {
         course_name_list: Vec<String>,
         contact_list: Vec<Contact>,
     ) -> Self {
+        let shared_data = Arc::new(Mutex::new(TopScore {
+            score: None,
+            seed: None,
+        }));
+
+        let thread_data = Arc::clone(&shared_data);
         Calculator {
             start_point_latitude,
             start_point_longitude,
@@ -50,14 +59,45 @@ impl Calculator {
             goal_point_longitude,
             course_name_list,
             contact_list,
-            best_score: None,
-            best_seed: None,
+            top_score: thread_data,
         }
     }
 
-    fn seed_to_plan(&self, seed: &Vec<u8>) -> Plan {
-        let course_list = self.assign_courses(seed);
-        self.assign_guests(seed, &course_list);
+    pub fn calculate(&self) {
+        let number_of_seeds = 100;
+        let mut list_of_seeds = Vec::new();
+        for _ in 0..number_of_seeds {
+            list_of_seeds.push(generate_seed());
+        }
+
+        //let pool = ThreadPool::new(5);
+
+        loop {
+            let mut list_of_plans: Vec<Plan<'_>> = list_of_seeds
+                .iter()
+                .map(|seed| self.seed_to_plan(seed.clone()))
+                .collect();
+            list_of_plans.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap());
+
+            let mut top_score = self.top_score.lock().unwrap();
+            top_score.score = Some(list_of_plans[0].score);
+            top_score.seed = Some(list_of_plans[0].seed.clone());
+
+            list_of_seeds = generate_seed_from_plan_list(list_of_plans);
+        }
+    }
+
+    fn run_generation(&self, list_of_seeds: Vec<Vec<u8>>) -> Vec<Plan> {
+        let mut list_of_plans = Vec::new();
+        for seed in list_of_seeds {
+            list_of_plans.push(self.seed_to_plan(seed));
+        }
+        list_of_plans
+    }
+
+    fn seed_to_plan(&self, seed: Vec<u8>) -> Plan {
+        let course_list = self.assign_courses(&seed);
+        self.assign_guests(&seed, &course_list);
         let score = calc_score(
             self.start_point_latitude,
             self.start_point_longitude,
@@ -67,7 +107,8 @@ impl Calculator {
         );
         Plan {
             course_list,
-            score: 1,
+            score,
+            seed,
         }
     }
 
@@ -244,4 +285,45 @@ fn set_seen_people<'calc>(
         let seen_guest_set = seen_contact_map.get_mut(guest).unwrap();
         seen_guest_set.insert(new_guest);
     }
+}
+
+fn generate_seed() -> Vec<u8> {
+    let mut seed = Vec::new();
+    let mut rng = rand::thread_rng();
+    for _ in 0..50 {
+        seed.push(rng.gen());
+    }
+    seed
+}
+
+fn combine_seed(seed_one: &Vec<u8>, seed_two: &Vec<u8>) -> (Vec<u8>, Vec<u8>) {
+    let mut rng = rand::thread_rng();
+    let split_point = rng.gen_range(0..seed_one.len());
+
+    let mut new_seed_one = seed_one[..split_point].to_vec();
+    new_seed_one.extend_from_slice(&seed_two[split_point..]);
+
+    let mut new_seed_two = seed_two[..split_point].to_vec();
+    new_seed_two.extend_from_slice(&seed_one[split_point..]);
+
+    (new_seed_one, new_seed_two)
+}
+
+fn generate_seed_from_plan_list(list_of_plans: Vec<Plan>) -> Vec<Vec<u8>> {
+    let top_80_percent = (list_of_plans.len() as f64 * 0.8).ceil() as usize;
+    let mut new_seeds = Vec::new();
+
+    for i in (0..top_80_percent).step_by(2) {
+        if i + 1 < top_80_percent {
+            let (new_seed_one, new_seed_two) =
+                combine_seed(&list_of_plans[i].seed, &list_of_plans[i + 1].seed);
+            new_seeds.push(new_seed_one);
+            new_seeds.push(new_seed_two);
+        }
+    }
+
+    for _ in new_seeds.len()..list_of_plans.len() {
+        new_seeds.push(generate_seed());
+    }
+    new_seeds
 }

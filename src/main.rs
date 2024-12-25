@@ -299,11 +299,13 @@ impl TCCScreen {
     }
 
     fn calculate(&self) -> Column<Message> {
+        let binding = self.calculator.as_ref().unwrap();
+        let top_score = binding.top_score.lock().unwrap();
+        let score = top_score.score.unwrap_or_else(|| 0.0);
+        let score_string = format!("{:.2}", score);
+        let score_test = "Score:";
         column![
-            row![
-                column!["Shortest walking distance:", "10 min"],
-                column!["Longest walking distance:", "20 min"]
-            ],
+            row![column![score_test, text(score_string)]],
             button("STOP")
         ]
     }
