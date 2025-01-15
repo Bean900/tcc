@@ -64,7 +64,7 @@ impl Calculator {
     }
 
     pub fn calculate(&self) {
-        let number_of_seeds = 100;
+        let number_of_seeds = 2;
         let mut list_of_seeds = Vec::new();
         for _ in 0..number_of_seeds {
             list_of_seeds.push(generate_seed());
@@ -73,11 +73,20 @@ impl Calculator {
         //let pool = ThreadPool::new(5);
 
         loop {
+            println!("SEED: {:?}", list_of_seeds);
             let mut list_of_plans: Vec<Plan<'_>> = list_of_seeds
                 .iter()
                 .map(|seed| self.seed_to_plan(seed.clone()))
                 .collect();
             list_of_plans.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap());
+
+            println!(
+                "Score of plans: {:?}",
+                list_of_plans
+                    .iter()
+                    .map(|plan| plan.score)
+                    .collect::<Vec<f64>>()
+            );
 
             let mut top_score = self.top_score.lock().unwrap();
             top_score.score = Some(list_of_plans[0].score);
@@ -231,7 +240,7 @@ fn calc_score(
     goal_point_longitude: f64,
     course_list: &Vec<Course>,
 ) -> f64 {
-    let contact_map = course_list_to_map(course_list.clone());
+    let contact_map = course_list_to_map(course_list);
     let mut contact_walking_path: HashMap<&Contact, Vec<&Contact>> = HashMap::new();
     for (_, course_list) in contact_map.iter() {
         for &course in course_list {

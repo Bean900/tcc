@@ -1,4 +1,5 @@
 use calculator::Calculator;
+use iced::window::{self, icon, Icon};
 use iced::{
     widget::{
         button, column, container, horizontal_space, row, scrollable, text, text_input, Column, Row,
@@ -6,7 +7,10 @@ use iced::{
     Element, Length, Theme,
 };
 
-use iced::Fill;
+use image::ImageReader;
+use std::path::Path;
+
+use iced::{Fill, Size};
 
 mod contact;
 
@@ -15,8 +19,19 @@ mod calculator;
 const TCC: &str = "Traveling Cook Calculator";
 
 pub fn main() -> iced::Result {
+    let icon_path = "icon.png";
+
+    let icon = load_icon(icon_path).expect("Failed to load icon");
+
+    let window = window::Settings {
+        size: Size::new(800_f32, 600_f32),
+        icon: Some(icon),
+        ..window::Settings::default()
+    };
+
     iced::application(TCC, TCCScreen::update, TCCScreen::view)
         .theme(TCCScreen::theme)
+        .window(window)
         .centered()
         .run()
 }
@@ -341,4 +356,16 @@ impl Default for TCCScreen {
             calculator: None,
         }
     }
+}
+
+fn load_icon<P: AsRef<Path>>(path: P) -> Result<Icon, String> {
+    let image = ImageReader::open(path)
+        .map_err(|_| "Bild konnte nicht geöffnet werden".to_string())?
+        .decode()
+        .map_err(|_| "Bild konnte nicht dekodiert werden".to_string())?;
+    let image = image.to_rgba8();
+    let (width, height) = image.dimensions();
+    let rgba = image.into_raw();
+
+    icon::from_rgba(rgba, width, height).map_err(|e| e.to_string())
 }
