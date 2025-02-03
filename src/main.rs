@@ -12,6 +12,11 @@ use std::path::Path;
 
 use iced::{Fill, Size};
 
+use chrono::Local;
+use env_logger::Builder;
+use log::LevelFilter;
+use std::io::Write;
+
 mod contact;
 
 mod calculator;
@@ -19,6 +24,19 @@ mod calculator;
 const TCC: &str = "Traveling Cook Calculator";
 
 pub fn main() -> iced::Result {
+    Builder::new()
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "{} [{}] - {}",
+                Local::now().format("%Y-%m-%dT%H:%M:%S"),
+                record.level(),
+                record.args()
+            )
+        })
+        .filter(None, LevelFilter::Warn)
+        .init();
+
     let icon_path = "icon.png";
 
     let icon = load_icon(icon_path).expect("Failed to load icon");
@@ -40,10 +58,10 @@ pub struct TCCScreen {
     screen: Screen,
     err_message: String,
     contact_list: Option<Vec<contact::Contact>>,
-    start_point_latitude: f64,
-    start_point_longitude: f64,
-    goal_point_latitude: f64,
-    goal_point_longitude: f64,
+    start_point_latitude: i32,
+    start_point_longitude: i32,
+    goal_point_latitude: i32,
+    goal_point_longitude: i32,
     course_name_list: Vec<String>,
     calculator: Option<Calculator>,
 }
@@ -101,6 +119,9 @@ impl TCCScreen {
                 self.screen = Screen::AddRules;
             }
             Message::GoToCalculateScreen => {
+
+                self.course_name_list.truncate(self.course_name_list.len()-1);
+
                 let calculator = Calculator::new(
                     self.start_point_latitude,
                     self.start_point_longitude,
@@ -116,7 +137,7 @@ impl TCCScreen {
                 self.screen = Screen::Calculate;
             }
             Message::UpdateStartPointLatitude(content) => {
-                let number = content.parse::<f64>();
+                let number = content.parse::<i32>();
                 if number.is_err() {
                     self.err_message =
                         "Format of start point latitude is not a number!".to_string();
@@ -125,7 +146,7 @@ impl TCCScreen {
                 }
             }
             Message::UpdateStartPointLongitude(content) => {
-                let number = content.parse::<f64>();
+                let number = content.parse::<i32>();
                 if number.is_err() {
                     self.err_message =
                         "Format of start point longitude is not a number!".to_string();
@@ -134,7 +155,7 @@ impl TCCScreen {
                 }
             }
             Message::UpdateGoalPointLatitude(content) => {
-                let number = content.parse::<f64>();
+                let number = content.parse::<i32>();
                 if number.is_err() {
                     self.err_message = "Format of goal point latitude is not a number!".to_string();
                 } else {
@@ -142,7 +163,7 @@ impl TCCScreen {
                 }
             }
             Message::UpdateGoalPointLongitude(content) => {
-                let number = content.parse::<f64>();
+                let number = content.parse::<i32>();
                 if number.is_err() {
                     self.err_message =
                         "Format of goal point longitude is not a number!".to_string();
@@ -348,10 +369,10 @@ impl Default for TCCScreen {
             screen: Screen::LoadData,
             err_message: "".to_string(),
             contact_list: None,
-            start_point_latitude: 0_f64,
-            start_point_longitude: 0_f64,
-            goal_point_latitude: 0_f64,
-            goal_point_longitude: 0_f64,
+            start_point_latitude: 0_i32,
+            start_point_longitude: 0_i32,
+            goal_point_latitude: 0_i32,
+            goal_point_longitude: 0_i32,
             course_name_list: vec!["".to_string()],
             calculator: None,
         }

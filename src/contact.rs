@@ -11,8 +11,8 @@ use rfd::FileDialog;
 pub(crate) struct Contact {
     pub team_name: String,
     pub address: String,
-    pub latitude: String,
-    pub longitude: String,
+    pub latitude: i32,
+    pub longitude: i32,
 }
 
 pub(crate) struct ContactLoader {}
