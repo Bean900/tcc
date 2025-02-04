@@ -98,8 +98,7 @@ impl Calculator {
     fn seed_to_plan(&self, seed: Vec<u8>) -> Plan {
         let mut course_list = self.assign_courses(&seed);
 
-        let mut_course_list = &mut course_list;
-        self.assign_guests(&seed, mut_course_list);
+        self.assign_guests(&seed, &course_list);
 
 
         let score = calc_score(
@@ -116,7 +115,7 @@ impl Calculator {
         }
     }
 
-    fn assign_guests<'a>(&'a self, seed: &Vec<u8>, course_list: &'a mut Vec<Course<'a>>) {
+    fn assign_guests<'a>(&'a self, seed: &Vec<u8>, course_list: &'a Vec<Course<'a>>) {
 
 
         let mut seen_contact_map: HashMap<&Contact, HashSet<&Contact>> = HashMap::new();
