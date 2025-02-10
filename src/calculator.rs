@@ -99,8 +99,6 @@ impl Calculator {
         let mut course_list = self.assign_courses(&seed);
         self.assign_guests(&seed, &mut course_list);
 
-        self.assign_guests(&seed, &course_list);
-
         let score = calc_score(
             self.start_point_latitude,
             self.start_point_longitude,
