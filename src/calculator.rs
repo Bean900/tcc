@@ -122,30 +122,32 @@ impl Calculator {
             seen_second_time_contact_map.insert(contact, HashSet::new());
         }
 
-        let mut course_map = course_list_to_map_mut(course_list);
+        let course_map = course_list_to_map(course_list);
 
         let number_of_guests_per_course = self.contact_list.len() / self.course_name_list.len();
         let mut index = self.contact_list.len();
         let seed_len = seed.len();
 
-        for (_, course_sub_list) in course_map.iter_mut() {
-            for course in course_sub_list {
+        for (_, course_sub_list) in course_map.iter() {
+            for course_index in course_sub_list {
+                let course = &mut course_list[*course_index];
                 for _ in 0..number_of_guests_per_course {
-                    let mut guest = self.get_contact(
-                        *seed.get(index % seed_len).unwrap(),
-                        course,
-                        &seen_contact_map,
-                    );
-
-                    if guest.is_none() {
-                        guest = self.get_contact(
+                    let guest = self
+                        .get_contact(
                             *seed.get(index % seed_len).unwrap(),
                             course,
-                            &seen_second_time_contact_map,
-                        );
-                        if guest.is_none() {
-                            log::error!("No Guest found.")
-                        }
+                            &seen_contact_map,
+                        )
+                        .or_else(|| {
+                            self.get_contact(
+                                *seed.get(index % seed_len).unwrap(),
+                                course,
+                                &seen_second_time_contact_map,
+                            )
+                        });
+
+                    if guest.is_none() {
+                        log::error!("No Guest found.")
                     }
 
                     set_seen_people(&mut seen_contact_map, course, guest.unwrap());
@@ -155,7 +157,6 @@ impl Calculator {
             }
         }
     }
-
     fn get_contact(
         &self,
         mut seed: u8,
@@ -255,8 +256,9 @@ fn calc_score(
 
     log::warn!("Number of courses: {}", course_list.len());
 
-    for (_, course_list) in contact_map.iter() {
-        for &course in course_list {
+    for (_, course_list_from_vec) in contact_map.iter() {
+        for &course_index in course_list_from_vec {
+            let course = &course_list[course_index];
             log::warn!("Course name: {:?}", course.name);
             log::warn!("Host: {:?}", course.host.team_name);
             log::warn!(
@@ -303,34 +305,13 @@ fn calc_score(
     distance
 }
 
-fn course_list_to_map_mut<'a>(
-    course_list: &'a mut Vec<Course<'a>>,
-) -> HashMap<&'a String, Vec<&'a mut Course<'a>>> {
+fn course_list_to_map(course_list: &Vec<Course>) -> HashMap<String, Vec<usize>> {
     let mut course_map = HashMap::new();
-    for course in course_list.iter_mut() {
-        let course_list_opt = course_map.get_mut(course.name);
-        if course_list_opt.is_none() {
-            course_map.insert(course.name, vec![course]);
-        } else {
-            let course_list = course_list_opt.unwrap();
-            course_list.push(course);
-        }
-    }
-    course_map
-}
-
-fn course_list_to_map<'a>(
-    course_list: &'a Vec<Course<'a>>,
-) -> HashMap<&'a String, Vec<&'a Course<'a>>> {
-    let mut course_map = HashMap::new();
-    for course in course_list.iter() {
-        let course_list_opt = course_map.get_mut(course.name);
-        if course_list_opt.is_none() {
-            course_map.insert(course.name, vec![course]);
-        } else {
-            let course_list = course_list_opt.unwrap();
-            course_list.push(course);
-        }
+    for (index, course) in course_list.iter().enumerate() {
+        course_map
+            .entry(course.name.to_string())
+            .or_insert_with(Vec::new)
+            .push(index);
     }
     course_map
 }
