@@ -3,6 +3,14 @@ name = "tcc"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "tcc"
+path = "src/main.rs"
+
+[lib]
+name = "tcc"
+path = "src/lib.rs"
+
 [dependencies]
 chrono = "0.4.39"
 csv = "1.3.1"

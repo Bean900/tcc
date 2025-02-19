@@ -8,11 +8,26 @@ use serde::Deserialize;
 
 use rfd::FileDialog;
 #[derive(PartialEq, Debug, Deserialize, Clone, Eq, Hash)]
-pub(crate) struct Contact {
+pub struct Contact {
     pub team_name: String,
     pub address: String,
     pub latitude: i32,
     pub longitude: i32,
+}
+
+impl Contact {
+    pub fn new(team_name: &str, address: &str, latitude: f64, longitude: f64) -> Self {
+        Contact {
+            team_name: team_name.to_string(),
+            address: address.to_string(),
+            latitude: f64_to_i32(latitude),
+            longitude: f64_to_i32(longitude),
+        }
+    }
+}
+
+fn f64_to_i32(value: f64) -> i32 {
+    (value * 10f64.powi(5)).round() as i32
 }
 
 pub(crate) struct ContactLoader {}

@@ -1,5 +1,3 @@
-use crate::contact::Contact;
-use std::ptr::null;
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
@@ -7,12 +5,14 @@ use std::{
 
 use rand::Rng;
 
+use crate::contact::Contact;
+
 #[derive(Debug)]
 pub struct Calculator {
-    start_point_latitude: i32,
-    start_point_longitude: i32,
-    goal_point_latitude: i32,
-    goal_point_longitude: i32,
+    start_point_latitude: Option<i32>,
+    start_point_longitude: Option<i32>,
+    goal_point_latitude: Option<i32>,
+    goal_point_longitude: Option<i32>,
     course_name_list: Vec<String>,
     contact_list: Vec<Contact>,
     pub top_score: Arc<Mutex<TopScore>>,
@@ -24,20 +24,20 @@ pub struct TopScore {
     pub seed: Option<Vec<u8>>,
 }
 
-struct Plan<'calc> {
-    seed: Vec<u8>,
-    course_list: Vec<Course<'calc>>,
-    score: f64,
+pub struct Plan<'calc> {
+    pub seed: Vec<u8>,
+    pub course_list: Vec<Course<'calc>>,
+    pub score: f64,
 }
 
 struct Course<'calc> {
     name: &'calc String,
-    host: &'calc Contact,
-    guest_list: Vec<&'calc Contact>,
+    host_index: usize,
+    guest_index_list: Vec<usize>,
 }
 
 impl Calculator {
-    pub fn new(
+    pub fn new_with_start_and_goal(
         start_point_latitude: i32,
         start_point_longitude: i32,
         goal_point_latitude: i32,
@@ -52,10 +52,28 @@ impl Calculator {
 
         let thread_data = Arc::clone(&shared_data);
         Calculator {
-            start_point_latitude,
-            start_point_longitude,
-            goal_point_latitude,
-            goal_point_longitude,
+            start_point_latitude: Some(start_point_latitude),
+            start_point_longitude: Some(start_point_longitude),
+            goal_point_latitude: Some(goal_point_latitude),
+            goal_point_longitude: Some(goal_point_longitude),
+            course_name_list,
+            contact_list,
+            top_score: thread_data,
+        }
+    }
+
+    pub fn new(course_name_list: Vec<String>, contact_list: Vec<Contact>) -> Self {
+        let shared_data = Arc::new(Mutex::new(TopScore {
+            score: None,
+            seed: None,
+        }));
+
+        let thread_data = Arc::clone(&shared_data);
+        Calculator {
+            start_point_latitude: None,
+            start_point_longitude: None,
+            goal_point_latitude: None,
+            goal_point_longitude: None,
             course_name_list,
             contact_list,
             top_score: thread_data,
@@ -71,7 +89,7 @@ impl Calculator {
 
         //let pool = ThreadPool::new(5);
 
-        loop {
+        for i in 0..10 {
             println!("SEED: {:?}", list_of_seeds);
             let mut list_of_plans: Vec<Plan<'_>> = list_of_seeds
                 .iter()
@@ -99,7 +117,7 @@ impl Calculator {
         let mut course_list = self.assign_courses(&seed);
         self.assign_guests(&seed, &mut course_list);
 
-        let score = calc_score(
+        let score = self.calc_score(
             self.start_point_latitude,
             self.start_point_longitude,
             self.goal_point_latitude,
@@ -114,12 +132,12 @@ impl Calculator {
         }
     }
 
-    fn assign_guests<'a>(&'a self, seed: &Vec<u8>, course_list: &'a mut Vec<Course<'a>>) {
-        let mut seen_contact_map: HashMap<&Contact, HashSet<&Contact>> = HashMap::new();
-        let mut seen_second_time_contact_map: HashMap<&Contact, HashSet<&Contact>> = HashMap::new();
-        for contact in &self.contact_list {
-            seen_contact_map.insert(contact, HashSet::new());
-            seen_second_time_contact_map.insert(contact, HashSet::new());
+    fn assign_guests(&self, seed: &Vec<u8>, course_list: &mut Vec<Course>) {
+        let mut seen_contact_map: HashMap<usize, HashSet<usize>> = HashMap::new();
+        let mut seen_second_time_contact_map: HashMap<usize, HashSet<usize>> = HashMap::new();
+        for (index, _) in self.contact_list.iter().enumerate() {
+            seen_contact_map.insert(index, HashSet::new());
+            seen_second_time_contact_map.insert(index, HashSet::new());
         }
 
         let course_map = course_list_to_map(course_list);
@@ -151,7 +169,7 @@ impl Calculator {
                     }
 
                     set_seen_people(&mut seen_contact_map, course, guest.unwrap());
-                    course.guest_list.push(guest.unwrap());
+                    course.guest_index_list.push(guest.unwrap());
                     index += 1;
                 }
             }
@@ -161,23 +179,20 @@ impl Calculator {
         &self,
         mut seed: u8,
         course: &Course,
-        seen_contact_map: &HashMap<&Contact, HashSet<&Contact>>,
-    ) -> Option<&Contact> {
+        seen_contact_map: &HashMap<usize, HashSet<usize>>,
+    ) -> Option<usize> {
         let contact_list_len = self.contact_list.len();
         for _ in 0..contact_list_len {
-            let found_contact = self
-                .contact_list
-                .get(usize::from(seed) % contact_list_len)
-                .unwrap();
+            let found_contact_index = (usize::from(seed) % contact_list_len);
 
-            if found_contact.eq(&course.host) {
+            if found_contact_index == course.host_index {
                 seed += 1;
                 continue;
             }
 
-            let seen_contact_set = seen_contact_map.get(found_contact).unwrap();
+            let seen_contact_set = seen_contact_map.get(&found_contact_index).unwrap();
             let mut seen = false;
-            for guest in &course.guest_list {
+            for guest in &course.guest_index_list {
                 if seen_contact_set.contains(guest) {
                     seen = true;
                     break;
@@ -188,14 +203,14 @@ impl Calculator {
                 seed += 1;
                 continue;
             } else {
-                return Some(found_contact);
+                return Some(found_contact_index);
             }
         }
         None
     }
 
     fn assign_courses(&self, seed: &Vec<u8>) -> Vec<Course> {
-        let mut contact_for_courses_list: Vec<&Contact> = self.contact_list.iter().collect();
+        let mut contact_for_courses_list: Vec<usize> = (0..self.contact_list.len()).collect();
         let course_list_len = self.course_name_list.len();
         let mut course_list = Vec::new();
 
@@ -220,14 +235,86 @@ impl Calculator {
         }
         course_list
     }
+
+    fn calc_score(
+        &self,
+        start_point_latitude: Option<i32>,
+        start_point_longitude: Option<i32>,
+        goal_point_latitude: Option<i32>,
+        goal_point_longitude: Option<i32>,
+        course_list: &Vec<Course>,
+    ) -> f64 {
+        let contact_map = course_list_to_map(course_list);
+        let mut contact_walking_path: HashMap<usize, Vec<usize>> = HashMap::new();
+
+        log::warn!("Number of courses: {}", course_list.len());
+
+        for (_, course_list_from_vec) in contact_map.iter() {
+            for &course_index in course_list_from_vec {
+                let course = &course_list[course_index];
+                log::warn!("Course name: {:?}", course.name);
+                log::warn!("Host: {:?}", self.contact_list[course.host_index].team_name);
+                log::warn!(
+                    "Guests: {:?}",
+                    course
+                        .guest_index_list
+                        .iter()
+                        .map(|contact| self.contact_list[*contact].team_name.clone())
+                        .collect::<Vec<String>>()
+                );
+                let path = contact_walking_path
+                    .entry(course.host_index)
+                    .or_insert(vec![]);
+                path.push(course.host_index);
+                let guest_list = &course.guest_index_list;
+                for guest in guest_list {
+                    let path = contact_walking_path.entry(*guest).or_insert(vec![]);
+                    path.push(course.host_index);
+                }
+            }
+        }
+        log::warn!("Number of walking paths: {}", contact_walking_path.len());
+
+        let mut distance = 0_f64;
+
+        for (_, path) in contact_walking_path.iter() {
+            log::warn!(
+                "Path with all team names: {:?}",
+                path.iter()
+                    .map(|contact| self.contact_list[*contact].team_name.clone())
+                    .collect::<Vec<String>>()
+            );
+            for i in 0..path.len() - 1 {
+                let contact_one = &self.contact_list[*path.get(i).unwrap()];
+                let contact_two = &self.contact_list[*path.get(i + 1).unwrap()];
+
+                distance += calc_distance(
+                    contact_one.latitude,
+                    contact_one.longitude,
+                    contact_two.latitude,
+                    contact_two.longitude,
+                );
+            }
+        }
+
+        distance
+    }
+
+    pub fn top_plan(&self) -> Option<Plan> {
+        let top_score = self.top_score.lock().unwrap().seed.clone();
+        if (top_score.is_none()) {
+            return None;
+        }
+        Some(self.seed_to_plan(top_score.unwrap()))
+    }
 }
 
 impl<'calc> Course<'calc> {
-    fn new(name: &'calc String, host: &'calc Contact) -> Self {
+    fn new(name: &'calc String, host_index: usize) -> Self {
         Course {
             name,
-            host,
-            guest_list: Vec::new(),
+            host_index,
+            guest_index_list: Vec::new(),
         }
     }
 }
@@ -244,67 +331,6 @@ fn calc_distance(
     )
 }
 
-fn calc_score(
-    start_point_latitude: i32,
-    start_point_longitude: i32,
-    goal_point_latitude: i32,
-    goal_point_longitude: i32,
-    course_list: &Vec<Course>,
-) -> f64 {
-    let contact_map = course_list_to_map(course_list);
-    let mut contact_walking_path: HashMap<&Contact, Vec<&Contact>> = HashMap::new();
-
-    log::warn!("Number of courses: {}", course_list.len());
-
-    for (_, course_list_from_vec) in contact_map.iter() {
-        for &course_index in course_list_from_vec {
-            let course = &course_list[course_index];
-            log::warn!("Course name: {:?}", course.name);
-            log::warn!("Host: {:?}", course.host.team_name);
-            log::warn!(
-                "Guests: {:?}",
-                course
-                    .guest_list
-                    .iter()
-                    .map(|contact| contact.team_name.clone())
-                    .collect::<Vec<String>>()
-            );
-            let path = contact_walking_path.entry(course.host).or_insert(vec![]);
-            path.push(course.host);
-            let guest_list = &course.guest_list;
-            for guest in guest_list {
-                let path = contact_walking_path.entry(guest).or_insert(vec![]);
-                path.push(course.host);
-            }
-        }
-    }
-    log::warn!("Number of walking paths: {}", contact_walking_path.len());
-
-    let mut distance = 0_f64;
-
-    for (_, path) in contact_walking_path.iter() {
-        log::warn!(
-            "Path with all team names: {:?}",
-            path.iter()
-                .map(|contact| contact.team_name.clone())
-                .collect::<Vec<String>>()
-        );
-        for i in 0..path.len() - 1 {
-            let contact_one = path.get(i).unwrap();
-            let contact_two = path.get(i + 1).unwrap();
-
-            distance += calc_distance(
-                contact_one.latitude,
-                contact_one.longitude,
-                contact_two.latitude,
-                contact_two.longitude,
-            );
-        }
-    }
-
-    distance
-}
-
 fn course_list_to_map(course_list: &Vec<Course>) -> HashMap<String, Vec<usize>> {
     let mut course_map = HashMap::new();
     for (index, course) in course_list.iter().enumerate() {
@@ -316,23 +342,23 @@ fn course_list_to_map(course_list: &Vec<Course>) -> HashMap<String, Vec<usize>> 
     course_map
 }
 
-fn set_seen_people<'calc>(
-    seen_contact_map: &mut HashMap<&Contact, HashSet<&'calc Contact>>,
-    course: &Course<'calc>,
-    new_guest: &'calc Contact,
+fn set_seen_people(
+    seen_contact_map: &mut HashMap<usize, HashSet<usize>>,
+    course: &Course,
+    new_guest: usize,
 ) {
     {
-        let seen_guest_set_guest = seen_contact_map.get_mut(new_guest).unwrap();
-        seen_guest_set_guest.insert(course.host);
+        let seen_guest_set_guest = seen_contact_map.get_mut(&new_guest).unwrap();
+        seen_guest_set_guest.insert(course.host_index);
     }
     {
-        let seen_guest_set_host = seen_contact_map.get_mut(course.host).unwrap();
+        let seen_guest_set_host = seen_contact_map.get_mut(&course.host_index).unwrap();
         seen_guest_set_host.insert(new_guest);
     }
 
-    for &guest in &course.guest_list {
-        let seen_guest_set = seen_contact_map.get_mut(new_guest).unwrap();
-        seen_guest_set.insert(&guest);
+    for guest in &course.guest_index_list {
+        let seen_guest_set = seen_contact_map.get_mut(&new_guest).unwrap();
+        seen_guest_set.insert(*guest);
 
         let seen_guest_set = seen_contact_map.get_mut(guest).unwrap();
         seen_guest_set.insert(new_guest);
