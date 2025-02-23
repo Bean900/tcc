@@ -5,16 +5,16 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<Contact> {
         Contact::new(
             0,
             "Team 1",
-            "Hahnstraße 56, 60528 Frankfurt am Main",
-            50.08009,
-            8.63378,
+            "Theodor-Stern-Kai 7, 60596 Frankfurt am Main",
+            50.09523,
+            8.66144,
         ),
         Contact::new(
             1,
             "Team 2",
             "Mainzer Landstraße 50, 60325 Frankfurt am Main",
-            50.110924,
-            8.682127,
+            50.11092,
+            8.68212,
         ),
         Contact::new(
             2,
