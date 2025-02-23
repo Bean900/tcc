@@ -9,6 +9,7 @@ use serde::Deserialize;
 use rfd::FileDialog;
 #[derive(PartialEq, Debug, Deserialize, Clone, Eq, Hash)]
 pub struct Contact {
+    pub id: u8,
     pub team_name: String,
     pub address: String,
     pub latitude: i32,
@@ -16,8 +17,9 @@ pub struct Contact {
 }
 
 impl Contact {
-    pub fn new(team_name: &str, address: &str, latitude: f64, longitude: f64) -> Self {
+    pub fn new(id: u8, team_name: &str, address: &str, latitude: f64, longitude: f64) -> Self {
         Contact {
+            id,
             team_name: team_name.to_string(),
             address: address.to_string(),
             latitude: f64_to_i32(latitude),
@@ -68,13 +70,16 @@ impl ContactLoader {
         let mut iter = rdr.deserialize();
 
         let mut contact_list: Vec<Contact> = Vec::new();
+        let mut index = 0_u8;
         loop {
             if let Some(result) = iter.next() {
-                let contact: Contact = result.map_err(|err| {
+                let mut contact: Contact = result.map_err(|err| {
                     println!("Error while mapping CSV data: {err}");
                     return Error::new(ErrorKind::InvalidData, "Error while mapping CSV data!");
                 })?;
+                contact.id = index;
                 contact_list.push(contact);
+                index += 1;
             } else {
                 break;
             }

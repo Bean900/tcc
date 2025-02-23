@@ -56,7 +56,7 @@ pub fn startup() -> iced::Result {
         .run()
 }
 
-pub struct TCCScreen {
+pub struct TCCScreen<'a> {
     screen: Screen,
     err_message: String,
     contact_list: Option<Vec<contact::Contact>>,
@@ -65,7 +65,7 @@ pub struct TCCScreen {
     goal_point_latitude: i32,
     goal_point_longitude: i32,
     course_name_list: Vec<String>,
-    calculator: Option<calculator::Calculator>,
+    calculator: Option<calculator::Calculator<'a, 'a>>,
 }
 
 #[derive(Debug, Clone)]
@@ -84,7 +84,7 @@ pub enum Message {
     DeleteCourseName(usize),
 }
 
-impl TCCScreen {
+impl<'a> TCCScreen<'a> {
     fn update(&mut self, event: Message) {
         match event {
             Message::LoadData => {
@@ -124,14 +124,12 @@ impl TCCScreen {
                 self.course_name_list
                     .truncate(self.course_name_list.len() - 1);
 
-                let calculator = Calculator::new(
-                    self.course_name_list.clone(),
-                    self.contact_list.clone().unwrap(),
-                );
+                let contact_list = self.contact_list.as_ref().unwrap();
+                let calculator = Calculator::new(&self.course_name_list, contact_list);
 
                 calculator.calculate();
 
-                self.calculator = Some(calculator);
+                // self.calculator = Some(calculator);
                 self.screen = Screen::Calculate;
             }
             Message::UpdateStartPointLatitude(content) => {
@@ -361,7 +359,7 @@ pub enum Layout {
     Column,
 }
 
-impl Default for TCCScreen {
+impl<'a> Default for TCCScreen<'a> {
     fn default() -> Self {
         Self {
             screen: Screen::LoadData,
