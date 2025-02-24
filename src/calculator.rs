@@ -8,7 +8,10 @@ use rand::Rng;
 use crate::contact::Contact;
 
 #[derive(Debug)]
-pub struct Calculator<'course_name_list, 'contact_list> {
+pub struct Calculator<'course_name_list, 'contact_list>
+where
+    'contact_list: 'course_name_list,
+{
     start_point_latitude: Option<i32>,
     start_point_longitude: Option<i32>,
     goal_point_latitude: Option<i32>,
@@ -24,22 +27,28 @@ pub struct TopScore {
     pub seed: Option<Vec<u8>>,
 }
 
-pub struct Plan<'course> {
+pub struct PlanInternal {
     pub seed: Vec<u8>,
-    pub course_map: HashMap<&'course String, Vec<CourseInternal>>,
+    pub course_map: HashMap<String, Vec<CourseInternal>>,
     pub score: f64,
-}
-
-struct Course<'course> {
-    name: &'course String,
-    host: &'course Contact,
-    guest_list: Vec<&'course Contact>,
 }
 
 struct CourseInternal {
     id: u8,
     host_id: u8,
     guest_id_list: Vec<u8>,
+}
+
+pub struct Plan<'contact> {
+    pub seed: Vec<u8>,
+    pub course_map: HashMap<String, Vec<Course<'contact>>>,
+    pub score: f64,
+}
+
+struct Course<'contact> {
+    name: String,
+    host: &'contact Contact,
+    guest_list: Vec<&'contact Contact>,
 }
 
 impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_list> {
@@ -99,7 +108,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
         //let pool = ThreadPool::new(5);
 
         for _ in 0..10 {
-            let mut list_of_plans: Vec<Plan<'_>> = list_of_seeds
+            let mut list_of_plans: Vec<PlanInternal> = list_of_seeds
                 .iter()
                 .map(|seed| self.seed_to_plan(seed.clone()))
                 .collect();
@@ -113,7 +122,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
         }
     }
 
-    fn seed_to_plan(&self, seed: Vec<u8>) -> Plan {
+    fn seed_to_plan(&self, seed: Vec<u8>) -> PlanInternal {
         let mut course_map = self.assign_courses(&seed);
         self.assign_guests(&seed, &mut course_map);
 
@@ -125,18 +134,14 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
             &course_map,
         );
 
-        Plan {
+        PlanInternal {
             course_map,
             score,
             seed,
         }
     }
 
-    fn assign_guests(
-        &self,
-        seed: &Vec<u8>,
-        course_map: &mut HashMap<&String, Vec<CourseInternal>>,
-    ) {
+    fn assign_guests(&self, seed: &Vec<u8>, course_map: &mut HashMap<String, Vec<CourseInternal>>) {
         let mut seen_contact_map = HashMap::new();
         let mut seen_second_time_contact_map = HashMap::new();
         for contact in self.contact_list.iter() {
@@ -214,7 +219,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
         None
     }
 
-    fn assign_courses(&self, seed: &Vec<u8>) -> HashMap<&String, Vec<CourseInternal>> {
+    fn assign_courses(&self, seed: &Vec<u8>) -> HashMap<String, Vec<CourseInternal>> {
         let mut contact_for_courses_list = self
             .contact_list
             .iter()
@@ -224,7 +229,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
 
         let mut course_map = HashMap::new();
         for course_name in self.course_name_list {
-            course_map.insert(course_name, Vec::new());
+            course_map.insert(course_name.clone(), Vec::new());
         }
 
         let mut index = 0;
@@ -270,7 +275,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
         start_point_longitude: Option<i32>,
         goal_point_latitude: Option<i32>,
         goal_point_longitude: Option<i32>,
-        course_map: &HashMap<&String, Vec<CourseInternal>>,
+        course_map: &HashMap<String, Vec<CourseInternal>>,
     ) -> f64 {
         let contact_map = course_map_to_contact_map(course_map);
         let mut contact_walking_path = HashMap::new();
@@ -357,11 +362,14 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
     }
 
     pub fn top_plan(&self) -> Option<Plan> {
-        let top_score = self.top_score.lock().unwrap().seed.clone();
-        if top_score.is_none() {
+        let top_score_option = self.top_score.lock().unwrap().seed.clone();
+        if top_score_option.is_none() {
             return None;
         }
-        Some(self.seed_to_plan(top_score.unwrap()))
+        let top_score = top_score_option.expect("Score should be set!");
+        let plan_internal = self.seed_to_plan(top_score);
+        let plan = Plan::new(self.contact_list, plan_internal);
+        Some(plan)
     }
 }
 
@@ -371,6 +379,48 @@ impl CourseInternal {
             id,
             host_id,
             guest_id_list: Vec::new(),
+        }
+    }
+}
+
+impl<'contact> Course<'contact> {
+    fn new(
+        name: String,
+        contact_list: &'contact Vec<Contact>,
+        course_internal: &CourseInternal,
+    ) -> Self {
+        Course {
+            name,
+            host: &contact_list[course_internal.host_id as usize],
+            guest_list: course_internal
+                .guest_id_list
+                .iter()
+                .map(|guest_id| &contact_list[*guest_id as usize])
+                .collect(),
+        }
+    }
+}
+
+impl<'contact> Plan<'contact> {
+    fn new(contact_list: &'contact Vec<Contact>, plan: PlanInternal) -> Self {
+        Plan {
+            seed: plan.seed,
+            course_map: plan
+                .course_map
+                .iter()
+                .map(|(name, course_list)| {
+                    (
+                        name.clone(),
+                        course_list
+                            .iter()
+                            .map(|course_internal| {
+                                Course::new(name.clone(), contact_list, course_internal)
+                            })
+                            .collect(),
+                    )
+                })
+                .collect(),
+            score: plan.score,
         }
     }
 }
@@ -388,7 +438,7 @@ fn calc_distance(
 }
 
 fn course_map_to_contact_map<'a>(
-    course_map: &'a HashMap<&'a String, Vec<CourseInternal>>,
+    course_map: &'a HashMap<String, Vec<CourseInternal>>,
 ) -> HashMap<u8, Vec<&'a CourseInternal>> {
     let mut contact_map = HashMap::new();
     for course_list in course_map.values() {
@@ -461,7 +511,7 @@ fn combine_seed(seed_one: &Vec<u8>, seed_two: &Vec<u8>) -> (Vec<u8>, Vec<u8>) {
     (new_seed_one, new_seed_two)
 }
 
-fn generate_seed_from_plan_list(list_of_plans: Vec<Plan>) -> Vec<Vec<u8>> {
+fn generate_seed_from_plan_list(list_of_plans: Vec<PlanInternal>) -> Vec<Vec<u8>> {
     let top_80_percent = (list_of_plans.len() as f64 * 0.8).ceil() as usize;
     let mut new_seeds = Vec::new();
 
