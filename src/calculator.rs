@@ -27,10 +27,11 @@ pub struct TopScore {
     pub seed: Option<Vec<u8>>,
 }
 
-pub struct PlanInternal {
-    pub seed: Vec<u8>,
-    pub course_map: HashMap<String, Vec<CourseInternal>>,
-    pub score: f64,
+struct PlanInternal {
+    seed: Vec<u8>,
+    course_map: HashMap<String, Vec<CourseInternal>>,
+    walking_path: HashMap<u8, Vec<CourseInternal>>,
+    score: f64,
 }
 
 struct CourseInternal {
@@ -39,16 +40,22 @@ struct CourseInternal {
     guest_id_list: Vec<u8>,
 }
 
-pub struct Plan<'contact> {
+//TODO where doesn't make much sense. I need to look into this
+pub struct Plan<'course, 'contact>
+where
+    'contact: 'course,
+    'course: 'contact,
+{
     pub seed: Vec<u8>,
-    pub course_map: HashMap<String, Vec<Course<'contact>>>,
+    pub course_map: HashMap<String, Vec<Course<'course>>>,
+    pub walking_path: HashMap<&'contact Contact, Vec<Course<'course>>>,
     pub score: f64,
 }
 
-struct Course<'contact> {
-    name: String,
-    host: &'contact Contact,
-    guest_list: Vec<&'contact Contact>,
+pub struct Course<'contact> {
+    pub name: String,
+    pub host: &'contact Contact,
+    pub guest_list: Vec<&'contact Contact>,
 }
 
 impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_list> {
@@ -125,17 +132,19 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
     fn seed_to_plan(&self, seed: Vec<u8>) -> PlanInternal {
         let mut course_map = self.assign_courses(&seed);
         self.assign_guests(&seed, &mut course_map);
+        let walking_path = self.calc_walking_path(&course_map);
 
         let score = self.calc_score(
             self.start_point_latitude,
             self.start_point_longitude,
             self.goal_point_latitude,
             self.goal_point_longitude,
-            &course_map,
+            &walking_path,
         );
 
         PlanInternal {
             course_map,
+            walking_path,
             score,
             seed,
         }
@@ -194,7 +203,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
             );
 
             if found_contact.id == course.host_id {
-                seed += 1;
+                seed = seed.wrapping_add(1);
                 continue;
             }
 
@@ -210,7 +219,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
             }
 
             if seen {
-                seed += 1;
+                seed = seed.wrapping_add(1);
                 continue;
             } else {
                 return Some(found_contact);
@@ -275,22 +284,8 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
         start_point_longitude: Option<i32>,
         goal_point_latitude: Option<i32>,
         goal_point_longitude: Option<i32>,
-        course_map: &HashMap<String, Vec<CourseInternal>>,
+        contact_walking_path: &HashMap<u8, Vec<CourseInternal>>,
     ) -> f64 {
-        let contact_map = course_map_to_contact_map(course_map);
-        let mut contact_walking_path = HashMap::new();
-
-        for (_, course_list) in contact_map.iter() {
-            for course in course_list {
-                let path = contact_walking_path.entry(course.host_id).or_insert(vec![]);
-                path.push(*course);
-                for guest in course.guest_id_list.iter() {
-                    let path = contact_walking_path.entry(*guest).or_insert(vec![]);
-                    path.push(*course);
-                }
-            }
-        }
-
         let mut distance = 0_f64;
 
         for (_, path) in contact_walking_path.iter() {
@@ -361,6 +356,27 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
         distance
     }
 
+    fn calc_walking_path(
+        &self,
+        course_map: &HashMap<String, Vec<CourseInternal>>,
+    ) -> HashMap<u8, Vec<CourseInternal>> {
+        let contact_map = course_map_to_contact_map(course_map);
+        let mut contact_walking_path = HashMap::new();
+
+        for (_, course_list) in contact_map.iter() {
+            for &course in course_list {
+                let path = contact_walking_path.entry(course.host_id).or_insert(vec![]);
+                path.push((*course).clone());
+                for guest in course.guest_id_list.iter() {
+                    let path = contact_walking_path.entry(*guest).or_insert(vec![]);
+                    path.push((*course).clone());
+                }
+            }
+        }
+
+        contact_walking_path
+    }
+
     pub fn top_plan(&self) -> Option<Plan> {
         let top_score_option = self.top_score.lock().unwrap().seed.clone();
         if top_score_option.is_none() {
@@ -379,6 +395,14 @@ impl CourseInternal {
             id,
             host_id,
             guest_id_list: Vec::new(),
+        }
+    }
+
+    fn clone(&self) -> CourseInternal {
+        CourseInternal {
+            id: self.id,
+            host_id: self.host_id,
+            guest_id_list: self.guest_id_list.clone(),
         }
     }
 }
@@ -401,7 +425,7 @@ impl<'contact> Course<'contact> {
     }
 }
 
-impl<'contact> Plan<'contact> {
+impl<'contact, 'course> Plan<'contact, 'course> {
     fn new(contact_list: &'contact Vec<Contact>, plan: PlanInternal) -> Self {
         Plan {
             seed: plan.seed,
@@ -415,6 +439,21 @@ impl<'contact> Plan<'contact> {
                             .iter()
                             .map(|course_internal| {
                                 Course::new(name.clone(), contact_list, course_internal)
+                            })
+                            .collect(),
+                    )
+                })
+                .collect(),
+            walking_path: plan
+                .walking_path
+                .iter()
+                .map(|(contact_id, course_list)| {
+                    (
+                        &contact_list[*contact_id as usize],
+                        course_list
+                            .iter()
+                            .map(|course_internal| {
+                                Course::new("".to_string(), contact_list, course_internal)
                             })
                             .collect(),
                     )

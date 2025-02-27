@@ -130,7 +130,7 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<Contact> {
         ),
     ];
 
-    if number_of_contacts < contact_data.len() {
+    if number_of_contacts > contact_data.len() {
         panic!("Number of contacts must be greater than or equal to the number of contact data");
     }
 
