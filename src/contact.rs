@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-use serde::Deserialize;
+use serde_derive::Deserialize;
 
 use rfd::FileDialog;
 #[derive(PartialEq, Debug, Deserialize, Clone, Eq, Hash)]
