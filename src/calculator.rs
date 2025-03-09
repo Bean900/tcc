@@ -3,7 +3,12 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use log::debug;
+
 use rand::Rng;
+
+use colored::Colorize;
+use serde::de;
 
 use crate::contact::Contact;
 
@@ -17,6 +22,7 @@ where
     goal_point_latitude: Option<i32>,
     goal_point_longitude: Option<i32>,
     course_name_list: &'course_name_list Vec<String>,
+    course_with_more_guests: Option<&'course_name_list String>,
     contact_list: &'contact_list Vec<Contact>,
     pub top_score: Arc<Mutex<TopScore>>,
 }
@@ -34,6 +40,7 @@ struct PlanInternal {
     score: f64,
 }
 
+#[derive(Clone)]
 struct CourseInternal {
     id: u8,
     host_id: u8,
@@ -52,6 +59,7 @@ where
     pub score: f64,
 }
 
+#[derive(Hash)]
 pub struct Course<'contact> {
     pub name: String,
     pub host: &'contact Contact,
@@ -64,6 +72,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
         start_point_longitude: i32,
         goal_point_latitude: i32,
         goal_point_longitude: i32,
+        course_with_more_guests: Option<&'course_name_list String>,
         course_name_list: &'course_name_list Vec<String>,
         contact_list: &'contact_list Vec<Contact>,
     ) -> Self {
@@ -78,6 +87,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
             start_point_longitude: Some(start_point_longitude),
             goal_point_latitude: Some(goal_point_latitude),
             goal_point_longitude: Some(goal_point_longitude),
+            course_with_more_guests,
             course_name_list,
             contact_list,
             top_score: thread_data,
@@ -87,6 +97,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
     pub fn new(
         course_name_list: &'course_name_list Vec<String>,
         contact_list: &'contact_list Vec<Contact>,
+        course_with_more_guests: Option<&'course_name_list String>,
     ) -> Self {
         let shared_data = Arc::new(Mutex::new(TopScore {
             score: None,
@@ -99,6 +110,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
             start_point_longitude: None,
             goal_point_latitude: None,
             goal_point_longitude: None,
+            course_with_more_guests,
             course_name_list,
             contact_list,
             top_score: thread_data,
@@ -114,24 +126,23 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
 
         //let pool = ThreadPool::new(5);
 
-        for _ in 0..10 {
-            let mut list_of_plans: Vec<PlanInternal> = list_of_seeds
-                .iter()
-                .map(|seed| self.seed_to_plan(seed.clone()))
-                .collect();
-            list_of_plans.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap());
+        // for _ in 0..10 {
+        let mut list_of_plans: Vec<PlanInternal> = list_of_seeds
+            .iter()
+            .map(|seed| self.seed_to_plan(seed.clone()))
+            .collect();
+        list_of_plans.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap());
 
-            let mut top_score = self.top_score.lock().unwrap();
-            top_score.score = Some(list_of_plans[0].score);
-            top_score.seed = Some(list_of_plans[0].seed.clone());
+        let mut top_score = self.top_score.lock().unwrap();
+        top_score.score = Some(list_of_plans[0].score);
+        top_score.seed = Some(list_of_plans[0].seed.clone());
 
-            list_of_seeds = generate_seed_from_plan_list(list_of_plans);
-        }
+        list_of_seeds = generate_seed_from_plan_list(list_of_plans);
+        //}
     }
 
     fn seed_to_plan(&self, seed: Vec<u8>) -> PlanInternal {
-        let mut course_map = self.assign_courses(&seed);
-        self.assign_guests(&seed, &mut course_map);
+        let course_map = self.create_course_map(&seed);
         let walking_path = self.calc_walking_path(&course_map);
 
         let score = self.calc_score(
@@ -150,130 +161,186 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
         }
     }
 
-    fn assign_guests(&self, seed: &Vec<u8>, course_map: &mut HashMap<String, Vec<CourseInternal>>) {
+    fn create_course_map(&self, seed: &Vec<u8>) -> HashMap<String, Vec<CourseInternal>> {
+        let mut course_map = HashMap::new();
         let mut seen_contact_map = HashMap::new();
-        let mut seen_second_time_contact_map = HashMap::new();
+        let mut seen_contact_map_second_time = HashMap::new();
+
         for contact in self.contact_list.iter() {
-            seen_contact_map.insert(contact.id, HashSet::new());
-            seen_second_time_contact_map.insert(contact.id, HashSet::new());
+            seen_contact_map.insert(contact, HashSet::new());
+            seen_contact_map_second_time.insert(contact, HashSet::new());
         }
 
-        let number_of_guests_per_course = self.contact_list.len() / self.course_name_list.len();
-        let mut index = self.contact_list.len();
-        let seed_len = seed.len();
+        let mut course_index = 0;
+        let mut seed_index = 0;
 
-        for course_list in course_map.values_mut() {
-            for course in course_list.iter_mut() {
-                for _ in 0..number_of_guests_per_course {
-                    let seed_value = *seed
-                        .get(index % seed_len)
-                        .expect("Expected seed value to find contact!");
-
-                    let guest_optional = self
-                        .get_contact(seed_value, course, &seen_contact_map)
-                        .or_else(|| {
-                            self.get_contact(seed_value, course, &seen_second_time_contact_map)
-                        });
-
-                    let guest = guest_optional
-                        .expect("Expected to find guest that was not seen a second time!");
-
-                    set_seen_people(&mut seen_contact_map, course, guest);
-                    course.guest_id_list.push(guest.id);
-                    index += 1;
-                }
-            }
-        }
-    }
-    fn get_contact(
-        &self,
-        mut seed: u8,
-        course: &CourseInternal,
-        seen_contact_map: &HashMap<u8, HashSet<u8>>,
-    ) -> Option<&Contact> {
-        let contact_list_len = self.contact_list.len();
-        for _ in 0..contact_list_len {
-            let contact_index = usize::from(seed) % contact_list_len;
-            let found_contact = self.contact_list.get(contact_index).expect(
-                format!(
-                    "Contact with index {} expected to find in contact list of length {}!",
-                    contact_index, contact_list_len
-                )
-                .as_str(),
+        let mut possible_host_list = self.contact_list.iter().collect::<Vec<&Contact>>();
+        for course_name in self.course_name_list.iter() {
+            debug!(
+                "List of people seen by each person:\n{:?}",
+                seen_contact_map
+                    .iter()
+                    .map(|(k, v)| (
+                        k.team_name.as_str(),
+                        v.iter()
+                            .map(|x: &&Contact| x.team_name.as_str())
+                            .collect::<Vec<&str>>()
+                    ))
+                    .collect::<Vec<(&str, Vec<&str>)>>()
             );
 
-            if found_contact.id == course.host_id {
-                seed = seed.wrapping_add(1);
-                continue;
-            }
+            debug!(
+                "List of second time people seen by each person:\n{:?}",
+                seen_contact_map_second_time
+                    .iter()
+                    .map(|(k, v)| (
+                        k.team_name.as_str(),
+                        v.iter()
+                            .map(|x: &&Contact| x.team_name.as_str())
+                            .collect::<Vec<&str>>()
+                    ))
+                    .collect::<Vec<(&str, Vec<&str>)>>()
+            );
 
-            let seen_contact_set = seen_contact_map
-                .get(&found_contact.id)
-                .expect("Contact should be in seen contact map!");
-            let mut seen = false;
-            for guest in course.guest_id_list.iter() {
-                if seen_contact_set.contains(guest) {
-                    seen = true;
-                    break;
+            debug!(
+                "All possible hosts:\t\t\t{:?}",
+                possible_host_list
+                    .iter()
+                    .map(|x| x.team_name.as_str())
+                    .collect::<Vec<&str>>()
+            );
+
+            //Create list of possible hosts and guests, that will be used to create courses
+            let mut possible_host_in_course_list = possible_host_list.clone();
+            let mut possible_guest_list = self.contact_list.iter().collect::<Vec<&Contact>>();
+
+            let number_of_courses = self.contact_list.len() / self.course_name_list.len();
+            let number_of_guests_per_course =
+                self.contact_list.len() / self.course_name_list.len() - 1;
+            let mut contact_in_course: HashSet<&Contact> = HashSet::new();
+
+            for _ in 0..number_of_courses {
+                debug!(
+                    "Possible hosts for course \"{}\":\t{:?}",
+                    course_name,
+                    possible_host_in_course_list
+                        .iter()
+                        .map(|x| x.team_name.as_str())
+                        .collect::<Vec<&str>>()
+                );
+                debug!(
+                    "Possible guests in course \"{}\":\t{:?}",
+                    course_name,
+                    possible_guest_list
+                        .iter()
+                        .map(|x| x.team_name.as_str())
+                        .collect::<Vec<&str>>()
+                );
+
+                let mut guest_list = Vec::new();
+
+                //Choose host
+                let host_index =
+                    seed[seed_index % seed.len()] as usize % possible_host_in_course_list.len();
+                let host = *possible_host_in_course_list
+                    .get(host_index)
+                    .expect("Expected host to find in possible host list for this course!");
+                //Remove host from possible host list in course
+                possible_host_in_course_list.remove(host_index);
+
+                //Remove host from possible host list
+                let remove_host_index = possible_host_list
+                    .iter()
+                    .position(|x| *x == host)
+                    .expect("Expected host in list of possible hosts!");
+                possible_host_list.remove(remove_host_index);
+
+                //Remove host from possible guest list
+                let remove_guest_index = possible_guest_list
+                    .iter()
+                    .position(|x| *x == host)
+                    .expect("Expected host in list of possible guests!");
+                possible_guest_list.remove(remove_guest_index);
+
+                seed_index += 1;
+
+                set_seen_people(
+                    &mut seen_contact_map,
+                    &mut contact_in_course,
+                    &guest_list,
+                    host,
+                );
+                for _ in 0..number_of_guests_per_course {
+                    //Choose guest
+                    let guest = get_contact(
+                        &possible_guest_list,
+                        seed[seed_index % seed.len()],
+                        &contact_in_course,
+                        &seen_contact_map,
+                    )
+                    .or_else(|| {
+                        get_contact(
+                            &possible_guest_list,
+                            seed[seed_index % seed.len()],
+                            &contact_in_course,
+                            &seen_contact_map_second_time,
+                        )
+                    })
+                    .expect("Expected to find host for course!");
+
+                    //Remove guest from possible guest list
+                    let remove_guest_index = possible_guest_list
+                        .iter()
+                        .position(|x| *x == guest)
+                        .expect("Expected guest in list of possible guests!");
+                    possible_guest_list.remove(remove_guest_index);
+
+                    //Remove guest from possible host list if exists
+                    let remove_host_index = possible_host_in_course_list
+                        .iter()
+                        .position(|x| *x == guest);
+                    if remove_host_index.is_some() {
+                        possible_host_in_course_list.remove(
+                            remove_host_index.expect(
+                                "Expected guest in list of possible hosts for this course!",
+                            ),
+                        );
+                    }
+
+                    seed_index += 1;
+
+                    set_seen_people(
+                        &mut seen_contact_map,
+                        &mut contact_in_course,
+                        &guest_list,
+                        host,
+                    );
+                    guest_list.push(guest);
                 }
+
+                debug!(
+                    "Create course: \n\tCourse:\t\"{}\"\n\tHost:\t\"{}\"\n\tGuests\t{:?}",
+                    course_name,
+                    host.team_name,
+                    guest_list
+                        .iter()
+                        .map(|x| x.team_name.as_str())
+                        .collect::<Vec<&str>>()
+                );
+
+                let course = CourseInternal {
+                    id: course_index,
+                    host_id: host.id,
+                    guest_id_list: guest_list.iter().map(|guest| guest.id).collect(),
+                };
+
+                course_map
+                    .entry(course_name.clone())
+                    .or_insert_with(Vec::new)
+                    .push(course);
+
+                course_index += 1;
             }
-
-            if seen {
-                seed = seed.wrapping_add(1);
-                continue;
-            } else {
-                return Some(found_contact);
-            }
-        }
-        None
-    }
-
-    fn assign_courses(&self, seed: &Vec<u8>) -> HashMap<String, Vec<CourseInternal>> {
-        let mut contact_for_courses_list = self
-            .contact_list
-            .iter()
-            .enumerate()
-            .map(|(_, contact)| contact)
-            .collect::<Vec<&Contact>>();
-
-        let mut course_map = HashMap::new();
-        for course_name in self.course_name_list {
-            course_map.insert(course_name.clone(), Vec::new());
-        }
-
-        let mut index = 0;
-        loop {
-            let seed_id = *seed
-                .get(index % seed.len())
-                .expect("Expected seed value to create course for course creation!");
-            let course_index = index % self.course_name_list.len();
-            let course_name = self
-                .course_name_list
-                .get(course_index)
-                .expect("Expected to find course name for course creation!");
-            let contact_index = usize::from(seed_id) % contact_for_courses_list.len();
-
-            let contact = *contact_for_courses_list
-                .get(contact_index)
-                .expect("Expected contact for course creation!");
-
-            course_map
-                .get_mut(course_name)
-                .expect("Expected course name in map for course creation!")
-                .push(CourseInternal::new(
-                    index
-                        .try_into()
-                        .expect("Expected number of courses i smaller then 255"),
-                    contact.id,
-                ));
-
-            contact_for_courses_list.remove(contact_index);
-
-            if contact_for_courses_list.is_empty() {
-                break;
-            }
-
-            index += 1;
         }
         course_map
     }
@@ -389,6 +456,53 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
     }
 }
 
+fn get_contact<'contact>(
+    possible_guest_list: &Vec<&'contact Contact>,
+    seed_id: u8,
+    contact_in_course: &HashSet<&'contact Contact>,
+    seen_contact_map: &HashMap<&'contact Contact, HashSet<&'contact Contact>>,
+) -> Option<&'contact Contact> {
+    let mut seed = seed_id;
+    for _ in 0..possible_guest_list.len() {
+        let contact_index = usize::from(seed) % possible_guest_list.len();
+        let contact = possible_guest_list
+            .get(contact_index)
+            .expect("Expected contact to find in contact list!");
+
+        if contact_in_course.contains(contact) {
+            seed = seed.wrapping_add(1);
+            debug!(
+                "Checking if \"{}\" could be guest... \t{}",
+                contact.team_name,
+                "Contact is already in a course!".red()
+            );
+            continue;
+        }
+
+        if !seen_contact_map
+            .get(contact)
+            .expect("Expected contact to find in seen contact map!")
+            .is_disjoint(&contact_in_course)
+        {
+            seed = seed.wrapping_add(1);
+            debug!(
+                "Checking if \"{}\" could be guest... \t{}",
+                contact.team_name,
+                "Contact already seen other contact's!".red()
+            );
+            continue;
+        }
+
+        debug!(
+            "Checking if \"{}\" could be guest... \t{}",
+            contact.team_name,
+            "Contact can be in course!".green()
+        );
+        return Some(contact);
+    }
+    None
+}
+
 impl CourseInternal {
     fn new(id: u8, host_id: u8) -> Self {
         CourseInternal {
@@ -497,23 +611,39 @@ fn course_map_to_contact_map<'a>(
     contact_map
 }
 
-fn set_seen_people<'contact, 'course: 'contact>(
+fn set_seen_people<'contact>(
+    seen_contact_map: &mut HashMap<&'contact Contact, HashSet<&'contact Contact>>,
+    contact_in_course: &mut HashSet<&'contact Contact>,
+    guest_list: &Vec<&'contact Contact>,
+    new_contact: &'contact Contact,
+) {
+    contact_in_course.insert(new_contact);
+    guest_list.iter().for_each(|guest| {
+        seen_contact_map
+            .get_mut(new_contact)
+            .expect("Expected to find seen contact of new contact!")
+            .insert(guest);
+        seen_contact_map
+            .get_mut(guest)
+            .expect("Expected to find seen contact of guest!")
+            .insert(new_contact);
+    });
+}
+
+fn set_seen_people2<'contact, 'course: 'contact>(
     seen_contact_map: &mut HashMap<u8, HashSet<u8>>,
     course: &CourseInternal,
     new_guest: &'contact Contact,
 ) {
-    {
-        let seen_guest_set_guest = seen_contact_map
-            .get_mut(&new_guest.id)
-            .expect("Expected to find seen contact of new guest!");
-        seen_guest_set_guest.insert(course.host_id);
-    }
-    {
-        let seen_guest_set_host = seen_contact_map
-            .get_mut(&course.host_id)
-            .expect("Expected to find seen contact of host!");
-        seen_guest_set_host.insert(new_guest.id);
-    }
+    let seen_guest_set_guest = seen_contact_map
+        .get_mut(&new_guest.id)
+        .expect("Expected to find seen contact of new guest!");
+    seen_guest_set_guest.insert(course.host_id);
+
+    let seen_guest_set_host = seen_contact_map
+        .get_mut(&course.host_id)
+        .expect("Expected to find seen contact of host!");
+    seen_guest_set_host.insert(new_guest.id);
 
     for guest_id in course.guest_id_list.iter() {
         let seen_guest_set = seen_contact_map

@@ -148,7 +148,7 @@ pub fn get_course_name_list(number_of_courses: usize) -> Vec<String> {
 
     match number_of_courses {
         1 => vec![course_list[2].clone()],
-        2..5 => course_list[1..number_of_courses].to_vec(),
+        2..5 => course_list[1..number_of_courses + 1].to_vec(),
         5 => course_list,
         _ => panic!("Number of courses must be between 1 and 5"),
     }

@@ -125,7 +125,7 @@ impl<'a> TCCScreen<'a> {
                     .truncate(self.course_name_list.len() - 1);
 
                 let contact_list = self.contact_list.as_ref().unwrap();
-                let calculator = Calculator::new(&self.course_name_list, contact_list);
+                let calculator = Calculator::new(&self.course_name_list, contact_list, None);
 
                 calculator.calculate();
 
