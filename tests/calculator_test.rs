@@ -35,7 +35,7 @@ fn print_plan(plan: &Plan) {
 
     println!("Walking-Path:");
     for (from, to_list) in plan.walking_path.iter() {
-        print!("\t{}", from.team_name);
+        println!("{}:\n\t", from.team_name);
         for to in to_list.iter() {
             print!(" -> {}", to.host.team_name);
         }
@@ -133,7 +133,7 @@ fn check_course(course_map: &HashMap<String, Vec<Course>>) {
 
 #[test]
 fn test_perfect_path() {
-    env_logger::Builder::from_env(Env::default().default_filter_or("debug")).init();
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
     let number_of_guests = 2;
     let number_course = 3;
     let contact_list = get_contact_list(9);
@@ -148,5 +148,8 @@ fn test_perfect_path() {
     assert_eq!(plan.course_map.len(), 3, "Number of courses should be 3");
     assert_number_of_guests_in_course(&plan.course_map, number_of_guests);
     check_course(&plan.course_map);
+
+    //Score:    23756.69413101577
+    //Seed:     205-195-94-36-161-81-200-159-211-169-251-99-244-139-182-89-166-40-133-238-163-235-9-138-13-110-33-83-92-58-158-8-190-123-252-112-79-177-233-161-45-206-173-10-148-197-177-78-131-145
 }
 //END TEST AREA

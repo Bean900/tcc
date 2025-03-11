@@ -1,14 +1,16 @@
+use core::{hash, num};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{hash_set, HashMap, HashSet},
     sync::{Arc, Mutex},
 };
 
-use log::debug;
+use log::{debug, info};
 
 use rand::Rng;
 
 use colored::Colorize;
 use serde::de;
+use threadpool::ThreadPool;
 
 use crate::contact::Contact;
 
@@ -36,11 +38,11 @@ pub struct TopScore {
 struct PlanInternal {
     seed: Vec<u8>,
     course_map: HashMap<String, Vec<CourseInternal>>,
-    walking_path: HashMap<u8, Vec<CourseInternal>>,
+    walking_path: HashMap<u8, HashSet<CourseInternal>>,
     score: f64,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 struct CourseInternal {
     id: u8,
     host_id: u8,
@@ -118,31 +120,52 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
     }
 
     pub fn calculate(&self) {
-        let number_of_seeds = 2;
+        let number_of_seeds = 1_000;
         let mut list_of_seeds = Vec::new();
         for _ in 0..number_of_seeds {
             list_of_seeds.push(generate_seed());
         }
 
         //let pool = ThreadPool::new(5);
+        info!("Start calculating plans...");
+        let number_of_iterations = 1_000;
+        let mut last_print_time = std::time::Instant::now();
+        for current_iteration in 0..number_of_iterations {
+            let mut list_of_plans: Vec<PlanInternal> = list_of_seeds
+                .iter()
+                .map(|seed| self.seed_to_plan(seed.clone()))
+                .collect();
+            list_of_plans.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap());
 
-        // for _ in 0..10 {
-        let mut list_of_plans: Vec<PlanInternal> = list_of_seeds
-            .iter()
-            .map(|seed| self.seed_to_plan(seed.clone()))
-            .collect();
-        list_of_plans.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap());
+            let mut top_score = self.top_score.lock().unwrap();
+            if top_score.score.is_none() || list_of_plans[0].score < top_score.score.unwrap() {
+                top_score.score = Some(list_of_plans[0].score);
+                top_score.seed = Some(list_of_plans[0].seed.clone());
+            }
+            list_of_seeds = generate_seed_from_plan_list(list_of_plans);
 
-        let mut top_score = self.top_score.lock().unwrap();
-        top_score.score = Some(list_of_plans[0].score);
-        top_score.seed = Some(list_of_plans[0].seed.clone());
-
-        list_of_seeds = generate_seed_from_plan_list(list_of_plans);
-        //}
+            if last_print_time.elapsed().as_secs() > 15 {
+                info!(
+                    "Calculated {:.0}% of plans",
+                    (current_iteration as f64 / number_of_iterations as f64) * 100_f64
+                );
+                last_print_time = std::time::Instant::now();
+            }
+        }
     }
 
     fn seed_to_plan(&self, seed: Vec<u8>) -> PlanInternal {
         let course_map = self.create_course_map(&seed);
+
+        if course_map.is_none() {
+            return PlanInternal {
+                course_map: HashMap::new(),
+                walking_path: HashMap::new(),
+                score: f64::MAX,
+                seed,
+            };
+        }
+        let course_map = course_map.expect("Expected course map to be set!");
         let walking_path = self.calc_walking_path(&course_map);
 
         let score = self.calc_score(
@@ -161,7 +184,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
         }
     }
 
-    fn create_course_map(&self, seed: &Vec<u8>) -> HashMap<String, Vec<CourseInternal>> {
+    fn create_course_map(&self, seed: &Vec<u8>) -> Option<HashMap<String, Vec<CourseInternal>>> {
         let mut course_map = HashMap::new();
         let mut seen_contact_map = HashMap::new();
         let mut seen_contact_map_second_time = HashMap::new();
@@ -240,6 +263,9 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
                 let mut guest_list = Vec::new();
 
                 //Choose host
+                if possible_host_in_course_list.is_empty() {
+                    return None;
+                }
                 let host_index =
                     seed[seed_index % seed.len()] as usize % possible_host_in_course_list.len();
                 let host = *possible_host_in_course_list
@@ -271,6 +297,10 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
                     host,
                 );
                 for _ in 0..number_of_guests_per_course {
+                    if possible_guest_list.is_empty() {
+                        return None;
+                    }
+
                     //Choose guest
                     let guest = get_contact(
                         &possible_guest_list,
@@ -342,7 +372,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
                 course_index += 1;
             }
         }
-        course_map
+        Some(course_map)
     }
 
     fn calc_score(
@@ -351,92 +381,80 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
         start_point_longitude: Option<i32>,
         goal_point_latitude: Option<i32>,
         goal_point_longitude: Option<i32>,
-        contact_walking_path: &HashMap<u8, Vec<CourseInternal>>,
+        contact_walking_path_set: &HashMap<u8, HashSet<CourseInternal>>,
     ) -> f64 {
-        let mut distance = 0_f64;
+        let mut longest_distance = 0_f64;
 
-        for (_, path) in contact_walking_path.iter() {
+        for (_, path) in contact_walking_path_set.iter() {
+            let mut path_iter = path.iter();
+            let mut distance = 0_f64;
+            let mut contact_from;
+            let mut contact_to;
+
+            let first_course = path_iter.next().expect("Expected first course in path!");
+            contact_to = self.contact_list.get(first_course.host_id as usize).expect(
+                format!(
+                    "Expected contact with id {} in contact list!",
+                    first_course.host_id
+                )
+                .as_str(),
+            );
             if start_point_latitude.is_some() && start_point_longitude.is_some() {
-                let first_course = path.get(0).expect("Expected first course in path!");
-                let contact = self.contact_list.get(first_course.host_id as usize).expect(
-                    format!(
-                        "Expected contact with id {} in contact list!",
-                        first_course.host_id
-                    )
-                    .as_str(),
-                );
-
                 distance += calc_distance(
                     start_point_latitude.expect("Expected start point latitude!"),
                     start_point_longitude.expect("Expected start point longitude!"),
-                    contact.latitude,
-                    contact.longitude,
+                    contact_to.latitude,
+                    contact_to.longitude,
                 );
             }
-            for i in 0..path.len() - 1 {
-                let course_one = path.get(i).expect("Expected course one in path!");
-                let course_two = path.get(i + 1).expect("Expected course two in path!");
-
-                let contact_one = self.contact_list.get(course_one.host_id as usize).expect(
+            while let Some(course) = path_iter.next() {
+                contact_from = contact_to;
+                contact_to = self.contact_list.get(course.host_id as usize).expect(
                     format!(
                         "Expected contact with id {} in contact list!",
-                        course_one.host_id
+                        course.host_id
                     )
                     .as_str(),
                 );
-                let contact_two = self.contact_list.get(course_two.host_id as usize).expect(
-                    format!(
-                        "Expected contact with id {} in contact list!",
-                        course_two.host_id
-                    )
-                    .as_str(),
-                );
-
                 distance += calc_distance(
-                    contact_one.latitude,
-                    contact_one.longitude,
-                    contact_two.latitude,
-                    contact_two.longitude,
+                    contact_from.latitude,
+                    contact_from.longitude,
+                    contact_to.latitude,
+                    contact_to.longitude,
                 );
             }
+
             if goal_point_latitude.is_some() && goal_point_longitude.is_some() {
-                let last_course = path
-                    .get(path.len() - 1)
-                    .expect("Expected last course in path!");
-                let contact = self.contact_list.get(last_course.host_id as usize).expect(
-                    format!(
-                        "Expected contact with id {} in contact list!",
-                        last_course.host_id
-                    )
-                    .as_str(),
-                );
-
                 distance += calc_distance(
-                    contact.latitude,
-                    contact.longitude,
+                    contact_to.latitude,
+                    contact_to.longitude,
                     goal_point_latitude.expect("Expected goal point latitude!"),
                     goal_point_longitude.expect("Expected goal point longitude!"),
                 );
             }
+            if distance > longest_distance {
+                longest_distance = distance;
+            }
         }
-
-        distance
+        longest_distance
     }
 
     fn calc_walking_path(
         &self,
         course_map: &HashMap<String, Vec<CourseInternal>>,
-    ) -> HashMap<u8, Vec<CourseInternal>> {
+    ) -> HashMap<u8, HashSet<CourseInternal>> {
         let contact_map = course_map_to_contact_map(course_map);
         let mut contact_walking_path = HashMap::new();
 
         for (_, course_list) in contact_map.iter() {
             for &course in course_list {
-                let path = contact_walking_path.entry(course.host_id).or_insert(vec![]);
-                path.push((*course).clone());
+                let path = contact_walking_path
+                    .entry(course.host_id)
+                    .or_insert(HashSet::new());
+                path.insert((*course).clone());
                 for guest in course.guest_id_list.iter() {
-                    let path = contact_walking_path.entry(*guest).or_insert(vec![]);
-                    path.push((*course).clone());
+                    let path = contact_walking_path.entry(*guest).or_insert(HashSet::new());
+                    path.insert((*course).clone());
                 }
             }
         }
@@ -628,34 +646,6 @@ fn set_seen_people<'contact>(
             .expect("Expected to find seen contact of guest!")
             .insert(new_contact);
     });
-}
-
-fn set_seen_people2<'contact, 'course: 'contact>(
-    seen_contact_map: &mut HashMap<u8, HashSet<u8>>,
-    course: &CourseInternal,
-    new_guest: &'contact Contact,
-) {
-    let seen_guest_set_guest = seen_contact_map
-        .get_mut(&new_guest.id)
-        .expect("Expected to find seen contact of new guest!");
-    seen_guest_set_guest.insert(course.host_id);
-
-    let seen_guest_set_host = seen_contact_map
-        .get_mut(&course.host_id)
-        .expect("Expected to find seen contact of host!");
-    seen_guest_set_host.insert(new_guest.id);
-
-    for guest_id in course.guest_id_list.iter() {
-        let seen_guest_set = seen_contact_map
-            .get_mut(&new_guest.id)
-            .expect("Expected to find seen contact of new guest!");
-        seen_guest_set.insert(*guest_id);
-
-        let seen_guest_set = seen_contact_map
-            .get_mut(guest_id)
-            .expect("Expected to find seen contact of guest!");
-        seen_guest_set.insert(new_guest.id);
-    }
 }
 
 fn generate_seed() -> Vec<u8> {
