@@ -5,6 +5,7 @@ use tcc::{
     contact::Contact,
 };
 
+use core::num;
 use std::collections::{HashMap, HashSet as HeshSet};
 
 mod data;
@@ -33,6 +34,7 @@ fn print_plan(plan: &Plan) {
         }
     }
 
+    /*
     println!("Walking-Path:");
     for (from, to_list) in plan.walking_path.iter() {
         println!("{}:\n\t", from.team_name);
@@ -40,7 +42,7 @@ fn print_plan(plan: &Plan) {
             print!(" -> {}", to.host.team_name);
         }
         print!("\n")
-    }
+    }*/
 }
 
 fn print_test_params(contact_list: &Vec<Contact>, course_name_list: &Vec<String>) {
@@ -59,18 +61,64 @@ fn print_test_params(contact_list: &Vec<Contact>, course_name_list: &Vec<String>
 // START ASSERT AREA
 fn assert_number_of_guests_in_course(
     course_map: &HashMap<String, Vec<Course>>,
+    number_of_course: usize,
     number_of_guests: usize,
 ) {
+    let base_number_of_guests = number_of_guests / number_of_course - 1;
+    let number_of_overhang_guests = number_of_guests % number_of_course;
+
     for (_, course_list) in course_map.iter() {
+        let mut seen_people = HeshSet::new();
+        let mut number_of_overhang = 0;
         for course in course_list {
-            assert_eq!(
-                course.guest_list.len(),
-                number_of_guests,
-                "Number of guests in course \"{}\" should be {}",
+            assert!(
+                !seen_people.contains(&course.host.team_name),
+                "Host \"{}\" is already participating in another course",
+                course.host.team_name
+            );
+
+            seen_people.insert(&course.host.team_name);
+            for guest in course.guest_list.iter() {
+                assert!(
+                    !seen_people.contains(&guest.team_name),
+                    "Guest \"{}\" is already participating in another course",
+                    guest.team_name
+                );
+                seen_people.insert(&guest.team_name);
+            }
+            assert!(
+                course.guest_list.len() >= base_number_of_guests
+                    && course.guest_list.len() < base_number_of_guests + 1,
+                "Number of guests in course \"{}\" should be less than {} and greater or equal to {} but was {}",
                 course.host.team_name,
-                number_of_guests
+                base_number_of_guests + 1,
+                base_number_of_guests,
+                course.guest_list.len()
+            );
+            if course.guest_list.len() == base_number_of_guests + 1 {
+                number_of_overhang += 1;
+            }
+
+            assert!(
+                course.guest_list.len() <= base_number_of_guests + 1,
+                "Number of guests in course \"{}\" should be less than or equal to {} but was {}",
+                course.host.team_name,
+                base_number_of_guests + 1,
+                course.guest_list.len()
             );
         }
+        assert!(
+            number_of_overhang == number_of_overhang_guests,
+            "Number of overhang guests should be {} but was {}",
+            number_of_overhang_guests,
+            number_of_overhang
+        );
+        assert!(
+            number_of_guests == seen_people.len(),
+            "Number of guests should be {} but was {}",
+            number_of_guests,
+            seen_people.len()
+        );
     }
 }
 
@@ -124,19 +172,53 @@ fn assert_team_cooks_not_two_times(course_map: &HashMap<String, Vec<Course>>) {
     }
 }
 
-fn check_course(course_map: &HashMap<String, Vec<Course>>) {
+fn check_course(
+    course_map: &HashMap<String, Vec<Course>>,
+    course_with_more_hosts: Option<&String>,
+) {
     assert_team_cooks_not_two_times(course_map);
     assert_team_is_not_two_times_in_one_course(course_map);
+    let mut number_of_hosts = None;
+    for (course_name, course_list) in course_map.iter() {
+        if course_with_more_hosts.is_some()
+            && course_with_more_hosts.expect("Expect course name for course with more hosts")
+                == course_name
+        {
+            if number_of_hosts.is_some() {
+                assert!(
+                    number_of_hosts.expect("Expect number of hosts") == course_list.len() + 1,
+                    "Overhang course \"{}\" has not exaclty {} but {} hosts",
+                    course_name,
+                    number_of_hosts.expect("Expect number of hosts"),
+                    course_list.len() + 1
+                );
+            } else {
+                number_of_hosts = Some(course_list.len() - 1);
+            }
+        } else {
+            if number_of_hosts.is_some() {
+                assert!(
+                    number_of_hosts.expect("Expect number of hosts") == course_list.len(),
+                    "Course \"{}\" has not exaclty {} but {} hosts",
+                    course_name,
+                    number_of_hosts.expect("Expect number of hosts"),
+                    course_list.len() + 1
+                );
+            } else {
+                number_of_hosts = Some(course_list.len());
+            }
+        }
+    }
 }
 // END ASSERT AREA
 // START TEST AREA
 
 #[test]
-fn test_perfect_path() {
+fn test_team_of_nine() {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-    let number_of_guests = 2;
+    let number_of_guests = 9;
     let number_course = 3;
-    let contact_list = get_contact_list(9);
+    let contact_list = get_contact_list(number_of_guests);
     let course_name_list = get_course_name_list(number_course);
 
     print_test_params(&contact_list, &course_name_list);
@@ -145,11 +227,61 @@ fn test_perfect_path() {
     calculator.calculate();
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
-    assert_eq!(plan.course_map.len(), 3, "Number of courses should be 3");
-    assert_number_of_guests_in_course(&plan.course_map, number_of_guests);
-    check_course(&plan.course_map);
+    assert_eq!(
+        plan.course_map.len(),
+        number_course,
+        "Number of courses should be {}",
+        number_course,
+    );
+    assert_number_of_guests_in_course(&plan.course_map, number_course, number_of_guests);
+    check_course(&plan.course_map, None);
+    //Plan with score 3762.0062854856706
+    //Seed: 31-154-93-147-18-76-38-47-87-69-187-250-155-10-125-119-21-255-59-67-24-2-129-2-125-26-228-252-245-254-63-2-166-63-163-84-44-118-149-196-215-81-125-254-177-119-218-207-111-184
+    /*
+    Walking-Path:
+    Team 2:
+     -> Team 1 -> Team 9 -> Team 2
+    Team 8:
+     -> Team 4 -> Team 8 -> Team 7
+    Team 3:
+     -> Team 5 -> Team 3 -> Team 6
+    Team 6:
+     -> Team 9 -> Team 6 -> Team 3
+    Team 1:
+     -> Team 6 -> Team 7 -> Team 1
+    Team 7:
+     -> Team 2 -> Team 7 -> Team 3
+    Team 9:
+     -> Team 1 -> Team 2 -> Team 9
+    Team 4:
+     -> Team 8 -> Team 4 -> Team 5
+    Team 5:
+     -> Team 5 -> Team 4 -> Team 8
+      */
+}
 
-    //Score:    23756.69413101577
-    //Seed:     205-195-94-36-161-81-200-159-211-169-251-99-244-139-182-89-166-40-133-238-163-235-9-138-13-110-33-83-92-58-158-8-190-123-252-112-79-177-233-161-45-206-173-10-148-197-177-78-131-145
+#[test]
+fn test_team_of_ten() {
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    let number_of_guests = 10;
+    let number_course = 3;
+    let contact_list = get_contact_list(number_of_guests);
+    let course_name_list = get_course_name_list(number_course);
+    let course_with_more_hosts = Some(&course_name_list[1]);
+
+    print_test_params(&contact_list, &course_name_list);
+
+    let calculator = Calculator::new(&course_name_list, &contact_list, course_with_more_hosts);
+    calculator.calculate();
+    let plan = calculator.top_plan().unwrap();
+    print_plan(&plan);
+    assert_eq!(
+        plan.course_map.len(),
+        number_course,
+        "Number of courses should be {}",
+        number_course,
+    );
+    assert_number_of_guests_in_course(&plan.course_map, number_course, number_of_guests);
+    check_course(&plan.course_map, course_with_more_hosts);
 }
 //END TEST AREA

@@ -24,7 +24,7 @@ where
     goal_point_latitude: Option<i32>,
     goal_point_longitude: Option<i32>,
     course_name_list: &'course_name_list Vec<String>,
-    course_with_more_guests: Option<&'course_name_list String>,
+    course_with_more_hosts: Option<&'course_name_list String>,
     contact_list: &'contact_list Vec<Contact>,
     pub top_score: Arc<Mutex<TopScore>>,
 }
@@ -74,7 +74,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
         start_point_longitude: i32,
         goal_point_latitude: i32,
         goal_point_longitude: i32,
-        course_with_more_guests: Option<&'course_name_list String>,
+        course_with_more_hosts: Option<&'course_name_list String>,
         course_name_list: &'course_name_list Vec<String>,
         contact_list: &'contact_list Vec<Contact>,
     ) -> Self {
@@ -89,7 +89,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
             start_point_longitude: Some(start_point_longitude),
             goal_point_latitude: Some(goal_point_latitude),
             goal_point_longitude: Some(goal_point_longitude),
-            course_with_more_guests,
+            course_with_more_hosts,
             course_name_list,
             contact_list,
             top_score: thread_data,
@@ -99,7 +99,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
     pub fn new(
         course_name_list: &'course_name_list Vec<String>,
         contact_list: &'contact_list Vec<Contact>,
-        course_with_more_guests: Option<&'course_name_list String>,
+        course_with_more_hosts: Option<&'course_name_list String>,
     ) -> Self {
         let shared_data = Arc::new(Mutex::new(TopScore {
             score: None,
@@ -112,7 +112,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
             start_point_longitude: None,
             goal_point_latitude: None,
             goal_point_longitude: None,
-            course_with_more_guests,
+            course_with_more_hosts,
             course_name_list,
             contact_list,
             top_score: thread_data,
@@ -128,7 +128,8 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
 
         //let pool = ThreadPool::new(5);
         info!("Start calculating plans...");
-        let number_of_iterations = 1_000;
+        let number_of_iterations = 100;
+        let start_time = std::time::Instant::now();
         let mut last_print_time = std::time::Instant::now();
         for current_iteration in 0..number_of_iterations {
             let mut list_of_plans: Vec<PlanInternal> = list_of_seeds
@@ -146,8 +147,16 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
 
             if last_print_time.elapsed().as_secs() > 15 {
                 info!(
-                    "Calculated {:.0}% of plans",
-                    (current_iteration as f64 / number_of_iterations as f64) * 100_f64
+                    "Calculated {:.0}% of plans... Estimated time left: {}",
+                    (current_iteration as f64 / number_of_iterations as f64) * 100_f64,
+                    format!(
+                        "{:?}",
+                        std::time::Duration::from_secs(
+                            (number_of_iterations - current_iteration) as u64
+                                * start_time.elapsed().as_secs()
+                                / current_iteration as u64
+                        )
+                    )
                 );
                 last_print_time = std::time::Instant::now();
             }
