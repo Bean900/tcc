@@ -5,10 +5,13 @@ use tcc::{
     contact::Contact,
 };
 
-use core::num;
 use std::collections::{HashMap, HashSet as HeshSet};
 
 mod data;
+
+use std::sync::Once;
+
+static INIT: Once = Once::new();
 
 // START PRINT AREA
 fn print_plan(plan: &Plan) {
@@ -61,13 +64,11 @@ fn print_test_params(contact_list: &Vec<Contact>, course_name_list: &Vec<String>
 // START ASSERT AREA
 fn assert_number_of_guests_in_course(
     course_map: &HashMap<String, Vec<Course>>,
-    number_of_course: usize,
     number_of_guests: usize,
 ) {
-    let base_number_of_guests = number_of_guests / number_of_course - 1;
-    let number_of_overhang_guests = number_of_guests % number_of_course;
-
     for (_, course_list) in course_map.iter() {
+        let base_number_of_guests = number_of_guests / course_list.len() - 1;
+        let number_of_overhang_guests = number_of_guests % course_list.len();
         let mut seen_people = HeshSet::new();
         let mut number_of_overhang = 0;
         for course in course_list {
@@ -88,7 +89,7 @@ fn assert_number_of_guests_in_course(
             }
             assert!(
                 course.guest_list.len() >= base_number_of_guests
-                    && course.guest_list.len() < base_number_of_guests + 1,
+                    && course.guest_list.len() <= base_number_of_guests + 1,
                 "Number of guests in course \"{}\" should be less than {} and greater or equal to {} but was {}",
                 course.host.team_name,
                 base_number_of_guests + 1,
@@ -215,7 +216,9 @@ fn check_course(
 
 #[test]
 fn test_team_of_nine() {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    INIT.call_once(|| {
+        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    });
     let number_of_guests = 9;
     let number_course = 3;
     let contact_list = get_contact_list(number_of_guests);
@@ -233,7 +236,7 @@ fn test_team_of_nine() {
         "Number of courses should be {}",
         number_course,
     );
-    assert_number_of_guests_in_course(&plan.course_map, number_course, number_of_guests);
+    assert_number_of_guests_in_course(&plan.course_map, number_of_guests);
     check_course(&plan.course_map, None);
     //Plan with score 3762.0062854856706
     //Seed: 31-154-93-147-18-76-38-47-87-69-187-250-155-10-125-119-21-255-59-67-24-2-129-2-125-26-228-252-245-254-63-2-166-63-163-84-44-118-149-196-215-81-125-254-177-119-218-207-111-184
@@ -262,7 +265,9 @@ fn test_team_of_nine() {
 
 #[test]
 fn test_team_of_ten() {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    INIT.call_once(|| {
+        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    });
     let number_of_guests = 10;
     let number_course = 3;
     let contact_list = get_contact_list(number_of_guests);
@@ -281,7 +286,196 @@ fn test_team_of_ten() {
         "Number of courses should be {}",
         number_course,
     );
-    assert_number_of_guests_in_course(&plan.course_map, number_course, number_of_guests);
+    assert_number_of_guests_in_course(&plan.course_map, number_of_guests);
+    check_course(&plan.course_map, course_with_more_hosts);
+}
+
+#[test]
+fn test_team_of_eleven() {
+    INIT.call_once(|| {
+        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    });
+    let number_of_guests = 11;
+    let number_course = 3;
+    let contact_list = get_contact_list(number_of_guests);
+    let course_name_list = get_course_name_list(number_course);
+    let course_with_more_hosts = Some(&course_name_list[1]);
+
+    print_test_params(&contact_list, &course_name_list);
+
+    let calculator = Calculator::new(&course_name_list, &contact_list, course_with_more_hosts);
+    calculator.calculate();
+    let plan = calculator.top_plan().unwrap();
+    print_plan(&plan);
+    assert_eq!(
+        plan.course_map.len(),
+        number_course,
+        "Number of courses should be {}",
+        number_course,
+    );
+    assert_number_of_guests_in_course(&plan.course_map, number_of_guests);
+    check_course(&plan.course_map, course_with_more_hosts);
+}
+
+#[test]
+fn test_team_of_twelve() {
+    INIT.call_once(|| {
+        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    });
+    let number_of_guests = 12;
+    let number_course = 3;
+    let contact_list = get_contact_list(number_of_guests);
+    let course_name_list = get_course_name_list(number_course);
+    let course_with_more_hosts = Some(&course_name_list[1]);
+
+    print_test_params(&contact_list, &course_name_list);
+
+    let calculator = Calculator::new(&course_name_list, &contact_list, course_with_more_hosts);
+    calculator.calculate();
+    let plan = calculator.top_plan().unwrap();
+    print_plan(&plan);
+    assert_eq!(
+        plan.course_map.len(),
+        number_course,
+        "Number of courses should be {}",
+        number_course,
+    );
+    assert_number_of_guests_in_course(&plan.course_map, number_of_guests);
+    check_course(&plan.course_map, course_with_more_hosts);
+}
+
+#[test]
+fn test_team_of_thirteen() {
+    INIT.call_once(|| {
+        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    });
+    let number_of_guests = 13;
+    let number_course = 3;
+    let contact_list = get_contact_list(number_of_guests);
+    let course_name_list = get_course_name_list(number_course);
+    let course_with_more_hosts = Some(&course_name_list[1]);
+
+    print_test_params(&contact_list, &course_name_list);
+
+    let calculator = Calculator::new(&course_name_list, &contact_list, course_with_more_hosts);
+    calculator.calculate();
+    let plan = calculator.top_plan().unwrap();
+    print_plan(&plan);
+    assert_eq!(
+        plan.course_map.len(),
+        number_course,
+        "Number of courses should be {}",
+        number_course,
+    );
+    assert_number_of_guests_in_course(&plan.course_map, number_of_guests);
+    check_course(&plan.course_map, course_with_more_hosts);
+}
+
+#[test]
+fn test_team_of_fourteen() {
+    INIT.call_once(|| {
+        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    });
+    let number_of_guests = 14;
+    let number_course = 3;
+    let contact_list = get_contact_list(number_of_guests);
+    let course_name_list = get_course_name_list(number_course);
+    let course_with_more_hosts = Some(&course_name_list[1]);
+
+    print_test_params(&contact_list, &course_name_list);
+
+    let calculator = Calculator::new(&course_name_list, &contact_list, course_with_more_hosts);
+    calculator.calculate();
+    let plan = calculator.top_plan().unwrap();
+    print_plan(&plan);
+    assert_eq!(
+        plan.course_map.len(),
+        number_course,
+        "Number of courses should be {}",
+        number_course,
+    );
+    assert_number_of_guests_in_course(&plan.course_map, number_of_guests);
+    check_course(&plan.course_map, course_with_more_hosts);
+}
+
+#[test]
+fn test_team_of_fifteen() {
+    INIT.call_once(|| {
+        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    });
+    let number_of_guests = 15;
+    let number_course = 3;
+    let contact_list = get_contact_list(number_of_guests);
+    let course_name_list = get_course_name_list(number_course);
+    let course_with_more_hosts = Some(&course_name_list[1]);
+
+    print_test_params(&contact_list, &course_name_list);
+
+    let calculator = Calculator::new(&course_name_list, &contact_list, course_with_more_hosts);
+    calculator.calculate();
+    let plan = calculator.top_plan().unwrap();
+    print_plan(&plan);
+    assert_eq!(
+        plan.course_map.len(),
+        number_course,
+        "Number of courses should be {}",
+        number_course,
+    );
+    assert_number_of_guests_in_course(&plan.course_map, number_of_guests);
+    check_course(&plan.course_map, course_with_more_hosts);
+}
+
+#[test]
+fn test_team_of_sixteen() {
+    INIT.call_once(|| {
+        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    });
+    let number_of_guests = 16;
+    let number_course = 3;
+    let contact_list = get_contact_list(number_of_guests);
+    let course_name_list = get_course_name_list(number_course);
+    let course_with_more_hosts = Some(&course_name_list[1]);
+
+    print_test_params(&contact_list, &course_name_list);
+
+    let calculator = Calculator::new(&course_name_list, &contact_list, course_with_more_hosts);
+    calculator.calculate();
+    let plan = calculator.top_plan().unwrap();
+    print_plan(&plan);
+    assert_eq!(
+        plan.course_map.len(),
+        number_course,
+        "Number of courses should be {}",
+        number_course,
+    );
+    assert_number_of_guests_in_course(&plan.course_map, number_of_guests);
+    check_course(&plan.course_map, course_with_more_hosts);
+}
+
+#[test]
+fn test_team_of_seventeen() {
+    INIT.call_once(|| {
+        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    });
+    let number_of_guests = 17;
+    let number_course = 3;
+    let contact_list = get_contact_list(number_of_guests);
+    let course_name_list = get_course_name_list(number_course);
+    let course_with_more_hosts = Some(&course_name_list[1]);
+
+    print_test_params(&contact_list, &course_name_list);
+
+    let calculator = Calculator::new(&course_name_list, &contact_list, course_with_more_hosts);
+    calculator.calculate();
+    let plan = calculator.top_plan().unwrap();
+    print_plan(&plan);
+    assert_eq!(
+        plan.course_map.len(),
+        number_course,
+        "Number of courses should be {}",
+        number_course,
+    );
+    assert_number_of_guests_in_course(&plan.course_map, number_of_guests);
     check_course(&plan.course_map, course_with_more_hosts);
 }
 //END TEST AREA

@@ -120,7 +120,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
     }
 
     pub fn calculate(&self) {
-        let number_of_seeds = 1_000;
+        let number_of_seeds = 100;
         let mut list_of_seeds = Vec::new();
         for _ in 0..number_of_seeds {
             list_of_seeds.push(generate_seed());
@@ -208,6 +208,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
 
         let mut possible_host_list = self.contact_list.iter().collect::<Vec<&Contact>>();
         for course_name in self.course_name_list.iter() {
+            debug!("Calculating course \"{}\"", course_name);
             debug!(
                 "List of people seen by each person:\n{:?}",
                 seen_contact_map
@@ -245,12 +246,24 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
             //Create list of possible hosts and guests, that will be used to create courses
             let mut possible_host_in_course_list = possible_host_list.clone();
             let mut possible_guest_list = self.contact_list.iter().collect::<Vec<&Contact>>();
-
-            let number_of_courses = self.contact_list.len() / self.course_name_list.len();
-            let number_of_guests_per_course =
-                self.contact_list.len() / self.course_name_list.len() - 1;
             let mut contact_in_course: HashSet<&Contact> = HashSet::new();
 
+            let number_of_courses = self.contact_list.len() / self.course_name_list.len()
+                + if self.course_with_more_hosts == Some(course_name) {
+                    1
+                } else {
+                    0
+                };
+            debug!("Number of courses for course: {}", number_of_courses);
+
+            let number_of_guests_per_course = self.contact_list.len() / number_of_courses - 1;
+            debug!(
+                "Base number of guests per course: {}",
+                number_of_guests_per_course
+            );
+
+            let mut number_of_guests_overhang = self.contact_list.len() % number_of_courses;
+            debug!("Number of extra guests: {}", number_of_guests_overhang);
             for _ in 0..number_of_courses {
                 debug!(
                     "Possible hosts for course \"{}\":\t{:?}",
@@ -305,7 +318,9 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
                     &guest_list,
                     host,
                 );
-                for _ in 0..number_of_guests_per_course {
+                for _ in 0..(number_of_guests_per_course
+                    + if number_of_guests_overhang != 0 { 1 } else { 0 })
+                {
                     if possible_guest_list.is_empty() {
                         return None;
                     }
@@ -356,7 +371,9 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
                     );
                     guest_list.push(guest);
                 }
-
+                if number_of_guests_overhang != 0 {
+                    number_of_guests_overhang -= 1;
+                }
                 debug!(
                     "Create course: \n\tCourse:\t\"{}\"\n\tHost:\t\"{}\"\n\tGuests\t{:?}",
                     course_name,
