@@ -120,7 +120,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
     }
 
     pub fn calculate(&self) {
-        let number_of_seeds = 100;
+        let number_of_seeds = 1_000;
         let mut list_of_seeds = Vec::new();
         for _ in 0..number_of_seeds {
             list_of_seeds.push(generate_seed());
@@ -128,7 +128,7 @@ impl<'course_name_list, 'contact_list> Calculator<'course_name_list, 'contact_li
 
         //let pool = ThreadPool::new(5);
         info!("Start calculating plans...");
-        let number_of_iterations = 100;
+        let number_of_iterations = 1_000;
         let start_time = std::time::Instant::now();
         let mut last_print_time = std::time::Instant::now();
         for current_iteration in 0..number_of_iterations {

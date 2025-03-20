@@ -179,34 +179,37 @@ fn check_course(
 ) {
     assert_team_cooks_not_two_times(course_map);
     assert_team_is_not_two_times_in_one_course(course_map);
-    let mut number_of_hosts = None;
+    let mut base_number_of_hosts = None;
     for (course_name, course_list) in course_map.iter() {
         if course_with_more_hosts.is_some()
-            && course_with_more_hosts.expect("Expect course name for course with more hosts")
-                == course_name
+            && course_with_more_hosts
+                .expect("Expect course name for course with more hosts")
+                .eq(course_name)
         {
-            if number_of_hosts.is_some() {
+            if base_number_of_hosts.is_some() {
                 assert!(
-                    number_of_hosts.expect("Expect number of hosts") == course_list.len() + 1,
+                    base_number_of_hosts.expect("Expect number of hosts") + 1 == course_list.len(),
                     "Overhang course \"{}\" has not exaclty {} but {} hosts",
                     course_name,
-                    number_of_hosts.expect("Expect number of hosts"),
-                    course_list.len() + 1
+                    base_number_of_hosts.expect("Expect number of hosts") + 1,
+                    course_list.len()
                 );
             } else {
-                number_of_hosts = Some(course_list.len() - 1);
+                //Set expecated base number of hosts
+                base_number_of_hosts = Some(course_list.len() - 1);
             }
         } else {
-            if number_of_hosts.is_some() {
+            if base_number_of_hosts.is_some() {
                 assert!(
-                    number_of_hosts.expect("Expect number of hosts") == course_list.len(),
+                    base_number_of_hosts.expect("Expect number of hosts") == course_list.len(),
                     "Course \"{}\" has not exaclty {} but {} hosts",
                     course_name,
-                    number_of_hosts.expect("Expect number of hosts"),
-                    course_list.len() + 1
+                    base_number_of_hosts.expect("Expect number of hosts"),
+                    course_list.len()
                 );
             } else {
-                number_of_hosts = Some(course_list.len());
+                //Set expecated base number of hosts
+                base_number_of_hosts = Some(course_list.len());
             }
         }
     }
