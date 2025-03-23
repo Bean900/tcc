@@ -1,11 +1,15 @@
 use data::{get_contact_list, get_course_name_list};
 use env_logger::Env;
 use tcc::{
-    calculator::{Calculator, Course, Plan},
+    calculator::{Calculator, CalculatorConfig, Course, Plan},
     contact::Contact,
 };
 
-use std::collections::{HashMap, HashSet as HeshSet};
+use std::{
+    collections::{HashMap, HashSet as HeshSet},
+    thread,
+    time::{self, Duration},
+};
 
 mod data;
 
@@ -36,16 +40,6 @@ fn print_plan(plan: &Plan) {
             println!();
         }
     }
-
-    /*
-    println!("Walking-Path:");
-    for (from, to_list) in plan.walking_path.iter() {
-        println!("{}:\n\t", from.team_name);
-        for to in to_list.iter() {
-            print!(" -> {}", to.host.team_name);
-        }
-        print!("\n")
-    }*/
 }
 
 fn print_test_params(contact_list: &Vec<Contact>, course_name_list: &Vec<String>) {
@@ -217,6 +211,29 @@ fn check_course(
 // END ASSERT AREA
 // START TEST AREA
 
+fn run_calculation(calculator: &Calculator) {
+    calculator.calculate();
+
+    let start_time = time::Instant::now();
+    while calculator.top_plan().is_none() {
+        // Wait until a plan is available
+        thread::sleep(Duration::from_millis(100));
+    }
+    calculator.stop();
+
+    if start_time.elapsed().as_secs() == 0 {
+        println!(
+            "Calculation took {} milliseconds!",
+            start_time.elapsed().as_millis()
+        );
+    } else {
+        println!(
+            "Calculation took {} seconds!",
+            start_time.elapsed().as_secs()
+        );
+    }
+}
+
 #[test]
 fn test_team_of_nine() {
     INIT.call_once(|| {
@@ -229,8 +246,11 @@ fn test_team_of_nine() {
 
     print_test_params(&contact_list, &course_name_list);
 
-    let calculator = Calculator::new(&course_name_list, &contact_list, None);
-    calculator.calculate();
+    let config = CalculatorConfig::new(course_name_list, contact_list, None);
+    let calculator = Calculator::new(config);
+
+    run_calculation(&calculator);
+
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(
@@ -279,8 +299,13 @@ fn test_team_of_ten() {
 
     print_test_params(&contact_list, &course_name_list);
 
-    let calculator = Calculator::new(&course_name_list, &contact_list, course_with_more_hosts);
-    calculator.calculate();
+    let config = CalculatorConfig::new(
+        course_name_list.clone(),
+        contact_list,
+        course_with_more_hosts.cloned(),
+    );
+    let calculator = Calculator::new(config);
+    run_calculation(&calculator);
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(
@@ -306,8 +331,13 @@ fn test_team_of_eleven() {
 
     print_test_params(&contact_list, &course_name_list);
 
-    let calculator = Calculator::new(&course_name_list, &contact_list, course_with_more_hosts);
-    calculator.calculate();
+    let config = CalculatorConfig::new(
+        course_name_list.clone(),
+        contact_list,
+        course_with_more_hosts.cloned(),
+    );
+    let calculator = Calculator::new(config);
+    run_calculation(&calculator);
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(
@@ -333,8 +363,13 @@ fn test_team_of_twelve() {
 
     print_test_params(&contact_list, &course_name_list);
 
-    let calculator = Calculator::new(&course_name_list, &contact_list, course_with_more_hosts);
-    calculator.calculate();
+    let config = CalculatorConfig::new(
+        course_name_list.clone(),
+        contact_list,
+        course_with_more_hosts.cloned(),
+    );
+    let calculator = Calculator::new(config);
+    run_calculation(&calculator);
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(
@@ -360,8 +395,13 @@ fn test_team_of_thirteen() {
 
     print_test_params(&contact_list, &course_name_list);
 
-    let calculator = Calculator::new(&course_name_list, &contact_list, course_with_more_hosts);
-    calculator.calculate();
+    let config = CalculatorConfig::new(
+        course_name_list.clone(),
+        contact_list,
+        course_with_more_hosts.cloned(),
+    );
+    let calculator = Calculator::new(config);
+    run_calculation(&calculator);
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(
@@ -387,8 +427,13 @@ fn test_team_of_fourteen() {
 
     print_test_params(&contact_list, &course_name_list);
 
-    let calculator = Calculator::new(&course_name_list, &contact_list, course_with_more_hosts);
-    calculator.calculate();
+    let config = CalculatorConfig::new(
+        course_name_list.clone(),
+        contact_list,
+        course_with_more_hosts.cloned(),
+    );
+    let calculator = Calculator::new(config);
+    run_calculation(&calculator);
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(
@@ -414,8 +459,13 @@ fn test_team_of_fifteen() {
 
     print_test_params(&contact_list, &course_name_list);
 
-    let calculator = Calculator::new(&course_name_list, &contact_list, course_with_more_hosts);
-    calculator.calculate();
+    let config = CalculatorConfig::new(
+        course_name_list.clone(),
+        contact_list,
+        course_with_more_hosts.cloned(),
+    );
+    let calculator = Calculator::new(config);
+    run_calculation(&calculator);
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(
@@ -441,8 +491,13 @@ fn test_team_of_sixteen() {
 
     print_test_params(&contact_list, &course_name_list);
 
-    let calculator = Calculator::new(&course_name_list, &contact_list, course_with_more_hosts);
-    calculator.calculate();
+    let config = CalculatorConfig::new(
+        course_name_list.clone(),
+        contact_list,
+        course_with_more_hosts.cloned(),
+    );
+    let calculator = Calculator::new(config);
+    run_calculation(&calculator);
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(
@@ -468,8 +523,13 @@ fn test_team_of_seventeen() {
 
     print_test_params(&contact_list, &course_name_list);
 
-    let calculator = Calculator::new(&course_name_list, &contact_list, course_with_more_hosts);
-    calculator.calculate();
+    let config = CalculatorConfig::new(
+        course_name_list.clone(),
+        contact_list,
+        course_with_more_hosts.cloned(),
+    );
+    let calculator = Calculator::new(config);
+    run_calculation(&calculator);
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(

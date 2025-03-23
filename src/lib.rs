@@ -5,6 +5,7 @@ use crate::contact::{Contact, ContactLoader};
 
 use crate::calculator::Calculator;
 
+use calculator::CalculatorConfig;
 use iced::window::{self, icon, Icon};
 use iced::{
     widget::{
@@ -56,7 +57,7 @@ pub fn startup() -> iced::Result {
         .run()
 }
 
-pub struct TCCScreen<'a> {
+pub struct TCCScreen {
     screen: Screen,
     err_message: String,
     contact_list: Option<Vec<contact::Contact>>,
@@ -65,7 +66,7 @@ pub struct TCCScreen<'a> {
     goal_point_latitude: i32,
     goal_point_longitude: i32,
     course_name_list: Vec<String>,
-    calculator: Option<calculator::Calculator<'a, 'a>>,
+    calculator: Option<calculator::Calculator>,
 }
 
 #[derive(Debug, Clone)]
@@ -84,7 +85,7 @@ pub enum Message {
     DeleteCourseName(usize),
 }
 
-impl<'a> TCCScreen<'a> {
+impl TCCScreen {
     fn update(&mut self, event: Message) {
         match event {
             Message::LoadData => {
@@ -124,8 +125,15 @@ impl<'a> TCCScreen<'a> {
                 self.course_name_list
                     .truncate(self.course_name_list.len() - 1);
 
-                let contact_list = self.contact_list.as_ref().unwrap();
-                let calculator = Calculator::new(&self.course_name_list, contact_list, None);
+                let config = CalculatorConfig::new(
+                    self.course_name_list.clone(),
+                    self.contact_list
+                        .clone()
+                        .expect("Expect contact list to exist")
+                        .clone(),
+                    None,
+                );
+                let calculator = Calculator::new(config);
 
                 calculator.calculate();
 
@@ -359,7 +367,7 @@ pub enum Layout {
     Column,
 }
 
-impl<'a> Default for TCCScreen<'a> {
+impl Default for TCCScreen {
     fn default() -> Self {
         Self {
             screen: Screen::LoadData,
