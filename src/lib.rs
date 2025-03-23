@@ -1,8 +1,6 @@
 pub mod calculator;
 pub mod contact;
 
-use crate::contact::{Contact, ContactLoader};
-
 use crate::calculator::Calculator;
 
 use calculator::CalculatorConfig;

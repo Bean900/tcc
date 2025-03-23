@@ -1,8 +1,7 @@
-use core::{hash, num};
 use std::{
-    collections::{hash_set, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
-    thread::{self, spawn},
+    thread::{self},
 };
 
 use log::{debug, info};
@@ -10,8 +9,6 @@ use log::{debug, info};
 use rand::Rng;
 
 use colored::Colorize;
-use serde::de;
-use threadpool::ThreadPool;
 
 use crate::contact::Contact;
 
@@ -593,14 +590,6 @@ fn get_contact<'contact>(
 }
 
 impl CourseInternal {
-    fn new(id: u8, host_id: u8) -> Self {
-        CourseInternal {
-            id,
-            host_id,
-            guest_id_list: Vec::new(),
-        }
-    }
-
     fn clone(&self) -> CourseInternal {
         CourseInternal {
             id: self.id,

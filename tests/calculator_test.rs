@@ -237,7 +237,7 @@ fn run_calculation(calculator: &Calculator) {
 #[test]
 fn test_team_of_nine() {
     INIT.call_once(|| {
-        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+        env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
     });
     let number_of_guests = 9;
     let number_course = 3;
@@ -289,7 +289,7 @@ fn test_team_of_nine() {
 #[test]
 fn test_team_of_ten() {
     INIT.call_once(|| {
-        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+        env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
     });
     let number_of_guests = 10;
     let number_course = 3;
@@ -321,7 +321,7 @@ fn test_team_of_ten() {
 #[test]
 fn test_team_of_eleven() {
     INIT.call_once(|| {
-        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+        env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
     });
     let number_of_guests = 11;
     let number_course = 3;
@@ -353,7 +353,7 @@ fn test_team_of_eleven() {
 #[test]
 fn test_team_of_twelve() {
     INIT.call_once(|| {
-        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+        env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
     });
     let number_of_guests = 12;
     let number_course = 3;
@@ -385,7 +385,7 @@ fn test_team_of_twelve() {
 #[test]
 fn test_team_of_thirteen() {
     INIT.call_once(|| {
-        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+        env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
     });
     let number_of_guests = 13;
     let number_course = 3;
@@ -417,7 +417,7 @@ fn test_team_of_thirteen() {
 #[test]
 fn test_team_of_fourteen() {
     INIT.call_once(|| {
-        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+        env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
     });
     let number_of_guests = 14;
     let number_course = 3;
@@ -449,7 +449,7 @@ fn test_team_of_fourteen() {
 #[test]
 fn test_team_of_fifteen() {
     INIT.call_once(|| {
-        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+        env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
     });
     let number_of_guests = 15;
     let number_course = 3;
@@ -481,7 +481,7 @@ fn test_team_of_fifteen() {
 #[test]
 fn test_team_of_sixteen() {
     INIT.call_once(|| {
-        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+        env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
     });
     let number_of_guests = 16;
     let number_course = 3;
@@ -513,7 +513,7 @@ fn test_team_of_sixteen() {
 #[test]
 fn test_team_of_seventeen() {
     INIT.call_once(|| {
-        env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+        env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
     });
     let number_of_guests = 17;
     let number_course = 3;
