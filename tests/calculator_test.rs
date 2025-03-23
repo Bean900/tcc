@@ -353,7 +353,7 @@ fn test_team_of_eleven() {
 #[test]
 fn test_team_of_twelve() {
     INIT.call_once(|| {
-        env_logger::Builder::from_env(Env::default().default_filter_or("warn")).init();
+        env_logger::Builder::from_env(Env::default().default_filter_or("debug")).init();
     });
     let number_of_guests = 12;
     let number_course = 3;
@@ -379,7 +379,7 @@ fn test_team_of_twelve() {
         number_course,
     );
     assert_number_of_guests_in_course(&plan.course_map, number_of_guests);
-    check_course(&plan.course_map, course_with_more_hosts);
+    check_course(&plan.course_map, None);
 }
 
 #[test]
@@ -475,7 +475,7 @@ fn test_team_of_fifteen() {
         number_course,
     );
     assert_number_of_guests_in_course(&plan.course_map, number_of_guests);
-    check_course(&plan.course_map, course_with_more_hosts);
+    check_course(&plan.course_map, None);
 }
 
 #[test]

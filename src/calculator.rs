@@ -216,6 +216,7 @@ fn calcutate_job(
 }
 
 fn seed_to_plan(config: &CalculatorConfig, seed: Vec<u8>) -> PlanInternal {
+    debug!("Convert seed to Plan");
     let course_map = create_course_map(config, &seed);
 
     if course_map.is_none() {
@@ -298,7 +299,9 @@ fn create_course_map(
         let mut contact_in_course: HashSet<&Contact> = HashSet::new();
 
         let number_of_courses = config.contact_list.len() / config.course_name_list.len()
-            + if config.course_with_more_hosts.as_deref() == Some(course_name) {
+            + if config.course_with_more_hosts.as_deref() == Some(course_name)
+                && config.contact_list.len() % config.course_name_list.len() != 0
+            {
                 1
             } else {
                 0
