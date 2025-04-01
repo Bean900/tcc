@@ -1,3 +1,13 @@
-team_name,address,latitude,longitude
-KuchenTeam,kuchenstraße,3,4
-VorspeiseTeam,kartoffelstraße,5,6
+id,team_name,address,latitude,longitude
+1,CodeWarriors,mainstreet,37.7749,-122.4194
+2,Debuggers,elmstreet,40.7128,-74.0060
+3,ByteHunters,oakavenue,34.0522,-118.2437
+4,ScriptMasters,pineavenue,51.5074,-0.1278
+5,DataPirates,maplestreet,48.8566,2.3522
+6,LogicLords,cedarroad,35.6895,139.6917
+7,StackSurfers,birchlane,-33.8688,151.2093
+8,CloudRiders,willowdrive,55.7558,37.6173
+9,BitBusters,ashstreet,52.5200,13.4050
+10,AlgorithmKnights,beechroad,41.9028,12.4964
+11,PixelPioneers,sycamorelane,40.4168,-3.7038
+12,CodeCrushers,walnutstreet,19.4326,-99.1332

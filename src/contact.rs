@@ -73,10 +73,12 @@ impl ContactLoader {
         let mut index = 0_u8;
         loop {
             if let Some(result) = iter.next() {
-                let mut contact: Contact = result.map_err(|err| {
-                    println!("Error while mapping CSV data: {err}");
-                    return Error::new(ErrorKind::InvalidData, "Error while mapping CSV data!");
-                })?;
+                let mut contact: Contact = result
+                    .map_err(|err| {
+                        println!("Error while mapping CSV data: {err}");
+                        return Error::new(ErrorKind::InvalidData, "Error while mapping CSV data!");
+                    })
+                    .expect("Expected a valid CSV file!");
                 contact.id = index;
                 contact_list.push(contact);
                 index += 1;
