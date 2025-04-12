@@ -3,7 +3,7 @@ use std::rc::Rc;
 use iced::{
     alignment::{Horizontal, Vertical},
     border::Radius,
-    widget::{button, column, container, row, scrollable, Button, Column, Row, Text},
+    widget::{button, column, container, row, scrollable, Button, Column, Container, Row, Text},
     Alignment::Center,
     Border, Color, Element,
     Length::{self, Fill},
@@ -35,6 +35,15 @@ impl LoadScreen {
         let butto_load_data =
             container(Button::new("Load Data").on_press(Message::LoadData)).center_x(Fill);
         let button_next = container(button("Next Step").on_press(Message::GoToAddRulesScreen));
+
+        container(column![
+            row![butto_load_data, button_next],
+            self.get_contact_list()
+        ])
+        .into()
+    }
+
+    fn get_contact_list(&self) -> Element<Message> {
         let mut contact_data_row = Row::new().spacing(1).align_y(Vertical::Top);
         let mut contact_dara_column = Column::new()
             .spacing(5)
@@ -99,7 +108,7 @@ impl LoadScreen {
             index += 1;
         }
 
-        let data_container = container(scrollable(contact_dara_column).width(Fill))
+        container(scrollable(contact_dara_column).width(Fill))
             .style(move |_| container::Style {
                 border: Border {
                     color: Color::from_rgb(0.5, 0.5, 0.5),
@@ -116,8 +125,7 @@ impl LoadScreen {
             .height(Length::FillPortion(4))
             .padding(5)
             .center_x(Fill)
-            .into();
-        container(column![row![butto_load_data, button_next], data_container]).into()
+            .into()
     }
 
     fn get_choose_file() -> Element<'static, Message> {
