@@ -1,26 +1,29 @@
 pub mod calculator;
 pub mod contact;
+pub mod screen;
 
 use crate::calculator::Calculator;
 
 use calculator::CalculatorConfig;
-use iced::alignment::{Horizontal, Vertical};
-use iced::border::Radius;
+use contact::Contact;
 use iced::widget::svg::Handle;
-use iced::widget::{Button, Container, Row, Svg, Text};
+use iced::widget::{button, horizontal_space, svg, text, text_input, Svg};
 use iced::window::{self, icon, Icon};
-use iced::Alignment::Center;
-use iced::Length::Fill;
+
 use iced::{
-    widget::{
-        button, column, container, horizontal_space, row, scrollable, svg, text, text_input, Column,
-    },
-    Element, Length, Theme,
+    alignment::{Horizontal, Vertical},
+    border::Radius,
+    widget::{column, container, row, scrollable, Button, Column, Row, Text},
+    Alignment::Center,
+    Border, Color, Element,
+    Length::{self, Fill},
 };
 use image::ImageReader;
 use std::path::Path;
+use std::rc::Rc;
 
-use iced::{Alignment, Border, Color, Padding, Size};
+use crate::screen::{load::LoadScreen, AvailableScreens, ScreenName};
+use iced::{Alignment, Size, Theme};
 
 use chrono::Local;
 use env_logger::Builder;
@@ -61,15 +64,16 @@ pub fn startup() -> iced::Result {
 }
 
 pub struct TCCScreen {
-    screen: Screen,
+    screen: AvailableScreens,
+    active_screen: ScreenName,
     err_message: String,
-    contact_list: Option<Vec<contact::Contact>>,
+    contact_list: Option<Rc<Vec<Contact>>>,
     start_point_latitude: i32,
     start_point_longitude: i32,
     goal_point_latitude: i32,
     goal_point_longitude: i32,
     course_name_list: Vec<String>,
-    calculator: Option<calculator::Calculator>,
+    calculator: Option<Calculator>,
     image_collection: ImageCollection,
 }
 
@@ -119,23 +123,24 @@ impl TCCScreen {
 
                 self.err_message = "".to_string();
 
-                let contact_list = contact_list_result.unwrap();
+                let contact_list = contact_list_result.expect("Contact list should exist");
 
                 if contact_list.is_none() {
                     return;
                 }
 
-                self.contact_list = Some(contact_list.unwrap());
+                let contact_list = Rc::new(contact_list.expect("Contact list should exist"));
+                self.screen.set_contact_list(contact_list);
                 //  self.screen = Screen::CheckData;
             }
             Message::CreatePreview => {
                 // TODO
             }
             Message::GoToLoadDataScreen => {
-                self.screen = Screen::LoadData;
+                self.active_screen = ScreenName::LoadData;
             }
             Message::GoToAddRulesScreen => {
-                self.screen = Screen::AddRules;
+                self.active_screen = ScreenName::AddRules;
             }
             Message::GoToCalculateScreen => {
                 self.course_name_list
@@ -154,7 +159,7 @@ impl TCCScreen {
                 calculator.calculate();
 
                 // self.calculator = Some(calculator);
-                self.screen = Screen::Calculate;
+                self.active_screen = ScreenName::Calculate;
             }
             Message::UpdateStartPointLatitude(content) => {
                 let number = content.parse::<i32>();
@@ -217,12 +222,7 @@ impl TCCScreen {
     }
 
     fn view(&self) -> Element<Message> {
-        let screen = match self.screen {
-            Screen::LoadData => self.load_data(),
-            Screen::AddRules => self.add_rule(),
-            Screen::Calculate => self.calculate(),
-            Screen::Result => self.check_contact(),
-        };
+        let screen = self.screen.get(self.active_screen);
 
         let progress = self.progress();
 
@@ -244,8 +244,8 @@ impl TCCScreen {
             ..Default::default()
         };
         container(
-            match self.screen {
-                Screen::LoadData => row![
+            match self.active_screen {
+                ScreenName::LoadData => row![
                     Button::new(self.image_collection.upload.get_selected())
                         //.on_press(Message::GoToLoadDataScreen)
                         .style(move |_, _| button_style),
@@ -262,7 +262,7 @@ impl TCCScreen {
                         //.on_press(Message::GoToResultScreen)
                         .style(move |_, _| button_style),
                 ],
-                Screen::AddRules => row![
+                ScreenName::AddRules => row![
                     Button::new(self.image_collection.upload.get_previous())
                         .on_press(Message::GoToLoadDataScreen)
                         .style(move |_, _| button_style),
@@ -279,7 +279,7 @@ impl TCCScreen {
                         //.on_press(Message::GoToResultScreen)
                         .style(move |_, _| button_style),
                 ],
-                Screen::Calculate => row![
+                ScreenName::Calculate => row![
                     Button::new(self.image_collection.upload.get_previous())
                         .on_press(Message::GoToLoadDataScreen)
                         .style(move |_, _| button_style),
@@ -296,7 +296,7 @@ impl TCCScreen {
                         //.on_press(Message::GoToResultScreen)
                         .style(move |_, _| button_style),
                 ],
-                Screen::Result => row![
+                ScreenName::Result => row![
                     Button::new(self.image_collection.upload.get_previous())
                         .on_press(Message::GoToLoadDataScreen)
                         .style(move |_, _| button_style),
@@ -319,7 +319,7 @@ impl TCCScreen {
         )
         .width(Length::Fill)
         .height(Length::FillPortion(1))
-        .max_width(128 * 7)
+        .max_width(128 * 5)
         .align_y(iced::alignment::Vertical::Bottom)
         .into()
     }
@@ -353,100 +353,6 @@ impl TCCScreen {
             .padding(40)
             .push(button("Next").on_press(Message::GoToAddRulesScreen))
             .into()
-    }
-
-    fn load_data(&self) -> Element<Message> {
-        let headline = Text::new("Traveling Cook Calculator").size(50);
-        if self.contact_list.is_none() {
-            let sub_headline = container(Text::new("Load Contact-Data").size(20).align_x(Center))
-                .width(Fill)
-                .center_x(Fill)
-                .padding(10);
-            let short_description =
-                container(Text::new("Please load the contact data from a CSV-File.").size(15))
-                    .width(Fill)
-                    .center_x(Fill);
-            let button =
-                container(Button::new("Load Data").on_press(Message::LoadData)).center_x(Fill);
-            let upload_area = container(column![sub_headline, short_description, button])
-                .style(move |_| container::Style {
-                    border: Border {
-                        color: Color::from_rgb(0.5, 0.5, 0.5),
-                        radius: Radius {
-                            top_left: 10.0,
-                            top_right: 10.0,
-                            bottom_right: 10.0,
-                            bottom_left: 10.0,
-                        },
-                        width: 3.0,
-                    },
-                    ..Default::default()
-                })
-                .width(Fill)
-                .center(Fill)
-                .height(Fill)
-                .padding(40);
-
-            container(column![headline, upload_area])
-                .height(Length::FillPortion(4))
-                .padding(5)
-                .center_x(Fill)
-                .into()
-        } else {
-            let mut contact_data_row = Row::new().spacing(10).align_y(Vertical::Top);
-
-            for contact in self
-                .contact_list
-                .clone()
-                .expect("Expect contact list to exist")
-            {
-                contact_data_row = contact_data_row.push(
-                    Container::new(
-                        container(column![
-                            Text::new(contact.team_name),
-                            Text::new(contact.address),
-                            Text::new(format!("({} | {})", contact.latitude, contact.longitude))
-                        ])
-                        .style(move |_| container::Style {
-                            border: Border {
-                                color: Color::from_rgb(0.8, 0.8, 0.8),
-                                radius: Radius {
-                                    top_left: 2.0,
-                                    top_right: 2.0,
-                                    bottom_right: 2.0,
-                                    bottom_left: 2.0,
-                                },
-                                width: 1.0,
-                            },
-                            ..Default::default()
-                        })
-                        .padding(5),
-                    )
-                    .padding(10)
-                    .width(Length::Shrink) // Passt die Größe des Containers an
-                    .height(Length::Shrink), // Passt die Höhe des Containers an
-                );
-            }
-
-            // Der Row-Container wird in eine Column eingebunden, um den automatischen Zeilenumbruch zu ermöglichen
-            container(column![contact_data_row])
-                .style(move |_| container::Style {
-                    border: Border {
-                        color: Color::from_rgb(0.5, 0.5, 0.5),
-                        radius: Radius {
-                            top_left: 10.0,
-                            top_right: 10.0,
-                            bottom_right: 10.0,
-                            bottom_left: 10.0,
-                        },
-                        width: 3.0,
-                    },
-                    ..Default::default()
-                })
-                .width(Fill)
-                .height(Fill)
-                .into()
-        }
     }
 
     fn theme(&self) -> Theme {
@@ -499,16 +405,6 @@ impl TCCScreen {
         .into()
     }
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Screen {
-    LoadData,
-    AddRules,
-    Calculate,
-    Result,
-}
-
-impl Screen {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Layout {
@@ -564,7 +460,7 @@ impl SvgImage {
     }
 
     fn load(path: String) -> Handle {
-        svg::Handle::from_path(format!("{}{}", env!("CARGO_MANIFEST_DIR"), path))
+        Handle::from_path(format!("{}{}", env!("CARGO_MANIFEST_DIR"), path))
     }
 }
 
@@ -589,8 +485,10 @@ impl ImageCollection {
 
 impl Default for TCCScreen {
     fn default() -> Self {
+        let available_screens = AvailableScreens::new();
         Self {
-            screen: Screen::LoadData,
+            screen: available_screens,
+            active_screen: ScreenName::LoadData,
             err_message: "".to_string(),
             contact_list: None,
             start_point_latitude: 0_i32,
@@ -615,7 +513,3 @@ fn load_icon<P: AsRef<Path>>(path: P) -> Result<Icon, String> {
 
     icon::from_rgba(rgba, width, height).map_err(|e| e.to_string())
 }
-
-//  background: Some(Color::from_rgb(0.5, 0.75, 0.6).into()),
-//  background: Some(Color::from_rgb(0.7, 0.9, 0.8).into()),
-// background: Some(Color::from_rgb(0.4, 0.65, 0.5).into()),

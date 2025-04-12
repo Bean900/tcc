@@ -7,13 +7,21 @@ use std::{
 use serde_derive::Deserialize;
 
 use rfd::FileDialog;
-#[derive(PartialEq, Debug, Deserialize, Clone, Eq, Hash)]
+#[derive(PartialEq, Debug, Clone, Eq, Hash)]
 pub struct Contact {
     pub id: u8,
     pub team_name: String,
     pub address: String,
     pub latitude: i32,
     pub longitude: i32,
+}
+#[derive(Deserialize)]
+pub struct ContactInternal {
+    pub id: u8,
+    pub team_name: String,
+    pub address: String,
+    pub latitude: f64,
+    pub longitude: f64,
 }
 
 impl Contact {
@@ -73,14 +81,18 @@ impl ContactLoader {
         let mut index = 0_u8;
         loop {
             if let Some(result) = iter.next() {
-                let mut contact: Contact = result
-                    .map_err(|err| {
-                        println!("Error while mapping CSV data: {err}");
-                        return Error::new(ErrorKind::InvalidData, "Error while mapping CSV data!");
-                    })
-                    .expect("Expected a valid CSV file!");
+                let mut contact: ContactInternal = result.map_err(|err| {
+                    println!("Error while mapping CSV data: {err}");
+                    return Error::new(ErrorKind::InvalidData, "Error while mapping CSV data!");
+                })?;
                 contact.id = index;
-                contact_list.push(contact);
+                contact_list.push(Contact::new(
+                    contact.id,
+                    contact.team_name.as_str(),
+                    contact.address.as_str(),
+                    contact.latitude,
+                    contact.longitude,
+                ));
                 index += 1;
             } else {
                 break;

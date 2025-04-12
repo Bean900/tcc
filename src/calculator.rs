@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    rc::Rc,
     sync::{Arc, Mutex},
     thread::{self},
 };
@@ -27,7 +28,7 @@ pub struct CalculatorConfig {
     goal_point_longitude: Option<i32>,
     course_name_list: Vec<String>,
     course_with_more_hosts: Option<String>,
-    contact_list: Vec<Contact>,
+    contact_list: Arc<Vec<Contact>>,
 }
 
 #[derive(Debug)]
@@ -86,7 +87,7 @@ impl CalculatorConfig {
         goal_point_longitude: i32,
         course_with_more_hosts: Option<String>,
         course_name_list: Vec<String>,
-        contact_list: Vec<Contact>,
+        contact_list: Rc<Vec<Contact>>,
     ) -> Self {
         CalculatorConfig {
             start_point_latitude: Some(start_point_latitude),
@@ -95,12 +96,12 @@ impl CalculatorConfig {
             goal_point_longitude: Some(goal_point_longitude),
             course_with_more_hosts,
             course_name_list,
-            contact_list,
+            contact_list: Arc::new((*contact_list).clone()),
         }
     }
     pub fn new(
         course_name_list: Vec<String>,
-        contact_list: Vec<Contact>,
+        contact_list: Rc<Vec<Contact>>,
         course_with_more_hosts: Option<String>,
     ) -> Self {
         CalculatorConfig {
@@ -110,7 +111,7 @@ impl CalculatorConfig {
             goal_point_longitude: None,
             course_with_more_hosts,
             course_name_list,
-            contact_list,
+            contact_list: Arc::new((*contact_list).clone()),
         }
     }
 
@@ -122,7 +123,7 @@ impl CalculatorConfig {
             goal_point_longitude: self.goal_point_longitude.clone(),
             course_name_list: self.course_name_list.clone(),
             course_with_more_hosts: self.course_with_more_hosts.clone(),
-            contact_list: self.contact_list.clone(),
+            contact_list: Arc::clone(&self.contact_list),
         }
     }
 }
