@@ -1,34 +1,61 @@
 pub(crate) mod load;
+pub(crate) mod rule;
 use std::rc::Rc;
 
 use iced::Element;
+use rule::RuleScreen;
 
-use crate::{contact::Contact, LoadScreen, Message};
+use crate::{contact::Contact, LoadScreen, Message, Position};
 
 trait Screen {
     fn get(&self) -> Element<Message>;
-    fn get_name(&self) -> ScreenName;
+    fn update(&mut self, event: Message);
 }
 
 pub struct AvailableScreens {
     load_screen: LoadScreen,
+    rule_screen: RuleScreen,
+    active_screen: ScreenName,
 }
 
 impl AvailableScreens {
     pub fn new() -> Self {
         AvailableScreens {
             load_screen: LoadScreen::new(),
+            rule_screen: RuleScreen::new(),
+            active_screen: ScreenName::LoadData,
         }
     }
 
-    pub fn set_contact_list(&mut self, contact_list: Rc<Vec<Contact>>) {
-        self.load_screen.set_contact_list(Rc::clone(&contact_list));
+    pub fn get(&self) -> Element<Message> {
+        self.get_active_screen().get()
     }
 
-    pub fn get(&self, screen_name: ScreenName) -> Element<Message> {
-        match screen_name {
-            ScreenName::LoadData => self.load_screen.get(),
-            ScreenName::AddRules => todo!(),
+    pub fn set_active_screen(&mut self, screen_name: ScreenName) {
+        self.active_screen = screen_name;
+    }
+
+    pub fn update(&mut self, event: Message) {
+        self.get_active_screen_mut().update(event);
+    }
+
+    fn get_active_screen(&self) -> &dyn Screen {
+        match self.active_screen {
+            ScreenName::LoadData => &self.load_screen,
+            ScreenName::AddRules => &self.rule_screen,
+            ScreenName::Calculate => todo!(),
+            ScreenName::Result => todo!(),
+        }
+    }
+
+    pub fn get_active_screen_name(&self) -> ScreenName {
+        self.active_screen
+    }
+
+    fn get_active_screen_mut(&mut self) -> &mut dyn Screen {
+        match self.active_screen {
+            ScreenName::LoadData => &mut self.load_screen,
+            ScreenName::AddRules => &mut self.rule_screen,
             ScreenName::Calculate => todo!(),
             ScreenName::Result => todo!(),
         }

@@ -1,45 +1,83 @@
-use std::rc::Rc;
-
 use iced::{
     alignment::{Horizontal, Vertical},
     border::Radius,
-    widget::{button, column, container, row, scrollable, Button, Column, Container, Row, Text},
+    widget::{button, column, container, row, scrollable, Button, Column, Row, Text},
     Alignment::Center,
     Border, Color, Element,
     Length::{self, Fill},
 };
 
-use crate::{contact::Contact, Message};
+use crate::{
+    contact::{self, Contact},
+    Message,
+};
+
+use super::Screen;
 
 pub(crate) struct LoadScreen {
-    contact_list: Option<Rc<Vec<Contact>>>,
+    contact_list: Option<Vec<Contact>>,
+    err_message: Option<String>,
 }
-impl LoadScreen {
-    pub fn new() -> Self {
-        LoadScreen { contact_list: None }
-    }
 
-    pub fn get(&self) -> Element<Message> {
+impl Screen for LoadScreen {
+    fn get(&self) -> Element<Message> {
         if self.contact_list.is_none() {
             LoadScreen::get_choose_file()
         } else {
             self.get_check_data()
         }
     }
+    fn update(&mut self, event: Message) {
+        match event {
+            Message::LoadData => {
+                let contact_loader = contact::ContactLoader::new();
 
-    pub fn set_contact_list(&mut self, contact_list: Rc<Vec<Contact>>) {
-        self.contact_list = Some(contact_list);
+                let contact_list_result = contact_loader.load();
+
+                if contact_list_result.is_err() == true {
+                    log::error!(
+                        "Error loading contact list: {}",
+                        contact_list_result
+                            .as_ref()
+                            .err()
+                            .expect("Expect error when failed loading contact list")
+                    );
+                    self.err_message = Some("Error while loading contact list!".to_string());
+                    return;
+                } else {
+                    self.err_message = None;
+                }
+
+                let contact_list = contact_list_result.expect("Contact list should exist");
+
+                if contact_list.is_none() {
+                    return;
+                }
+
+                self.contact_list = contact_list.clone();
+            }
+            _ => {}
+        }
+    }
+}
+
+impl LoadScreen {
+    pub fn new() -> Self {
+        LoadScreen {
+            contact_list: None,
+            err_message: None,
+        }
     }
 
     fn get_check_data(&self) -> Element<Message> {
-        let butto_load_data =
-            container(Button::new("Load Data").on_press(Message::LoadData)).center_x(Fill);
+        let butto_load_data = container(Button::new("Load Data").on_press(Message::LoadData));
         let button_next = container(button("Next Step").on_press(Message::GoToAddRulesScreen));
 
         container(column![
             row![butto_load_data, button_next],
             self.get_contact_list()
         ])
+        .height(Length::FillPortion(4))
         .into()
     }
 
@@ -122,7 +160,7 @@ impl LoadScreen {
                 },
                 ..Default::default()
             })
-            .height(Length::FillPortion(4))
+            //.height(Length::FillPortion(4))
             .padding(5)
             .center_x(Fill)
             .into()
