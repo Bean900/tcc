@@ -1,13 +1,12 @@
-use std::{any, rc::Rc};
-
-use env_logger::fmt::style;
 use iced::{
-    border::Radius,
-    widget::{
-        checkbox, container, text,
-        text_input::{default, Style},
+    alignment::{
+        Horizontal::{Left, Right},
+        Vertical,
     },
+    border::Radius,
+    widget::{checkbox, container, text, text_input::Style},
     Border, Color, Element,
+    Length::Fill,
 };
 
 use crate::Message;
@@ -50,9 +49,41 @@ pub(crate) struct RuleScreen {
 
 impl Screen for RuleScreen {
     fn get(&self) -> Element<Message> {
+        let headline = text("Cook And Run Courses and Start / Goal point")
+            .size(25)
+            .align_x(Left);
+
+        let button_next =
+            container(button("Next Step").on_press(Message::GoToCalculateScreen)).align_right(Fill);
+
         column![
-            self.get_course_name(),
-            row![self.get_start_point(), self.get_goal_point()]
+            row![headline, button_next],
+            row![
+                self.get_course_name(),
+                container(
+                    container(column![self.get_start_point(), self.get_goal_point()].spacing(10))
+                        .width(140)
+                        .height(200)
+                        .max_width(140)
+                        .max_height(200)
+                        .padding(10)
+                        .style(move |_| container::Style {
+                            border: Border {
+                                color: Color::from_rgb(0.9, 0.9, 0.9),
+                                radius: Radius {
+                                    top_left: 12.0,
+                                    top_right: 12.0,
+                                    bottom_right: 12.0,
+                                    bottom_left: 12.0,
+                                },
+                                width: 1.0,
+                            },
+                            ..Default::default()
+                        })
+                )
+                .padding(20)
+                .align_x(Right)
+            ]
         ]
         .into()
     }
@@ -77,27 +108,19 @@ impl Screen for RuleScreen {
             Message::CheckInputCoordinateGoalPointLongitude(content) => {
                 set_position_data(&mut self.goal_point, content, FieldName::Longitude);
             }
-            /*   Message::UpdateCourseNameList(index, value) => {
+            Message::UpdateCourseNameList(index, value) => {
                 self.course_name_list[index] = value;
                 let len = self.course_name_list.len();
                 if len > 1 && self.course_name_list[len - 1].is_empty() {
                     self.course_name_list.remove(len - 1);
                 }
-
-                if self.course_name_list.is_empty()
-                    || !self.course_name_list[self.course_name_list.len() - 1].is_empty()
-                {
-                    self.course_name_list.push("".to_string());
-                }
             }
             Message::DeleteCourseName(index) => {
                 self.course_name_list.remove(index);
-                if self.course_name_list.is_empty()
-                    || !self.course_name_list[self.course_name_list.len() - 1].is_empty()
-                {
-                    self.course_name_list.push("".to_string());
-                }
-            }*/
+            }
+            Message::AddCourseName(value) => {
+                self.course_name_list.push(value);
+            }
             _ => {}
         }
     }
@@ -115,61 +138,74 @@ impl RuleScreen {
     }
 
     fn get_course_name(&self) -> Element<Message> {
-        let course_name_headline = text("Course names:");
+        let course_name_headline = text("Course names:").size(20);
 
         let mut course_name_rows: Column<Message> = column![];
         for (i, el) in self.course_name_list.iter().enumerate() {
             course_name_rows = course_name_rows.push(row![
-                text(format!("{}: ", i)),
+                text(format!("{}: ", i + 1))
+                    .align_y(Vertical::Center)
+                    .width(15),
+                //.height(Fill),
                 text_input("Type course name here...", el)
                     .on_input(move |content| Message::UpdateCourseNameList(i, content)),
                 button("-").on_press(Message::DeleteCourseName(i))
             ]);
         }
-        container(row![course_name_headline, course_name_rows]).into()
+        let len = self.course_name_list.len();
+
+        if len < 7 {
+            course_name_rows = course_name_rows.push(row![
+                text(format!("{}: ", len + 1))
+                    .align_y(Vertical::Center)
+                    .width(15),
+                text_input("Type course name here...", "")
+                    .on_input(move |content| Message::AddCourseName(content)),
+                button("-")
+            ]);
+        }
+        container(column![course_name_headline, course_name_rows])
+            .padding(20)
+            .into()
     }
 
     fn get_start_point(&self) -> Element<Message> {
         let headline = checkbox("Start point:", self.start_point_checkbox_state)
             .on_toggle(Message::ShowStartPositionInputField);
 
-        if self.start_point_checkbox_state {
-            let latitude = get_input_box(
-                &self.start_point,
-                FieldName::Latitude,
-                Message::CheckInputCoordinateStartPointLatitude,
-            );
-            let longitude = get_input_box(
-                &self.start_point,
-                FieldName::Longitude,
-                Message::CheckIbputCoordinateStartPointLongitude,
-            );
+        let latitude = get_input_box(
+            &self.start_point,
+            FieldName::Latitude,
+            self.start_point_checkbox_state
+                .then(|| Message::CheckInputCoordinateStartPointLatitude),
+        );
+        let longitude = get_input_box(
+            &self.start_point,
+            FieldName::Longitude,
+            self.start_point_checkbox_state
+                .then(|| Message::CheckIbputCoordinateStartPointLongitude),
+        );
 
-            container(row![headline, latitude, longitude]).into()
-        } else {
-            container(row![headline]).into()
-        }
+        container(column![headline, latitude, longitude]).into()
     }
 
     fn get_goal_point(&self) -> Element<Message> {
         let headline = checkbox("Goal point:", self.goal_point_checkbox_state)
             .on_toggle(Message::ShowGoalPositionInputField);
-        if self.goal_point_checkbox_state {
-            let latitude = get_input_box(
-                &self.goal_point,
-                FieldName::Latitude,
-                Message::CheckInputCoordinateGoalPointLatitude,
-            );
-            let longitude = get_input_box(
-                &self.goal_point,
-                FieldName::Longitude,
-                Message::CheckInputCoordinateGoalPointLongitude,
-            );
+        let latitude = get_input_box(
+            &self.goal_point,
+            FieldName::Latitude,
+            self.goal_point_checkbox_state
+                .then(|| Message::CheckInputCoordinateGoalPointLatitude),
+        );
+        let longitude = get_input_box(
+            &self.goal_point,
+            FieldName::Longitude,
+            self.goal_point_checkbox_state
+                .then(|| Message::CheckInputCoordinateGoalPointLongitude),
+        );
 
-            container(row![headline, latitude, longitude]).into()
-        } else {
-            container(row![headline]).into()
-        }
+        container(column![headline, latitude, longitude]).into()
     }
 }
 
@@ -229,7 +265,7 @@ fn string_to_number<T: std::str::FromStr>(content: &str) -> Result<T, String> {
 fn get_input_box(
     position_option: &Option<Position>,
     field_name: FieldName,
-    on_input: impl Fn(String) -> Message + 'static,
+    on_input: Option<impl Fn(String) -> Message + 'static>,
 ) -> Element<Message> {
     let error_style = move |theme, status| Style {
         border: Border {
@@ -248,22 +284,23 @@ fn get_input_box(
         ..text_input::default(theme, status)
     };
 
-    position_option
-        .as_ref()
-        .clone()
-        .map_or_else(
-            || text_input("Type coordinate here", ""),
-            |position| match field_name {
-                FieldName::Latitude => position.latitude.as_ref().map_or_else(
-                    || text_input("Type coordinate here", ""),
-                    |coordinate| text_input("Type coordinate here", coordinate),
-                ),
-                FieldName::Longitude => position.longitude.as_ref().map_or_else(
-                    || text_input("Type coordinate here", ""),
-                    |coordinate| text_input("Type coordinate here", coordinate),
-                ),
-            },
-        )
-        .on_input(on_input)
-        .into()
+    let text_input = position_option.as_ref().clone().map_or_else(
+        || text_input("Type coordinate here", ""),
+        |position| match field_name {
+            FieldName::Latitude => position.latitude.as_ref().map_or_else(
+                || text_input("Type coordinate here", ""),
+                |coordinate| text_input("Type coordinate here", coordinate),
+            ),
+            FieldName::Longitude => position.longitude.as_ref().map_or_else(
+                || text_input("Type coordinate here", ""),
+                |coordinate| text_input("Type coordinate here", coordinate),
+            ),
+        },
+    );
+
+    if on_input.is_some() {
+        text_input.on_input(on_input.unwrap()).into()
+    } else {
+        text_input.into()
+    }
 }

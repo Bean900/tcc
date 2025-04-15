@@ -1,7 +1,10 @@
 use iced::{
-    alignment::{Horizontal, Vertical},
+    alignment::{
+        Horizontal::{self, Left},
+        Vertical,
+    },
     border::Radius,
-    widget::{button, column, container, row, scrollable, Button, Column, Row, Text},
+    widget::{button, column, container, row, scrollable, text, Button, Column, Row, Text},
     Alignment::Center,
     Border, Color, Element,
     Length::{self, Fill},
@@ -9,6 +12,7 @@ use iced::{
 
 use crate::{
     contact::{self, Contact},
+    image_collection::IMAGE_COLLECTION,
     Message,
 };
 
@@ -70,11 +74,14 @@ impl LoadScreen {
     }
 
     fn get_check_data(&self) -> Element<Message> {
-        let butto_load_data = container(Button::new("Load Data").on_press(Message::LoadData));
-        let button_next = container(button("Next Step").on_press(Message::GoToAddRulesScreen));
+        let headline = Text::new("Cook And Run Teams").size(25).align_x(Left);
+        let butto_load_data =
+            container(Button::new("Load Data").on_press(Message::LoadData)).align_right(Fill);
+        let button_next =
+            container(button("Next Step").on_press(Message::GoToAddRulesScreen)).align_right(Fill);
 
         container(column![
-            row![butto_load_data, button_next],
+            row![headline, butto_load_data, button_next],
             self.get_contact_list()
         ])
         .height(Length::FillPortion(4))
@@ -82,7 +89,7 @@ impl LoadScreen {
     }
 
     fn get_contact_list(&self) -> Element<Message> {
-        let mut contact_data_row = Row::new().spacing(1).align_y(Vertical::Top);
+        let mut contact_data_row = Row::new().spacing(10).align_y(Vertical::Top);
         let mut contact_dara_column = Column::new()
             .spacing(5)
             .align_x(Horizontal::Left)
@@ -98,52 +105,21 @@ impl LoadScreen {
         {
             if index % 2 == 0 && index != 0 {
                 contact_dara_column = contact_dara_column.push(contact_data_row.padding(5));
-                contact_data_row = Row::new().spacing(1).align_y(Vertical::Top);
+                contact_data_row = Row::new().spacing(10).align_y(Vertical::Top);
             }
 
-            let contact_box = container(row![
-                container(Text::new(contact.id))
-                    .style(move |_| container::Style {
-                        border: Border {
-                            color: Color::from_rgb(0.8, 0.8, 0.8),
-                            radius: Radius {
-                                top_left: 2.0,
-                                top_right: 2.0,
-                                bottom_right: 2.0,
-                                bottom_left: 2.0,
-                            },
-                            width: 1.0,
-                        },
-                        ..Default::default()
-                    })
-                    .center(Fill)
-                    .width(24)
-                    .height(24),
-                container(column![
-                    Text::new(contact.team_name.clone()),
-                    Text::new(contact.address.clone()),
-                    Text::new(format!("({} | {})", contact.latitude, contact.longitude))
-                ])
-                .style(move |_| container::Style {
-                    border: Border {
-                        color: Color::from_rgb(0.8, 0.8, 0.8),
-                        radius: Radius {
-                            top_left: 2.0,
-                            top_right: 2.0,
-                            bottom_right: 2.0,
-                            bottom_left: 2.0,
-                        },
-                        width: 1.0,
-                    },
-                    ..Default::default()
-                })
-                .padding(2)
-                .width(180)
-                .height(100)
-            ])
-            .padding(5);
+            let contact_box = Self::team_card(
+                &contact.team_name,
+                &contact.address,
+                (contact.latitude, contact.longitude),
+                index,
+            );
             contact_data_row = contact_data_row.push(contact_box);
             index += 1;
+        }
+
+        if index % 2 != 0 {
+            contact_dara_column = contact_dara_column.push(contact_data_row.padding(5));
         }
 
         container(scrollable(contact_dara_column).width(Fill))
@@ -160,9 +136,49 @@ impl LoadScreen {
                 },
                 ..Default::default()
             })
-            //.height(Length::FillPortion(4))
             .padding(5)
             .center_x(Fill)
+            .into()
+    }
+
+    fn team_card<'a>(
+        name: &'a str,
+        street: &'a str,
+        coords: (i32, i32),
+        index: usize,
+    ) -> Element<'a, Message> {
+        let icons = column![
+            IMAGE_COLLECTION.team.get(20),
+            IMAGE_COLLECTION.user_card.get(24),
+            IMAGE_COLLECTION.pin.get(18)
+        ]
+        .spacing(8);
+
+        let text = column![
+            text(format!("Team {}", (index + 1))).size(20),
+            text(name).size(20).color(Color::from_rgb(0.0, 0.0, 0.5)),
+            text(street).size(18),
+            text(format!("({:?} | {:?})", coords.0, coords.1)).size(16)
+        ];
+
+        let content = row![icons, text].padding(10);
+
+        container(content)
+            .width(250)
+            .height(120)
+            .style(move |_| container::Style {
+                border: Border {
+                    color: Color::from_rgb(0.9, 0.9, 0.9),
+                    radius: Radius {
+                        top_left: 12.0,
+                        top_right: 12.0,
+                        bottom_right: 12.0,
+                        bottom_left: 12.0,
+                    },
+                    width: 1.0,
+                },
+                ..Default::default()
+            })
             .into()
     }
 

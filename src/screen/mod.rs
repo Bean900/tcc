@@ -1,11 +1,10 @@
 pub(crate) mod load;
 pub(crate) mod rule;
-use std::rc::Rc;
 
 use iced::Element;
 use rule::RuleScreen;
 
-use crate::{contact::Contact, LoadScreen, Message, Position};
+use crate::{LoadScreen, Message};
 
 trait Screen {
     fn get(&self) -> Element<Message>;

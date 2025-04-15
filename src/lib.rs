@@ -1,5 +1,6 @@
 pub mod calculator;
 pub mod contact;
+mod image_collection;
 pub mod screen;
 
 use crate::calculator::Calculator;
@@ -19,6 +20,7 @@ use iced::{
     Length::{self, Fill},
 };
 use image::ImageReader;
+use image_collection::{ImageCollection, IMAGE_COLLECTION};
 use std::path::Path;
 use std::rc::Rc;
 
@@ -70,22 +72,6 @@ pub struct Position {
 
 pub struct TCCScreen {
     screen: AvailableScreens,
-    image_collection: ImageCollection,
-}
-
-struct ImageCollection {
-    upload: SvgImage,
-    add_course: SvgImage,
-    calc: SvgImage,
-    result: SvgImage,
-    line: SvgImage,
-    next_line: SvgImage,
-}
-
-struct SvgImage {
-    selected: Handle,
-    next: Handle,
-    previous: Handle,
 }
 
 #[derive(Debug, Clone)]
@@ -112,6 +98,7 @@ pub enum Message {
     UpdateGoalPointLatitude(String),
     UpdateGoalPointLongitude(String),
     UpdateCourseNameList(usize, String),
+    AddCourseName(String),
     DeleteCourseName(usize),
 }
 
@@ -162,70 +149,70 @@ impl TCCScreen {
         container(
             match self.screen.get_active_screen_name() {
                 ScreenName::LoadData => row![
-                    Button::new(self.image_collection.upload.get_selected())
+                    Button::new(IMAGE_COLLECTION.upload.get_selected())
                         //.on_press(Message::GoToLoadDataScreen)
                         .style(move |_, _| button_style),
-                    self.image_collection.next_line.get_next(),
-                    Button::new(self.image_collection.add_course.get_next())
+                    IMAGE_COLLECTION.next_line.get_next(),
+                    Button::new(IMAGE_COLLECTION.add_course.get_next())
                         //.on_press(Message::GoToAddRulesScreen)
                         .style(move |_, _| button_style),
-                    self.image_collection.next_line.get_next(),
-                    Button::new(self.image_collection.calc.get_next())
+                    IMAGE_COLLECTION.next_line.get_next(),
+                    Button::new(IMAGE_COLLECTION.calc.get_next())
                         //.on_press(Message::GoToCalculateScreen)
                         .style(move |_, _| button_style),
-                    self.image_collection.next_line.get_next(),
-                    Button::new(self.image_collection.result.get_next())
+                    IMAGE_COLLECTION.next_line.get_next(),
+                    Button::new(IMAGE_COLLECTION.result.get_next())
                         //.on_press(Message::GoToResultScreen)
                         .style(move |_, _| button_style),
                 ],
                 ScreenName::AddRules => row![
-                    Button::new(self.image_collection.upload.get_previous())
+                    Button::new(IMAGE_COLLECTION.upload.get_previous())
                         .on_press(Message::GoToLoadDataScreen)
                         .style(move |_, _| button_style),
-                    self.image_collection.line.get_previous(),
-                    Button::new(self.image_collection.add_course.get_selected())
+                    IMAGE_COLLECTION.line.get_previous(),
+                    Button::new(IMAGE_COLLECTION.add_course.get_selected())
                         //.on_press(Message::GoToAddRulesScreen)
                         .style(move |_, _| button_style),
-                    self.image_collection.next_line.get_next(),
-                    Button::new(self.image_collection.calc.get_next())
+                    IMAGE_COLLECTION.next_line.get_next(),
+                    Button::new(IMAGE_COLLECTION.calc.get_next())
                         //.on_press(Message::GoToCalculateScreen)
                         .style(move |_, _| button_style),
-                    self.image_collection.next_line.get_next(),
-                    Button::new(self.image_collection.result.get_next())
+                    IMAGE_COLLECTION.next_line.get_next(),
+                    Button::new(IMAGE_COLLECTION.result.get_next())
                         //.on_press(Message::GoToResultScreen)
                         .style(move |_, _| button_style),
                 ],
                 ScreenName::Calculate => row![
-                    Button::new(self.image_collection.upload.get_previous())
+                    Button::new(IMAGE_COLLECTION.upload.get_previous())
                         .on_press(Message::GoToLoadDataScreen)
                         .style(move |_, _| button_style),
-                    self.image_collection.line.get_previous(),
-                    Button::new(self.image_collection.add_course.get_previous())
+                    IMAGE_COLLECTION.line.get_previous(),
+                    Button::new(IMAGE_COLLECTION.add_course.get_previous())
                         .on_press(Message::GoToAddRulesScreen)
                         .style(move |_, _| button_style),
-                    self.image_collection.line.get_previous(),
-                    Button::new(self.image_collection.calc.get_selected())
+                    IMAGE_COLLECTION.line.get_previous(),
+                    Button::new(IMAGE_COLLECTION.calc.get_selected())
                         //.on_press(Message::GoToCalculateScreen)
                         .style(move |_, _| button_style),
-                    self.image_collection.next_line.get_next(),
-                    Button::new(self.image_collection.result.get_next())
+                    IMAGE_COLLECTION.next_line.get_next(),
+                    Button::new(IMAGE_COLLECTION.result.get_next())
                         //.on_press(Message::GoToResultScreen)
                         .style(move |_, _| button_style),
                 ],
                 ScreenName::Result => row![
-                    Button::new(self.image_collection.upload.get_previous())
+                    Button::new(IMAGE_COLLECTION.upload.get_previous())
                         .on_press(Message::GoToLoadDataScreen)
                         .style(move |_, _| button_style),
-                    self.image_collection.line.get_previous(),
-                    Button::new(self.image_collection.add_course.get_previous())
+                    IMAGE_COLLECTION.line.get_previous(),
+                    Button::new(IMAGE_COLLECTION.add_course.get_previous())
                         .on_press(Message::GoToAddRulesScreen)
                         .style(move |_, _| button_style),
-                    self.image_collection.line.get_previous(),
-                    Button::new(self.image_collection.calc.get_previous())
+                    IMAGE_COLLECTION.line.get_previous(),
+                    Button::new(IMAGE_COLLECTION.calc.get_previous())
                         .on_press(Message::GoToCalculateScreen)
                         .style(move |_, _| button_style),
-                    self.image_collection.line.get_previous(),
-                    Button::new(self.image_collection.result.get_selected())
+                    IMAGE_COLLECTION.line.get_previous(),
+                    Button::new(IMAGE_COLLECTION.result.get_selected())
                         //.on_press(Message::GoToResultScreen)
                         .style(move |_, _| button_style),
                 ],
@@ -251,83 +238,11 @@ pub enum Layout {
     Column,
 }
 
-impl SvgImage {
-    fn new(path: String) -> Self {
-        Self {
-            selected: Self::load(path.clone()),
-            previous: Self::load(path.clone()),
-            next: Self::load(path.clone()),
-        }
-    }
-
-    fn get_style_previous(_: &Theme, status: svg::Status) -> svg::Style {
-        let completed_step = Color::from_rgb(52.0 / 255.0, 152.0 / 255.0, 219.0 / 255.0);
-        let hover_step = Color::from_rgb(41.0 / 255.0, 128.0 / 255.0, 185.0 / 255.0);
-        svg::Style {
-            color: if status == svg::Status::Hovered {
-                Some(completed_step)
-            } else {
-                Some(hover_step)
-            },
-        }
-    }
-
-    fn get_style_selected(_: &Theme, _: svg::Status) -> svg::Style {
-        let current_step = Color::from_rgb(46.0 / 255.0, 204.0 / 255.0, 113.0 / 255.0);
-        svg::Style {
-            color: Some(current_step),
-        }
-    }
-
-    fn get_style_next(_: &Theme, _: svg::Status) -> svg::Style {
-        let next_step = Color::from_rgb(243.0 / 255.0, 156.0 / 255.0, 18.0 / 255.0);
-        svg::Style {
-            color: Some(next_step),
-        }
-    }
-
-    fn get_selected(&self) -> Svg {
-        svg(self.selected.clone()).style(SvgImage::get_style_selected)
-    }
-
-    fn get_next(&self) -> Svg {
-        svg(self.next.clone()).style(SvgImage::get_style_next)
-    }
-
-    fn get_previous(&self) -> Svg {
-        svg(self.previous.clone()).style(SvgImage::get_style_previous)
-    }
-
-    fn load(path: String) -> Handle {
-        Handle::from_path(format!("{}{}", env!("CARGO_MANIFEST_DIR"), path))
-    }
-}
-
-impl ImageCollection {
-    fn new() -> Self {
-        let upload = SvgImage::new("/resources/upload.svg".to_string());
-        let add_course = SvgImage::new("/resources/add-course.svg".to_string());
-        let calc = SvgImage::new("/resources/calc.svg".to_string());
-        let result = SvgImage::new("/resources/result.svg".to_string());
-        let line = SvgImage::new("/resources/line.svg".to_string());
-        let next_line = SvgImage::new("/resources/next-line.svg".to_string());
-        Self {
-            upload,
-            add_course,
-            calc,
-            result,
-            line,
-            next_line,
-        }
-    }
-}
-
 impl Default for TCCScreen {
     fn default() -> Self {
         let available_screens = AvailableScreens::new();
         Self {
             screen: available_screens,
-            image_collection: ImageCollection::new(),
         }
     }
 }
