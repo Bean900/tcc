@@ -61,25 +61,31 @@ impl Screen for RuleScreen {
             row![
                 self.get_course_name(),
                 container(
-                    container(column![self.get_start_point(), self.get_goal_point()].spacing(10))
-                        .width(140)
-                        .height(200)
-                        .max_width(140)
-                        .max_height(200)
-                        .padding(10)
-                        .style(move |_| container::Style {
-                            border: Border {
-                                color: Color::from_rgb(0.9, 0.9, 0.9),
-                                radius: Radius {
-                                    top_left: 12.0,
-                                    top_right: 12.0,
-                                    bottom_right: 12.0,
-                                    bottom_left: 12.0,
-                                },
-                                width: 1.0,
+                    container(
+                        column![
+                            self.get_start_point_element(),
+                            self.get_goal_point_element()
+                        ]
+                        .spacing(10)
+                    )
+                    .width(140)
+                    .height(200)
+                    .max_width(140)
+                    .max_height(200)
+                    .padding(10)
+                    .style(move |_| container::Style {
+                        border: Border {
+                            color: Color::from_rgb(0.9, 0.9, 0.9),
+                            radius: Radius {
+                                top_left: 12.0,
+                                top_right: 12.0,
+                                bottom_right: 12.0,
+                                bottom_left: 12.0,
                             },
-                            ..Default::default()
-                        })
+                            width: 1.0,
+                        },
+                        ..Default::default()
+                    })
                 )
                 .padding(20)
                 .align_x(Right)
@@ -169,7 +175,7 @@ impl RuleScreen {
             .into()
     }
 
-    fn get_start_point(&self) -> Element<Message> {
+    fn get_start_point_element(&self) -> Element<Message> {
         let headline = checkbox("Start point:", self.start_point_checkbox_state)
             .on_toggle(Message::ShowStartPositionInputField);
 
@@ -189,7 +195,7 @@ impl RuleScreen {
         container(column![headline, latitude, longitude]).into()
     }
 
-    fn get_goal_point(&self) -> Element<Message> {
+    fn get_goal_point_element(&self) -> Element<Message> {
         let headline = checkbox("Goal point:", self.goal_point_checkbox_state)
             .on_toggle(Message::ShowGoalPositionInputField);
         let latitude = get_input_box(
@@ -206,6 +212,46 @@ impl RuleScreen {
         );
 
         container(column![headline, latitude, longitude]).into()
+    }
+
+    pub fn get_course_name_list(&self) -> Option<Vec<String>> {
+        if self.course_name_list.is_empty() {
+            None
+        } else {
+            Some(self.course_name_list.clone())
+        }
+    }
+
+    pub fn get_start_point(&self) -> Option<(i32, i32)> {
+        self.start_point.as_ref().and_then(|start_point| {
+            if self.start_point_checkbox_state
+                && start_point.latitude.is_some()
+                && start_point.longitude.is_some()
+            {
+                Some((
+                    start_point.latitude.as_ref()?.parse::<i32>().ok()?,
+                    start_point.longitude.as_ref()?.parse::<i32>().ok()?,
+                ))
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn get_goal_point(&self) -> Option<(i32, i32)> {
+        self.goal_point.as_ref().and_then(|goal_point| {
+            if self.goal_point_checkbox_state
+                && goal_point.latitude.is_some()
+                && goal_point.longitude.is_some()
+            {
+                Some((
+                    goal_point.latitude.as_ref()?.parse::<i32>().ok()?,
+                    goal_point.longitude.as_ref()?.parse::<i32>().ok()?,
+                ))
+            } else {
+                None
+            }
+        })
     }
 }
 

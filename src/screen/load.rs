@@ -82,13 +82,13 @@ impl LoadScreen {
 
         container(column![
             row![headline, butto_load_data, button_next],
-            self.get_contact_list()
+            self.get_contact_list_element()
         ])
         .height(Length::FillPortion(4))
         .into()
     }
 
-    fn get_contact_list(&self) -> Element<Message> {
+    fn get_contact_list_element(&self) -> Element<Message> {
         let mut contact_data_row = Row::new().spacing(10).align_y(Vertical::Top);
         let mut contact_dara_column = Column::new()
             .spacing(5)
@@ -180,6 +180,10 @@ impl LoadScreen {
                 ..Default::default()
             })
             .into()
+    }
+
+    pub fn get_contact_list(&self) -> Option<Vec<Contact>> {
+        self.contact_list.clone()
     }
 
     fn get_choose_file() -> Element<'static, Message> {

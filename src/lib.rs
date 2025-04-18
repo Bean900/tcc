@@ -3,29 +3,22 @@ pub mod contact;
 mod image_collection;
 pub mod screen;
 
-use crate::calculator::Calculator;
-
-use calculator::CalculatorConfig;
-use contact::Contact;
-use iced::widget::svg::Handle;
-use iced::widget::{button, horizontal_space, svg, text, text_input, Svg};
+use iced::widget::button;
 use iced::window::{self, icon, Icon};
 
 use iced::{
-    alignment::{Horizontal, Vertical},
-    border::Radius,
-    widget::{column, container, row, scrollable, Button, Column, Row, Text},
-    Alignment::Center,
-    Border, Color, Element,
-    Length::{self, Fill},
+    alignment::Horizontal,
+    widget::{column, container, row, Button},
+    Element,
+    Length::{self},
 };
 use image::ImageReader;
-use image_collection::{ImageCollection, IMAGE_COLLECTION};
+use image_collection::IMAGE_COLLECTION;
 use std::path::Path;
-use std::rc::Rc;
 
 use crate::screen::{load::LoadScreen, AvailableScreens, ScreenName};
-use iced::{Alignment, Size, Theme};
+use iced::time::{self, Duration};
+use iced::{Alignment, Size, Subscription, Theme};
 
 use chrono::Local;
 use env_logger::Builder;
@@ -45,7 +38,7 @@ pub fn startup() -> iced::Result {
                 record.args()
             )
         })
-        .filter(None, LevelFilter::Warn)
+        .filter(None, LevelFilter::Info)
         .init();
 
     let icon_path = "icon.png";
@@ -62,12 +55,8 @@ pub fn startup() -> iced::Result {
     iced::application(TCC, TCCScreen::update, TCCScreen::view)
         .theme(TCCScreen::theme)
         .window(window)
+        .subscription(TCCScreen::subscription)
         .run()
-}
-
-pub struct Position {
-    latitude: f64,
-    longitude: f64,
 }
 
 pub struct TCCScreen {
@@ -100,6 +89,9 @@ pub enum Message {
     UpdateCourseNameList(usize, String),
     AddCourseName(String),
     DeleteCourseName(usize),
+
+    //Calculate screen actions
+    Tick,
 }
 
 impl TCCScreen {
@@ -114,7 +106,6 @@ impl TCCScreen {
             Message::GoToCalculateScreen => {
                 self.screen.set_active_screen(ScreenName::Calculate);
             }
-
             Message::GoToResultScreen => {
                 self.screen.set_active_screen(ScreenName::Result);
             }
@@ -229,6 +220,14 @@ impl TCCScreen {
 
     fn theme(&self) -> Theme {
         Theme::Light
+    }
+
+    fn subscription(&self) -> Subscription<Message> {
+        if self.screen.needs_constant_update() {
+            time::every(Duration::from_secs(1)).map(|_| Message::Tick)
+        } else {
+            Subscription::none()
+        }
     }
 }
 

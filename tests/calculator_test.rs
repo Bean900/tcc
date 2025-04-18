@@ -211,7 +211,7 @@ fn check_course(
 // END ASSERT AREA
 // START TEST AREA
 
-fn run_calculation(calculator: &Calculator) {
+fn run_calculation(calculator: &mut Calculator) {
     calculator.calculate();
 
     let start_time = time::Instant::now();
@@ -247,9 +247,9 @@ fn test_team_of_nine() {
     print_test_params(&contact_list, &course_name_list);
 
     let config = CalculatorConfig::new(course_name_list, contact_list, None);
-    let calculator = Calculator::new(config);
+    let mut calculator = Calculator::new(config);
 
-    run_calculation(&calculator);
+    run_calculation(&mut calculator);
 
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
@@ -304,8 +304,8 @@ fn test_team_of_ten() {
         contact_list,
         course_with_more_hosts.cloned(),
     );
-    let calculator = Calculator::new(config);
-    run_calculation(&calculator);
+    let mut calculator = Calculator::new(config);
+    run_calculation(&mut calculator);
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(
@@ -336,8 +336,8 @@ fn test_team_of_eleven() {
         contact_list,
         course_with_more_hosts.cloned(),
     );
-    let calculator = Calculator::new(config);
-    run_calculation(&calculator);
+    let mut calculator = Calculator::new(config);
+    run_calculation(&mut calculator);
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(
@@ -368,8 +368,8 @@ fn test_team_of_twelve() {
         contact_list,
         course_with_more_hosts.cloned(),
     );
-    let calculator = Calculator::new(config);
-    run_calculation(&calculator);
+    let mut calculator = Calculator::new(config);
+    run_calculation(&mut calculator);
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(
@@ -400,8 +400,8 @@ fn test_team_of_thirteen() {
         contact_list,
         course_with_more_hosts.cloned(),
     );
-    let calculator = Calculator::new(config);
-    run_calculation(&calculator);
+    let mut calculator = Calculator::new(config);
+    run_calculation(&mut calculator);
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(
@@ -432,8 +432,8 @@ fn test_team_of_fourteen() {
         contact_list,
         course_with_more_hosts.cloned(),
     );
-    let calculator = Calculator::new(config);
-    run_calculation(&calculator);
+    let mut calculator = Calculator::new(config);
+    run_calculation(&mut calculator);
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(
@@ -464,8 +464,8 @@ fn test_team_of_fifteen() {
         contact_list,
         course_with_more_hosts.cloned(),
     );
-    let calculator = Calculator::new(config);
-    run_calculation(&calculator);
+    let mut calculator = Calculator::new(config);
+    run_calculation(&mut calculator);
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(
@@ -496,8 +496,8 @@ fn test_team_of_sixteen() {
         contact_list,
         course_with_more_hosts.cloned(),
     );
-    let calculator = Calculator::new(config);
-    run_calculation(&calculator);
+    let mut calculator = Calculator::new(config);
+    run_calculation(&mut calculator);
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(
@@ -528,8 +528,8 @@ fn test_team_of_seventeen() {
         contact_list,
         course_with_more_hosts.cloned(),
     );
-    let calculator = Calculator::new(config);
-    run_calculation(&calculator);
+    let mut calculator = Calculator::new(config);
+    run_calculation(&mut calculator);
     let plan = calculator.top_plan().unwrap();
     print_plan(&plan);
     assert_eq!(

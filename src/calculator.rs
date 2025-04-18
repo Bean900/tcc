@@ -1,8 +1,12 @@
 use std::{
     collections::{HashMap, HashSet},
     rc::Rc,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
+    },
     thread::{self},
+    time::Instant,
 };
 
 use log::{debug, info};
@@ -16,16 +20,16 @@ use crate::contact::Contact;
 #[derive(Debug)]
 pub struct Calculator {
     pub top_score: Arc<Mutex<TopScore>>,
+    pub start_time: Option<Instant>,
+    pub iterations: Arc<AtomicUsize>,
     config: CalculatorConfig,
     calculating: Arc<Mutex<bool>>,
 }
 
 #[derive(Debug)]
 pub struct CalculatorConfig {
-    start_point_latitude: Option<i32>,
-    start_point_longitude: Option<i32>,
-    goal_point_latitude: Option<i32>,
-    goal_point_longitude: Option<i32>,
+    start_point: Option<(i32, i32)>,
+    goal_point: Option<(i32, i32)>,
     course_name_list: Vec<String>,
     course_with_more_hosts: Option<String>,
     contact_list: Arc<Vec<Contact>>,
@@ -81,22 +85,18 @@ pub struct Course<'contact> {
 
 impl CalculatorConfig {
     pub fn new_with_start_and_goal(
-        start_point_latitude: i32,
-        start_point_longitude: i32,
-        goal_point_latitude: i32,
-        goal_point_longitude: i32,
+        start_point: Option<(i32, i32)>,
+        goal_point: Option<(i32, i32)>,
         course_with_more_hosts: Option<String>,
         course_name_list: Vec<String>,
-        contact_list: Rc<Vec<Contact>>,
+        contact_list: Vec<Contact>,
     ) -> Self {
         CalculatorConfig {
-            start_point_latitude: Some(start_point_latitude),
-            start_point_longitude: Some(start_point_longitude),
-            goal_point_latitude: Some(goal_point_latitude),
-            goal_point_longitude: Some(goal_point_longitude),
+            start_point,
+            goal_point,
             course_with_more_hosts,
             course_name_list,
-            contact_list: Arc::new((*contact_list).clone()),
+            contact_list: Arc::new(contact_list),
         }
     }
     pub fn new(
@@ -105,10 +105,8 @@ impl CalculatorConfig {
         course_with_more_hosts: Option<String>,
     ) -> Self {
         CalculatorConfig {
-            start_point_latitude: None,
-            start_point_longitude: None,
-            goal_point_latitude: None,
-            goal_point_longitude: None,
+            start_point: None,
+            goal_point: None,
             course_with_more_hosts,
             course_name_list,
             contact_list: Arc::new((*contact_list).clone()),
@@ -117,10 +115,8 @@ impl CalculatorConfig {
 
     fn clone(&self) -> Self {
         CalculatorConfig {
-            start_point_latitude: self.start_point_latitude.clone(),
-            start_point_longitude: self.start_point_longitude.clone(),
-            goal_point_latitude: self.goal_point_latitude.clone(),
-            goal_point_longitude: self.goal_point_longitude.clone(),
+            start_point: self.start_point.clone(),
+            goal_point: self.goal_point.clone(),
             course_name_list: self.course_name_list.clone(),
             course_with_more_hosts: self.course_with_more_hosts.clone(),
             contact_list: Arc::clone(&self.contact_list),
@@ -134,10 +130,15 @@ impl Calculator {
             config,
             top_score: Arc::new(Mutex::new(TopScore::new())),
             calculating: Arc::new(Mutex::new(true)),
+            start_time: None,
+            iterations: Arc::new(AtomicUsize::new(0)),
         }
     }
 
-    pub fn calculate(&self) {
+    pub fn calculate(&mut self) {
+        log::info!("Start calculation");
+        self.iterations.store(0, Ordering::SeqCst);
+        self.start_time = Some(Instant::now());
         let number_of_threads = 5;
         *self
             .calculating
@@ -147,13 +148,14 @@ impl Calculator {
             let config = self.config.clone();
             let top_score = Arc::clone(&self.top_score);
             let calculating = Arc::clone(&self.calculating);
+            let iteration = Arc::clone(&self.iterations);
             thread::spawn(move || {
                 info!(
                     "Start calculation of thread {}/{}",
                     index + 1,
                     number_of_threads
                 );
-                calcutate_job(config, calculating, top_score);
+                calcutate_job(config, calculating, top_score, iteration);
                 info!(
                     "Finished calculation of thread {}/{}",
                     index + 1,
@@ -172,7 +174,8 @@ impl Calculator {
     }
 
     pub fn top_plan(&self) -> Option<Plan> {
-        let top_score_option = self.top_score.lock().unwrap().seed.clone();
+        let guard = self.top_score.lock().unwrap();
+        let top_score_option = guard.seed.clone();
         if top_score_option.is_none() {
             return None;
         }
@@ -187,6 +190,7 @@ fn calcutate_job(
     config: CalculatorConfig,
     calculating: Arc<Mutex<bool>>,
     top_score: Arc<Mutex<TopScore>>,
+    iteration: Arc<AtomicUsize>,
 ) {
     let number_of_seeds = 1_000;
 
@@ -196,6 +200,7 @@ fn calcutate_job(
     }
 
     loop {
+        iteration.fetch_add(1, Ordering::SeqCst);
         let mut list_of_plans: Vec<PlanInternal> = list_of_seeds
             .iter()
             .map(|seed| seed_to_plan(&config, seed.clone()))
@@ -203,10 +208,27 @@ fn calcutate_job(
         list_of_plans.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap());
 
         if list_of_plans[0].score != f64::MAX {
-            let mut top_score = top_score.lock().unwrap();
-            if top_score.score.is_none() || list_of_plans[0].score < top_score.score.unwrap() {
-                top_score.score = Some(list_of_plans[0].score);
-                top_score.seed = Some(list_of_plans[0].seed.clone());
+            let mut current_top_score = top_score.lock().unwrap();
+
+            match current_top_score.score {
+                None => {
+                    // No score yet → set directly
+                    log::info!(
+                        "Found first best plan with score: {}",
+                        list_of_plans[0].score
+                    );
+                    current_top_score.score = Some(list_of_plans[0].score);
+                    current_top_score.seed = Some(list_of_plans[0].seed.clone());
+                }
+                Some(existing_score) if list_of_plans[0].score < existing_score => {
+                    // New score is better → overwrite
+                    log::info!("Found new best plan with score: {}", list_of_plans[0].score);
+                    current_top_score.score = Some(list_of_plans[0].score);
+                    current_top_score.seed = Some(list_of_plans[0].seed.clone());
+                }
+                _ => {
+                    // Score is not better → do nothing
+                }
             }
         }
         if !*calculating.lock().expect("Expact to find calculating flag") {
@@ -476,14 +498,16 @@ fn calc_score(
                 )
                 .as_str(),
             );
-        if config.start_point_latitude.is_some() && config.start_point_longitude.is_some() {
+        if config.start_point.is_some() {
             distance += calc_distance(
                 config
-                    .start_point_latitude
-                    .expect("Expected start point latitude!"),
+                    .start_point
+                    .expect("Expected start point latitude!")
+                    .0,
                 config
-                    .start_point_longitude
-                    .expect("Expected start point longitude!"),
+                    .start_point
+                    .expect("Expected start point longitude!")
+                    .1,
                 contact_to.latitude,
                 contact_to.longitude,
             );
@@ -505,16 +529,12 @@ fn calc_score(
             );
         }
 
-        if config.goal_point_latitude.is_some() && config.goal_point_longitude.is_some() {
+        if config.goal_point.is_some() {
             distance += calc_distance(
                 contact_to.latitude,
                 contact_to.longitude,
-                config
-                    .goal_point_latitude
-                    .expect("Expected goal point latitude!"),
-                config
-                    .goal_point_longitude
-                    .expect("Expected goal point longitude!"),
+                config.goal_point.expect("Expected goal point latitude!").0,
+                config.goal_point.expect("Expected goal point longitude!").1,
             );
         }
         if distance > longest_distance {
@@ -667,8 +687,9 @@ fn calc_distance(
     goal_point_longitude: i32,
 ) -> f64 {
     f64::sqrt(
-        ((goal_point_latitude - start_point_latitude).pow(2_u32)
-            + (goal_point_longitude - start_point_longitude).pow(2_u32)) as f64,
+        (((goal_point_latitude as i64 - start_point_latitude as i64).pow(2)
+            + (goal_point_longitude as i64 - start_point_longitude as i64).pow(2)) as f64)
+            .sqrt(),
     )
 }
 

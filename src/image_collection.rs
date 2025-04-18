@@ -3,7 +3,7 @@ use iced::{
         svg::{self, Handle},
         Svg,
     },
-    Color, Length, Theme,
+    Color, Theme,
 };
 
 use once_cell::sync::Lazy;
