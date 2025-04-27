@@ -19,7 +19,7 @@ use crate::contact::Contact;
 
 #[derive(Debug)]
 pub struct Calculator {
-    pub top_score: Arc<Mutex<TopScore>>,
+    pub top_plan: Arc<Mutex<Option<Plan>>>,
     pub start_time: Option<Instant>,
     pub iterations: Arc<AtomicUsize>,
     config: CalculatorConfig,
@@ -32,55 +32,96 @@ pub struct CalculatorConfig {
     goal_point: Option<(i32, i32)>,
     course_name_list: Vec<String>,
     course_with_more_hosts: Option<String>,
-    contact_list: Arc<Vec<Contact>>,
+    contact_list: Vec<Contact>,
 }
 
 #[derive(Debug)]
-pub struct TopScore {
-    pub score: Option<f64>,
-    pub seed: Option<Vec<u8>>,
-}
-
-impl TopScore {
-    fn new() -> Self {
-        TopScore {
-            score: None,
-            seed: None,
-        }
-    }
+struct CalculatorConfigInternal {
+    start_point: Option<(i32, i32)>,
+    goal_point: Option<(i32, i32)>,
+    course_name_list: Vec<Rc<String>>,
+    course_with_more_hosts: Option<String>,
+    contact_list: Vec<Rc<Contact>>,
 }
 
 struct PlanInternal {
     seed: Vec<u8>,
-    course_map: HashMap<String, Vec<CourseInternal>>,
-    walking_path: HashMap<u8, HashSet<CourseInternal>>,
+    course_map: HashMap<Rc<String>, Vec<Rc<CourseInternal>>>,
+    walking_path: HashMap<Rc<Contact>, HashSet<Rc<CourseInternal>>>,
     score: f64,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
-struct CourseInternal {
-    id: u8,
-    host_id: u8,
-    guest_id_list: Vec<u8>,
+impl PlanInternal {
+    fn to_plan(&self) -> Plan {
+        Plan {
+            seed: self.seed.clone(),
+            course_map: self
+                .course_map
+                .iter()
+                .map(|(name, course_list)| {
+                    (
+                        name.as_ref().clone(),
+                        course_list
+                            .iter()
+                            .map(Rc::as_ref)
+                            .map(CourseInternal::to_course)
+                            .collect(),
+                    )
+                })
+                .collect(),
+            walking_path: self
+                .walking_path
+                .iter()
+                .map(|(contact, course_list)| {
+                    (
+                        contact.as_ref().clone(),
+                        course_list
+                            .iter()
+                            .map(Rc::as_ref)
+                            .map(CourseInternal::to_course)
+                            .collect(),
+                    )
+                })
+                .collect(),
+            score: self.score,
+        }
+    }
 }
 
-//TODO where doesn't make much sense. I need to look into this
-pub struct Plan<'course, 'contact>
-where
-    'contact: 'course,
-    'course: 'contact,
-{
+#[derive(Debug, Clone)]
+pub struct Plan {
     pub seed: Vec<u8>,
-    pub course_map: HashMap<String, Vec<Course<'course>>>,
-    pub walking_path: HashMap<&'contact Contact, Vec<Course<'course>>>,
+    pub course_map: HashMap<String, Vec<Course>>,
+    pub walking_path: HashMap<Contact, Vec<Course>>,
     pub score: f64,
 }
 
-#[derive(Hash)]
-pub struct Course<'contact> {
+#[derive(Hash, Debug, Clone)]
+pub struct Course {
     pub name: String,
-    pub host: &'contact Contact,
-    pub guest_list: Vec<&'contact Contact>,
+    pub host: Contact,
+    pub guest_list: Vec<Contact>,
+}
+
+#[derive(Hash, Debug, Clone, PartialEq, Eq)]
+pub struct CourseInternal {
+    pub name: Rc<String>,
+    pub host: Rc<Contact>,
+    pub guest_list: Vec<Rc<Contact>>,
+}
+
+impl CourseInternal {
+    fn to_course(&self) -> Course {
+        Course {
+            name: self.name.as_ref().clone(),
+            host: self.host.as_ref().clone(),
+            guest_list: self
+                .guest_list
+                .iter()
+                .map(|guest| guest.as_ref().clone())
+                .collect(),
+        }
+    }
 }
 
 impl CalculatorConfig {
@@ -96,12 +137,12 @@ impl CalculatorConfig {
             goal_point,
             course_with_more_hosts,
             course_name_list,
-            contact_list: Arc::new(contact_list),
+            contact_list: contact_list,
         }
     }
     pub fn new(
         course_name_list: Vec<String>,
-        contact_list: Rc<Vec<Contact>>,
+        contact_list: Vec<Contact>,
         course_with_more_hosts: Option<String>,
     ) -> Self {
         CalculatorConfig {
@@ -109,17 +150,35 @@ impl CalculatorConfig {
             goal_point: None,
             course_with_more_hosts,
             course_name_list,
-            contact_list: Arc::new((*contact_list).clone()),
+            contact_list,
         }
     }
 
-    fn clone(&self) -> Self {
+    fn get_internal(&self) -> CalculatorConfigInternal {
+        CalculatorConfigInternal {
+            start_point: self.start_point,
+            goal_point: self.goal_point,
+            course_name_list: self
+                .course_name_list
+                .iter()
+                .map(|name| Rc::new(name.clone()))
+                .collect(),
+            course_with_more_hosts: self.course_with_more_hosts.clone(),
+            contact_list: self
+                .contact_list
+                .iter()
+                .map(|contact| Rc::new(contact.clone()))
+                .collect(),
+        }
+    }
+
+    fn clone(&self) -> CalculatorConfig {
         CalculatorConfig {
-            start_point: self.start_point.clone(),
-            goal_point: self.goal_point.clone(),
+            start_point: self.start_point,
+            goal_point: self.goal_point,
             course_name_list: self.course_name_list.clone(),
             course_with_more_hosts: self.course_with_more_hosts.clone(),
-            contact_list: Arc::clone(&self.contact_list),
+            contact_list: self.contact_list.clone(),
         }
     }
 }
@@ -128,7 +187,7 @@ impl Calculator {
     pub fn new(config: CalculatorConfig) -> Self {
         Calculator {
             config,
-            top_score: Arc::new(Mutex::new(TopScore::new())),
+            top_plan: Arc::new(Mutex::new(None)),
             calculating: Arc::new(Mutex::new(true)),
             start_time: None,
             iterations: Arc::new(AtomicUsize::new(0)),
@@ -146,7 +205,7 @@ impl Calculator {
             .expect("Expect calculating to be set!") = true;
         for index in 0..number_of_threads {
             let config = self.config.clone();
-            let top_score = Arc::clone(&self.top_score);
+            let top_plan = Arc::clone(&self.top_plan);
             let calculating = Arc::clone(&self.calculating);
             let iteration = Arc::clone(&self.iterations);
             thread::spawn(move || {
@@ -155,7 +214,7 @@ impl Calculator {
                     index + 1,
                     number_of_threads
                 );
-                calcutate_job(config, calculating, top_score, iteration);
+                calcutate_job(config.get_internal(), calculating, top_plan, iteration);
                 info!(
                     "Finished calculation of thread {}/{}",
                     index + 1,
@@ -172,24 +231,12 @@ impl Calculator {
             .lock()
             .expect("Expect calculating to be set!") = false;
     }
-
-    pub fn top_plan(&self) -> Option<Plan> {
-        let guard = self.top_score.lock().unwrap();
-        let top_score_option = guard.seed.clone();
-        if top_score_option.is_none() {
-            return None;
-        }
-        let top_score = top_score_option.expect("Score should be set!");
-        let plan_internal = seed_to_plan(&self.config, top_score);
-        let plan = Plan::new(&self.config.contact_list, plan_internal);
-        Some(plan)
-    }
 }
 
 fn calcutate_job(
-    config: CalculatorConfig,
+    config: CalculatorConfigInternal,
     calculating: Arc<Mutex<bool>>,
-    top_score: Arc<Mutex<TopScore>>,
+    top_plan: Arc<Mutex<Option<Plan>>>,
     iteration: Arc<AtomicUsize>,
 ) {
     let number_of_seeds = 1_000;
@@ -208,23 +255,21 @@ fn calcutate_job(
         list_of_plans.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap());
 
         if list_of_plans[0].score != f64::MAX {
-            let mut current_top_score = top_score.lock().unwrap();
+            let mut current_top_score = top_plan.lock().unwrap();
 
-            match current_top_score.score {
+            match current_top_score.as_ref() {
                 None => {
                     // No score yet → set directly
                     log::info!(
                         "Found first best plan with score: {}",
                         list_of_plans[0].score
                     );
-                    current_top_score.score = Some(list_of_plans[0].score);
-                    current_top_score.seed = Some(list_of_plans[0].seed.clone());
+                    *current_top_score = Some(list_of_plans[0].to_plan());
                 }
-                Some(existing_score) if list_of_plans[0].score < existing_score => {
+                Some(existing_score) if list_of_plans[0].score < existing_score.score => {
                     // New score is better → overwrite
                     log::info!("Found new best plan with score: {}", list_of_plans[0].score);
-                    current_top_score.score = Some(list_of_plans[0].score);
-                    current_top_score.seed = Some(list_of_plans[0].seed.clone());
+                    *current_top_score = Some(list_of_plans[0].to_plan());
                 }
                 _ => {
                     // Score is not better → do nothing
@@ -238,7 +283,7 @@ fn calcutate_job(
     }
 }
 
-fn seed_to_plan(config: &CalculatorConfig, seed: Vec<u8>) -> PlanInternal {
+fn seed_to_plan(config: &CalculatorConfigInternal, seed: Vec<u8>) -> PlanInternal {
     debug!("Convert seed to Plan");
     let course_map = create_course_map(config, &seed);
 
@@ -264,22 +309,25 @@ fn seed_to_plan(config: &CalculatorConfig, seed: Vec<u8>) -> PlanInternal {
 }
 
 fn create_course_map(
-    config: &CalculatorConfig,
+    config: &CalculatorConfigInternal,
     seed: &Vec<u8>,
-) -> Option<HashMap<String, Vec<CourseInternal>>> {
+) -> Option<HashMap<Rc<String>, Vec<Rc<CourseInternal>>>> {
     let mut course_map = HashMap::new();
     let mut seen_contact_map = HashMap::new();
     let mut seen_contact_map_second_time = HashMap::new();
 
     for contact in config.contact_list.iter() {
-        seen_contact_map.insert(contact, HashSet::new());
-        seen_contact_map_second_time.insert(contact, HashSet::new());
+        seen_contact_map.insert(Rc::clone(contact), HashSet::new());
+        seen_contact_map_second_time.insert(Rc::clone(contact), HashSet::new());
     }
 
-    let mut course_index = 0;
     let mut seed_index = 0;
 
-    let mut possible_host_list = config.contact_list.iter().collect::<Vec<&Contact>>();
+    let mut possible_host_list = config
+        .contact_list
+        .iter()
+        .cloned()
+        .collect::<Vec<Rc<Contact>>>();
     for course_name in config.course_name_list.iter() {
         debug!("Calculating course \"{}\"", course_name);
         debug!(
@@ -287,12 +335,12 @@ fn create_course_map(
             seen_contact_map
                 .iter()
                 .map(|(k, v)| (
-                    k.team_name.as_str(),
+                    Rc::clone(k),
                     v.iter()
-                        .map(|x: &&Contact| x.team_name.as_str())
-                        .collect::<Vec<&str>>()
+                        .map(|contact: &Rc<Contact>| Rc::clone(contact))
+                        .collect::<Vec<Rc<Contact>>>()
                 ))
-                .collect::<Vec<(&str, Vec<&str>)>>()
+                .collect::<HashMap<Rc<Contact>, Vec<Rc<Contact>>>>()
         );
 
         debug!(
@@ -302,7 +350,7 @@ fn create_course_map(
                 .map(|(k, v)| (
                     k.team_name.as_str(),
                     v.iter()
-                        .map(|x: &&Contact| x.team_name.as_str())
+                        .map(|x: &Rc<Contact>| x.team_name.as_str())
                         .collect::<Vec<&str>>()
                 ))
                 .collect::<Vec<(&str, Vec<&str>)>>()
@@ -318,8 +366,12 @@ fn create_course_map(
 
         //Create list of possible hosts and guests, that will be used to create courses
         let mut possible_host_in_course_list = possible_host_list.clone();
-        let mut possible_guest_list = config.contact_list.iter().collect::<Vec<&Contact>>();
-        let mut contact_in_course: HashSet<&Contact> = HashSet::new();
+        let mut possible_guest_list = config
+            .contact_list
+            .iter()
+            .cloned()
+            .collect::<Vec<Rc<Contact>>>();
+        let mut contact_in_course: HashSet<Rc<Contact>> = HashSet::new();
 
         let number_of_courses = config.contact_list.len() / config.course_name_list.len()
             + if config.course_with_more_hosts.as_deref() == Some(course_name)
@@ -365,23 +417,25 @@ fn create_course_map(
             }
             let host_index =
                 seed[seed_index % seed.len()] as usize % possible_host_in_course_list.len();
-            let host = *possible_host_in_course_list
-                .get(host_index)
-                .expect("Expected host to find in possible host list for this course!");
+            let host = Rc::clone(
+                possible_host_in_course_list
+                    .get(host_index)
+                    .expect("Expected host to find in possible host list for this course!"),
+            );
             //Remove host from possible host list in course
             possible_host_in_course_list.remove(host_index);
 
             //Remove host from possible host list
             let remove_host_index = possible_host_list
                 .iter()
-                .position(|x| *x == host)
+                .position(|x| x.eq(&host))
                 .expect("Expected host in list of possible hosts!");
             possible_host_list.remove(remove_host_index);
 
             //Remove host from possible guest list
             let remove_guest_index = possible_guest_list
                 .iter()
-                .position(|x| *x == host)
+                .position(|x| x.eq(&host))
                 .expect("Expected host in list of possible guests!");
             possible_guest_list.remove(remove_guest_index);
 
@@ -391,7 +445,7 @@ fn create_course_map(
                 &mut seen_contact_map,
                 &mut contact_in_course,
                 &guest_list,
-                host,
+                Rc::clone(&host),
             );
             for _ in 0..(number_of_guests_per_course
                 + if number_of_guests_overhang != 0 { 1 } else { 0 })
@@ -441,7 +495,7 @@ fn create_course_map(
                     &mut seen_contact_map,
                     &mut contact_in_course,
                     &guest_list,
-                    host,
+                    Rc::clone(&host),
                 );
                 guest_list.push(guest);
             }
@@ -459,25 +513,23 @@ fn create_course_map(
             );
 
             let course = CourseInternal {
-                id: course_index,
-                host_id: host.id,
-                guest_id_list: guest_list.iter().map(|guest| guest.id).collect(),
+                name: Rc::clone(course_name),
+                host: Rc::clone(&host),
+                guest_list: guest_list,
             };
 
             course_map
-                .entry(course_name.clone())
+                .entry(Rc::clone(course_name))
                 .or_insert_with(Vec::new)
-                .push(course);
-
-            course_index += 1;
+                .push(Rc::new(course));
         }
     }
     Some(course_map)
 }
 
 fn calc_score(
-    config: &CalculatorConfig,
-    contact_walking_path_set: &HashMap<u8, HashSet<CourseInternal>>,
+    config: &CalculatorConfigInternal,
+    contact_walking_path_set: &HashMap<Rc<Contact>, HashSet<Rc<CourseInternal>>>,
 ) -> f64 {
     let mut longest_distance = 0_f64;
 
@@ -488,16 +540,7 @@ fn calc_score(
         let mut contact_to;
 
         let first_course = path_iter.next().expect("Expected first course in path!");
-        contact_to = config
-            .contact_list
-            .get(first_course.host_id as usize)
-            .expect(
-                format!(
-                    "Expected contact with id {} in contact list!",
-                    first_course.host_id
-                )
-                .as_str(),
-            );
+        contact_to = &first_course.host;
         if config.start_point.is_some() {
             distance += calc_distance(
                 config
@@ -514,13 +557,7 @@ fn calc_score(
         }
         while let Some(course) = path_iter.next() {
             contact_from = contact_to;
-            contact_to = config.contact_list.get(course.host_id as usize).expect(
-                format!(
-                    "Expected contact with id {} in contact list!",
-                    course.host_id
-                )
-                .as_str(),
-            );
+            contact_to = &course.host;
             distance += calc_distance(
                 contact_from.latitude,
                 contact_from.longitude,
@@ -545,20 +582,22 @@ fn calc_score(
 }
 
 fn calc_walking_path(
-    course_map: &HashMap<String, Vec<CourseInternal>>,
-) -> HashMap<u8, HashSet<CourseInternal>> {
+    course_map: &HashMap<Rc<String>, Vec<Rc<CourseInternal>>>,
+) -> HashMap<Rc<Contact>, HashSet<Rc<CourseInternal>>> {
     let contact_map = course_map_to_contact_map(course_map);
     let mut contact_walking_path = HashMap::new();
 
     for (_, course_list) in contact_map.iter() {
-        for &course in course_list {
+        for course in course_list {
             let path = contact_walking_path
-                .entry(course.host_id)
+                .entry(Rc::clone(&course.host))
                 .or_insert(HashSet::new());
-            path.insert((*course).clone());
-            for guest in course.guest_id_list.iter() {
-                let path = contact_walking_path.entry(*guest).or_insert(HashSet::new());
-                path.insert((*course).clone());
+            path.insert(Rc::clone(course));
+            for guest in course.guest_list.iter() {
+                let path = contact_walking_path
+                    .entry(Rc::clone(guest))
+                    .or_insert(HashSet::new());
+                path.insert(Rc::clone(course));
             }
         }
     }
@@ -566,12 +605,12 @@ fn calc_walking_path(
     contact_walking_path
 }
 
-fn get_contact<'contact>(
-    possible_guest_list: &Vec<&'contact Contact>,
+fn get_contact(
+    possible_guest_list: &Vec<Rc<Contact>>,
     seed_id: u8,
-    contact_in_course: &HashSet<&'contact Contact>,
-    seen_contact_map: &HashMap<&'contact Contact, HashSet<&'contact Contact>>,
-) -> Option<&'contact Contact> {
+    contact_in_course: &HashSet<Rc<Contact>>,
+    seen_contact_map: &HashMap<Rc<Contact>, HashSet<Rc<Contact>>>,
+) -> Option<Rc<Contact>> {
     let mut seed = seed_id;
     for _ in 0..possible_guest_list.len() {
         let contact_index = usize::from(seed) % possible_guest_list.len();
@@ -608,76 +647,9 @@ fn get_contact<'contact>(
             contact.team_name,
             "Contact can be in course!".green()
         );
-        return Some(contact);
+        return Some(Rc::clone(contact));
     }
     None
-}
-
-impl CourseInternal {
-    fn clone(&self) -> CourseInternal {
-        CourseInternal {
-            id: self.id,
-            host_id: self.host_id,
-            guest_id_list: self.guest_id_list.clone(),
-        }
-    }
-}
-
-impl<'contact> Course<'contact> {
-    fn new(
-        name: String,
-        contact_list: &'contact Vec<Contact>,
-        course_internal: &CourseInternal,
-    ) -> Self {
-        Course {
-            name,
-            host: &contact_list[course_internal.host_id as usize],
-            guest_list: course_internal
-                .guest_id_list
-                .iter()
-                .map(|guest_id| &contact_list[*guest_id as usize])
-                .collect(),
-        }
-    }
-}
-
-impl<'contact, 'course> Plan<'contact, 'course> {
-    fn new(contact_list: &'contact Vec<Contact>, plan: PlanInternal) -> Self {
-        Plan {
-            seed: plan.seed,
-            course_map: plan
-                .course_map
-                .iter()
-                .map(|(name, course_list)| {
-                    (
-                        name.clone(),
-                        course_list
-                            .iter()
-                            .map(|course_internal| {
-                                Course::new(name.clone(), contact_list, course_internal)
-                            })
-                            .collect(),
-                    )
-                })
-                .collect(),
-            walking_path: plan
-                .walking_path
-                .iter()
-                .map(|(contact_id, course_list)| {
-                    (
-                        &contact_list[*contact_id as usize],
-                        course_list
-                            .iter()
-                            .map(|course_internal| {
-                                Course::new("".to_string(), contact_list, course_internal)
-                            })
-                            .collect(),
-                    )
-                })
-                .collect(),
-            score: plan.score,
-        }
-    }
 }
 
 fn calc_distance(
@@ -693,43 +665,43 @@ fn calc_distance(
     )
 }
 
-fn course_map_to_contact_map<'a>(
-    course_map: &'a HashMap<String, Vec<CourseInternal>>,
-) -> HashMap<u8, Vec<&'a CourseInternal>> {
+fn course_map_to_contact_map(
+    course_map: &HashMap<Rc<String>, Vec<Rc<CourseInternal>>>,
+) -> HashMap<Rc<Contact>, Vec<Rc<CourseInternal>>> {
     let mut contact_map = HashMap::new();
     for course_list in course_map.values() {
         for course in course_list.iter() {
             contact_map
-                .entry(course.host_id)
+                .entry(Rc::clone(&course.host))
                 .or_insert_with(Vec::new)
-                .push(course);
-            for guest_id in course.guest_id_list.iter() {
+                .push(Rc::clone(course));
+            for guest in course.guest_list.iter() {
                 contact_map
-                    .entry(*guest_id)
+                    .entry(Rc::clone(guest))
                     .or_insert_with(Vec::new)
-                    .push(course);
+                    .push(Rc::clone(course));
             }
         }
     }
     contact_map
 }
 
-fn set_seen_people<'contact>(
-    seen_contact_map: &mut HashMap<&'contact Contact, HashSet<&'contact Contact>>,
-    contact_in_course: &mut HashSet<&'contact Contact>,
-    guest_list: &Vec<&'contact Contact>,
-    new_contact: &'contact Contact,
+fn set_seen_people(
+    seen_contact_map: &mut HashMap<Rc<Contact>, HashSet<Rc<Contact>>>,
+    contact_in_course: &mut HashSet<Rc<Contact>>,
+    guest_list: &Vec<Rc<Contact>>,
+    new_contact: Rc<Contact>,
 ) {
-    contact_in_course.insert(new_contact);
+    contact_in_course.insert(Rc::clone(&new_contact));
     guest_list.iter().for_each(|guest| {
         seen_contact_map
-            .get_mut(new_contact)
+            .get_mut(&new_contact)
             .expect("Expected to find seen contact of new contact!")
-            .insert(guest);
+            .insert(Rc::clone(guest));
         seen_contact_map
             .get_mut(guest)
             .expect("Expected to find seen contact of guest!")
-            .insert(new_contact);
+            .insert(Rc::clone(&new_contact));
     });
 }
 

@@ -16,12 +16,12 @@ pub struct Contact {
     pub longitude: i32,
 }
 #[derive(Deserialize)]
-pub struct ContactInternal {
-    pub id: u8,
-    pub team_name: String,
-    pub address: String,
-    pub latitude: f64,
-    pub longitude: f64,
+struct ContactInternal {
+    id: u8,
+    team_name: String,
+    address: String,
+    latitude: f64,
+    longitude: f64,
 }
 
 impl Contact {

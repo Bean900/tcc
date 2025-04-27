@@ -44,7 +44,10 @@ impl Screen for CalculateScreen {
         let iteration = calculator.iterations.load(Ordering::SeqCst).to_string();
 
         let score = calculator
-            .top_plan()
+            .top_plan
+            .lock()
+            .expect("Failed to lock top_plan")
+            .as_ref()
             .map(|plan| format!("{:.0}", plan.score))
             .unwrap_or_else(|| "No route found".to_string());
 
