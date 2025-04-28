@@ -215,7 +215,13 @@ fn run_calculation(calculator: &mut Calculator) {
     calculator.calculate();
 
     let start_time = time::Instant::now();
-    while calculator.top_plan().is_none() {
+    while calculator
+        .top_plan
+        .lock()
+        .expect("Failed to lock top_plan")
+        .as_ref()
+        .is_none()
+    {
         // Wait until a plan is available
         thread::sleep(Duration::from_millis(100));
     }
@@ -251,7 +257,13 @@ fn test_team_of_nine() {
 
     run_calculation(&mut calculator);
 
-    let plan = calculator.top_plan().unwrap();
+    let plan = calculator
+        .top_plan
+        .lock()
+        .expect("Failed to lock top_plan")
+        .as_ref()
+        .expect("Expected plan")
+        .clone();
     print_plan(&plan);
     assert_eq!(
         plan.course_map.len(),
@@ -306,7 +318,13 @@ fn test_team_of_ten() {
     );
     let mut calculator = Calculator::new(config);
     run_calculation(&mut calculator);
-    let plan = calculator.top_plan().unwrap();
+    let plan = calculator
+        .top_plan
+        .lock()
+        .expect("Failed to lock top_plan")
+        .as_ref()
+        .expect("Expected plan")
+        .clone();
     print_plan(&plan);
     assert_eq!(
         plan.course_map.len(),
@@ -338,7 +356,13 @@ fn test_team_of_eleven() {
     );
     let mut calculator = Calculator::new(config);
     run_calculation(&mut calculator);
-    let plan = calculator.top_plan().unwrap();
+    let plan = calculator
+        .top_plan
+        .lock()
+        .expect("Failed to lock top_plan")
+        .as_ref()
+        .expect("Expected plan")
+        .clone();
     print_plan(&plan);
     assert_eq!(
         plan.course_map.len(),
@@ -370,7 +394,13 @@ fn test_team_of_twelve() {
     );
     let mut calculator = Calculator::new(config);
     run_calculation(&mut calculator);
-    let plan = calculator.top_plan().unwrap();
+    let plan = calculator
+        .top_plan
+        .lock()
+        .expect("Failed to lock top_plan")
+        .as_ref()
+        .expect("Expected plan")
+        .clone();
     print_plan(&plan);
     assert_eq!(
         plan.course_map.len(),
@@ -402,7 +432,13 @@ fn test_team_of_thirteen() {
     );
     let mut calculator = Calculator::new(config);
     run_calculation(&mut calculator);
-    let plan = calculator.top_plan().unwrap();
+    let plan = calculator
+        .top_plan
+        .lock()
+        .expect("Failed to lock top_plan")
+        .as_ref()
+        .expect("Expected plan")
+        .clone();
     print_plan(&plan);
     assert_eq!(
         plan.course_map.len(),
@@ -434,7 +470,13 @@ fn test_team_of_fourteen() {
     );
     let mut calculator = Calculator::new(config);
     run_calculation(&mut calculator);
-    let plan = calculator.top_plan().unwrap();
+    let plan = calculator
+        .top_plan
+        .lock()
+        .expect("Failed to lock top_plan")
+        .as_ref()
+        .expect("Expected plan")
+        .clone();
     print_plan(&plan);
     assert_eq!(
         plan.course_map.len(),
@@ -466,7 +508,13 @@ fn test_team_of_fifteen() {
     );
     let mut calculator = Calculator::new(config);
     run_calculation(&mut calculator);
-    let plan = calculator.top_plan().unwrap();
+    let plan = calculator
+        .top_plan
+        .lock()
+        .expect("Failed to lock top_plan")
+        .as_ref()
+        .expect("Expected plan")
+        .clone();
     print_plan(&plan);
     assert_eq!(
         plan.course_map.len(),
@@ -498,7 +546,13 @@ fn test_team_of_sixteen() {
     );
     let mut calculator = Calculator::new(config);
     run_calculation(&mut calculator);
-    let plan = calculator.top_plan().unwrap();
+    let plan = calculator
+        .top_plan
+        .lock()
+        .expect("Failed to lock top_plan")
+        .as_ref()
+        .expect("Expected plan")
+        .clone();
     print_plan(&plan);
     assert_eq!(
         plan.course_map.len(),
@@ -530,7 +584,13 @@ fn test_team_of_seventeen() {
     );
     let mut calculator = Calculator::new(config);
     run_calculation(&mut calculator);
-    let plan = calculator.top_plan().unwrap();
+    let plan = calculator
+        .top_plan
+        .lock()
+        .expect("Failed to lock top_plan")
+        .as_ref()
+        .expect("Expected plan")
+        .clone();
     print_plan(&plan);
     assert_eq!(
         plan.course_map.len(),

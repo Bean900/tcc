@@ -1,7 +1,5 @@
-use std::rc::Rc;
-
 use tcc::contact::Contact;
-pub fn get_contact_list(number_of_contacts: usize) -> Rc<Vec<Contact>> {
+pub fn get_contact_list(number_of_contacts: usize) -> Vec<Contact> {
     //These addresses are randomly generated and do not correspond to known addresses
     let contact_data = vec![
         Contact::new(
@@ -136,7 +134,7 @@ pub fn get_contact_list(number_of_contacts: usize) -> Rc<Vec<Contact>> {
         panic!("Number of contacts must be greater than or equal to the number of contact data");
     }
 
-    Rc::new(contact_data[..number_of_contacts].to_vec())
+    contact_data[..number_of_contacts].to_vec()
 }
 
 pub fn get_course_name_list(number_of_courses: usize) -> Vec<String> {
