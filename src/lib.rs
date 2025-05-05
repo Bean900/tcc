@@ -116,7 +116,9 @@ impl TCCScreen {
     }
 
     fn view(&self) -> Element<Message> {
-        let screen = self.screen.get();
+        let screen = container(self.screen.get())
+            .height(Length::FillPortion(8))
+            .width(Length::Fill);
 
         let progress = self.progress();
 
@@ -212,7 +214,7 @@ impl TCCScreen {
             .spacing(10),
         )
         .width(Length::Fill)
-        .height(Length::FillPortion(1))
+        .height(Length::FillPortion(2))
         .max_width(128 * 5)
         .align_y(iced::alignment::Vertical::Bottom)
         .into()

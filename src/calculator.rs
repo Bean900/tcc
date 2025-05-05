@@ -21,6 +21,7 @@ use crate::contact::Contact;
 pub struct Calculator {
     pub top_plan: Arc<Mutex<Option<Plan>>>,
     pub start_time: Option<Instant>,
+    pub stop_time: Option<Instant>,
     pub iterations: Arc<AtomicUsize>,
     config: CalculatorConfig,
     calculating: Arc<Mutex<bool>>,
@@ -190,6 +191,7 @@ impl Calculator {
             top_plan: Arc::new(Mutex::new(None)),
             calculating: Arc::new(Mutex::new(true)),
             start_time: None,
+            stop_time: None,
             iterations: Arc::new(AtomicUsize::new(0)),
         }
     }
@@ -198,6 +200,7 @@ impl Calculator {
         log::info!("Start calculation");
         self.iterations.store(0, Ordering::SeqCst);
         self.start_time = Some(Instant::now());
+        self.stop_time = None;
         let number_of_threads = 5;
         *self
             .calculating
@@ -224,12 +227,20 @@ impl Calculator {
         }
     }
 
-    pub fn stop(&self) {
+    pub fn stop(&mut self) {
         info!("Stop calculation");
         *self
             .calculating
             .lock()
             .expect("Expect calculating to be set!") = false;
+        self.stop_time = Some(Instant::now());
+    }
+
+    pub fn is_running(&self) -> bool {
+        *self
+            .calculating
+            .lock()
+            .expect("Expect calculating to be set!")
     }
 }
 

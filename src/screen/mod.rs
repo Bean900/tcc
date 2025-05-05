@@ -1,9 +1,11 @@
 pub(crate) mod calculate;
 pub(crate) mod load;
+pub(crate) mod result;
 pub(crate) mod rule;
 
 use calculate::CalculateScreen;
 use iced::Element;
+use result::ResultScreen;
 use rule::RuleScreen;
 
 use crate::{calculator::CalculatorConfig, LoadScreen, Message};
@@ -17,6 +19,7 @@ pub struct AvailableScreens {
     load_screen: LoadScreen,
     rule_screen: RuleScreen,
     calculate_screen: CalculateScreen,
+    result_screen: ResultScreen,
     active_screen: ScreenName,
 }
 
@@ -26,6 +29,7 @@ impl AvailableScreens {
             load_screen: LoadScreen::new(),
             rule_screen: RuleScreen::new(),
             calculate_screen: CalculateScreen::new(),
+            result_screen: ResultScreen::new(),
             active_screen: ScreenName::LoadData,
         }
     }
@@ -37,12 +41,16 @@ impl AvailableScreens {
     pub fn set_active_screen(&mut self, screen_name: ScreenName) {
         if self.active_screen == ScreenName::Calculate && screen_name != ScreenName::Calculate {
             self.calculate_screen.stop_calculation();
-            return;
         }
 
         if screen_name == ScreenName::Calculate {
             self.active_screen = self.start_calculation();
             return;
+        }
+
+        if screen_name == ScreenName::Result {
+            self.result_screen
+                .set_plan(self.calculate_screen.get_top_plan());
         }
 
         self.active_screen = screen_name;
@@ -57,7 +65,7 @@ impl AvailableScreens {
             ScreenName::LoadData => &self.load_screen,
             ScreenName::AddRules => &self.rule_screen,
             ScreenName::Calculate => &self.calculate_screen,
-            ScreenName::Result => todo!(),
+            ScreenName::Result => &self.result_screen,
         }
     }
 
@@ -70,7 +78,7 @@ impl AvailableScreens {
             ScreenName::LoadData => &mut self.load_screen,
             ScreenName::AddRules => &mut self.rule_screen,
             ScreenName::Calculate => &mut self.calculate_screen,
-            ScreenName::Result => todo!(),
+            ScreenName::Result => &mut self.result_screen,
         }
     }
 
