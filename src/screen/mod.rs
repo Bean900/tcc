@@ -98,7 +98,7 @@ impl AvailableScreens {
         let calculator_config = CalculatorConfig::new_with_start_and_goal(
             self.rule_screen.get_start_point(),
             self.rule_screen.get_goal_point(),
-            None,
+            Some("Haupt".to_string()),
             course_name_list.expect("Expect course name list"),
             contact_list.expect("Expect contact list"),
         );

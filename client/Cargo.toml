@@ -1,0 +1,33 @@
+[package]
+name = "tcc"
+version = "0.1.0"
+authors = ["Niklas <n.nikisch@gmail.com>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chrono = {version ="0.4.41", features =["serde"]}
+dioxus = { version = "0.6.0", features = [] }
+serde = "1.0.219"
+serde_json = "1.0.140"
+uuid = { version ="1.16.0", features =["v4","serde","js"]}
+web-sys = {version = "0.3.77", features =["Storage","console"]}
+
+[features]
+default = ["web"]
+web = ["dioxus/web"]
+desktop = ["dioxus/desktop"]
+mobile = ["dioxus/mobile"]
+
+[profile]
+
+[profile.wasm-dev]
+inherits = "dev"
+opt-level = 1
+
+[profile.server-dev]
+inherits = "dev"
+
+[profile.android-dev]
+inherits = "dev"

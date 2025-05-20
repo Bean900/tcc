@@ -62,16 +62,23 @@ fn get_walking_path_element<'a>(
     contact: &'a Contact,
     walkin_path: &'a Vec<Course>,
 ) -> Element<'a, Message> {
+    println!("{}:", contact.team_name);
     let team_name = text!("{}", contact.team_name.clone()).size(20);
 
     let mut element = column![].padding(10);
 
     for current_course in walkin_path.iter() {
+        println!(
+            "- {}:\t{}",
+            current_course.name, current_course.host.team_name
+        );
+
         // let is_own_course = current_course.host.eq(contact);
         let course_name = text!("{}", current_course.name.clone()).size(18);
         let contact_name = text!("{}", current_course.host.team_name.clone()).size(15);
         element = element.push(column![course_name, contact_name]);
     }
+    println!("");
 
     column![team_name, element].into()
 }
