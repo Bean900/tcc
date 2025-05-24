@@ -1,22 +1,68 @@
-use dioxus::{
-    html::{area::alt, u::aria_hidden},
-    prelude::*,
-};
+use std::sync::Arc;
+use std::sync::Mutex;
 
+use dioxus::prelude::*;
 mod side;
 mod storage;
-use side::{Dashboard, ProjectDetailPage};
+use side::CreateProject;
+use side::Dashboard;
+use side::ProjectDetailPage;
 use storage::LocalStorage;
+use uuid::Uuid;
 use web_sys::console;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
-//const MAIN_CSS: Asset = asset!("/assets/main.css");
-//const HEADER_SVG: Asset = asset!("/assets/header.svg");
 const TAILWIND_CSS: Asset = asset!("/assets/output.css");
 const LOGO: Asset = asset!("/assets/logo.png");
 
 fn main() {
     dioxus::launch(App);
+}
+
+#[derive(Routable, Clone)]
+#[rustfmt::skip]
+enum Route {
+    #[route("/")]
+    Home {},
+    #[nest("/cook-and-run")]
+        #[route("/")]
+        Dashboard {},
+        #[route("/:id")]
+        ProjectDetailPage { id: Uuid },
+        #[route("/:id/new")]
+        CreateProject { id: Uuid },
+    #[end_nest]
+    #[route("/:..route")]
+    NotFound {
+        route: Vec<String>,
+    },
+}
+#[component]
+fn Home() -> Element {
+    rsx! {
+        div { class: "flex flex-col items-center justify-center h-screen",
+            h1 { class: "text-4xl font-bold mb-4", "Welcome to the Traveling Cook Calculator!" }
+            p { class: "text-lg mb-4",
+                "This is a simple web application to help you plan your cooking and running events."
+            }
+            a {
+                href: "/cook-and-run",
+                class: "bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600",
+                "Get Started"
+            }
+        }
+    }
+}
+
+#[component]
+fn NotFound(route: Vec<String>) -> Element {
+    rsx! {
+        div { class: "flex flex-col items-center justify-center h-screen",
+            h1 { class: "text-4xl font-bold mb-4", "Welcome to the Traveling Cook Calculator!" }
+            p { class: "text-lg mb-4", "NotFound" }
+            p { class: "text-lg mb-4", "The requested route was not found: {route:?}" }
+        }
+    }
 }
 
 #[component]
@@ -37,34 +83,26 @@ fn App() -> Element {
     }
 
     let storage = storage.expect("Expected storage");
-
+    let storage = Arc::new(Mutex::new(storage));
+    use_context_provider(|| storage);
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: TAILWIND_CSS }
-        // ProjectDashboard { storage }
-        Main {}
-    }
-}
-
-#[component]
-pub fn Main() -> Element {
-    rsx! {
         div { class: "min-h-screen bg-gray-50 flex flex-col",
             header { class: "bg-white shadow sticky top-0 z-50",
                 div { class: "max-w-7xl mx-auto px-4 py-4 flex justify-between items-center",
-                    img {
-                        src: LOGO,
-                        alt: "Traveling Cook Calculator",
-                        class: "h-8 w-auto",
+                    a { href: "/cook-and-run",
+                        img {
+                            src: LOGO,
+                            alt: "Traveling Cook Calculator",
+                            class: "h-8 w-auto",
+                        }
+                        div { class: "flex items-center gap-4" }
                     }
-                    div { class: "flex items-center gap-4" }
                 }
             }
 
-            main { class: "flex h-[calc(100vh-4rem)]",
-                // Dashboard { breed: "Test" }
-                ProjectDetailPage {}
-            }
+            main { class: "flex h-auto w-auto", Router::<Route> {} }
         }
     }
 }

@@ -8,6 +8,9 @@ title = "TCC"
 # include `assets` in web platform
 [web.resource]
 
+[web.watcher]
+index_on_404 = true
+
 # Additional CSS style files
 style = ["assets/tailwind.css"]
 

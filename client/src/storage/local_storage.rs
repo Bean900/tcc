@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use super::{CookAndRun, Storage};
+use super::{CookAndRunData, CookAndRunMinimalData, StorageR, StorageW};
 extern crate serde_json;
 
 const DATA_KEY: &str = "tcc_data";
@@ -8,7 +8,7 @@ const DATA_KEY: &str = "tcc_data";
 #[derive(PartialEq, Clone)]
 pub struct LocalStorage {
     storage: web_sys::Storage,
-    stored_data: Vec<CookAndRun>,
+    stored_data: Vec<CookAndRunData>,
 }
 
 impl LocalStorage {
@@ -56,7 +56,8 @@ impl LocalStorage {
             });
         }
         let data = data.expect("Expected data to be set");
-        let stored_data: Result<Vec<CookAndRun>, serde_json::Error> = serde_json::from_str(&data);
+        let stored_data: Result<Vec<CookAndRunData>, serde_json::Error> =
+            serde_json::from_str(&data);
         if stored_data.is_err() {
             return Err(format!(
                 "Data could not parse json: {}",
@@ -71,13 +72,15 @@ impl LocalStorage {
     }
 }
 
-impl Storage for LocalStorage {
-    fn select_all_cook_and_run_minimal(&self) -> Result<Vec<super::CookAndRunMinimal>, String> {
+impl StorageR for LocalStorage {
+    fn select_all_cook_and_run_minimal(&self) -> Result<Vec<CookAndRunMinimalData>, String> {
         Ok(self.stored_data.iter().map(|x| x.to_minimal()).collect())
     }
+}
 
-    fn create_cook_and_run(&mut self, name: String) -> Result<Uuid, String> {
-        let cook_and_run = CookAndRun::new(name);
+impl StorageW for LocalStorage {
+    fn create_cook_and_run(&mut self, uuid: Uuid, name: String) -> Result<(), String> {
+        let cook_and_run = CookAndRunData::new(uuid, name);
         self.stored_data.push(cook_and_run.clone());
 
         let stored_data_string = serde_json::to_string(&self.stored_data);
@@ -106,6 +109,6 @@ impl Storage for LocalStorage {
             ));
         }
 
-        Ok(cook_and_run.id)
+        Ok(())
     }
 }
