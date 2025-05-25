@@ -76,6 +76,14 @@ impl StorageR for LocalStorage {
     fn select_all_cook_and_run_minimal(&self) -> Result<Vec<CookAndRunMinimalData>, String> {
         Ok(self.stored_data.iter().map(|x| x.to_minimal()).collect())
     }
+    fn select_cook_and_run(&self, id: Uuid) -> Result<CookAndRunData, String> {
+        for data in &self.stored_data {
+            if data.id == id {
+                return Ok(data.clone());
+            }
+        }
+        Err(format!("Cook and run project with ID {} not found", id))
+    }
 }
 
 impl StorageW for LocalStorage {

@@ -4,7 +4,6 @@ use std::sync::Mutex;
 use dioxus::prelude::*;
 mod side;
 mod storage;
-use side::CreateProject;
 use side::Dashboard;
 use side::ProjectDetailPage;
 use storage::LocalStorage;
@@ -29,8 +28,6 @@ enum Route {
         Dashboard {},
         #[route("/:id")]
         ProjectDetailPage { id: Uuid },
-        #[route("/:id/new")]
-        CreateProject { id: Uuid },
     #[end_nest]
     #[route("/:..route")]
     NotFound {
@@ -102,7 +99,7 @@ fn App() -> Element {
                 }
             }
 
-            main { class: "flex h-auto w-auto", Router::<Route> {} }
+            main { class: "flex h-full w-full", Router::<Route> {} }
         }
     }
 }

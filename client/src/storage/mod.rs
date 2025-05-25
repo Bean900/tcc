@@ -13,6 +13,7 @@ pub trait StorageW {
 
 pub trait StorageR {
     fn select_all_cook_and_run_minimal(&self) -> Result<Vec<CookAndRunMinimalData>, String>;
+    fn select_cook_and_run(&self, id: Uuid) -> Result<CookAndRunData, String>;
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -31,13 +32,13 @@ struct HostingData {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-struct ContactData {
-    id: Uuid,
-    team_name: String,
-    address: String,
-    latitude: f64,
-    longitude: f64,
-    allergies: Vec<String>,
+pub struct ContactData {
+    pub id: Uuid,
+    pub team_name: String,
+    pub address: String,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub allergies: Vec<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -51,12 +52,12 @@ struct PlanData {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CookAndRunData {
     pub id: Uuid,
-    name: String,
-    created: DateTime<Utc>,
-    edited: DateTime<Utc>,
-    contact_list: Vec<ContactData>,
-    course_list: Vec<CourseData>,
-    top_plan: Option<PlanData>,
+    pub name: String,
+    pub created: DateTime<Utc>,
+    pub edited: DateTime<Utc>,
+    pub contact_list: Vec<ContactData>,
+    pub course_list: Vec<CourseData>,
+    pub top_plan: Option<PlanData>,
 }
 
 impl CookAndRunData {
