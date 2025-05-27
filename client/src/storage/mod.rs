@@ -9,6 +9,9 @@ pub use local_storage::LocalStorage;
 
 pub trait StorageW {
     fn create_cook_and_run(&mut self, uuid: Uuid, name: String) -> Result<(), String>;
+    fn delete_cook_and_run(&mut self, id: Uuid) -> Result<(), String>;
+    fn rename_cook_and_run(&mut self, id: Uuid, new_name: String) -> Result<(), String>;
+    fn add_team_to_cook_and_run(&mut self, id: Uuid, team: ContactData) -> Result<(), String>;
 }
 
 pub trait StorageR {

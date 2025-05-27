@@ -1,11 +1,26 @@
-use std::sync::{Arc, Mutex};
+mod overview;
+mod teams;
 
+use overview::{Overview, OverviewProps};
+use teams::{TeamProps, Teams, TeamsProps};
+
+use crate::{
+    side::{BlueButton, CloseButton, GreenButton, Input, InputError, RedButton, RedHollowButton},
+    storage::{CookAndRunData, LocalStorage, StorageR, StorageW},
+    Route,
+};
 use chrono::{DateTime, Utc};
-use dioxus::{html::g::r, prelude::*};
+use dioxus::prelude::*;
+use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 use web_sys::console;
 
-use crate::storage::{LocalStorage, StorageR, StorageW};
+fn get_cook_and_run_data(id: Uuid) -> Result<CookAndRunData, String> {
+    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
+    let storage = storage.lock().expect("Expected storage lock");
+    let cook_and_run = storage.select_cook_and_run(id);
+    cook_and_run
+}
 
 #[derive(PartialEq, Clone)]
 enum MenuPage {
@@ -18,10 +33,7 @@ enum MenuPage {
 
 #[component]
 pub fn ProjectDetailPage(id: Uuid) -> Element {
-    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-    let storage = storage.lock().expect("Expected storage lock");
-    let cook_and_run = storage.select_cook_and_run(id);
-
+    let cook_and_run = get_cook_and_run_data(id);
     if cook_and_run.is_err() {
         console::error_1(
             &format!(
@@ -49,6 +61,7 @@ pub fn ProjectDetailPage(id: Uuid) -> Element {
                         MenuPage::Overview => {
                             Overview(
                                 &OverviewProps {
+                                    id: cook_and_run.id,
                                     name: cook_and_run.name,
                                     uploaded: false,
                                 },
@@ -57,6 +70,7 @@ pub fn ProjectDetailPage(id: Uuid) -> Element {
                         MenuPage::Teams => {
                             Teams(
                                 &TeamsProps {
+                                    project_id: cook_and_run.id,
                                     team_list: cook_and_run
                                         .contact_list
                                         .iter()
@@ -137,155 +151,6 @@ fn get_side_bar(mut current_page: Signal<MenuPage>) -> Element {
             }
         }
     )
-}
-
-struct OverviewProps {
-    name: String,
-    uploaded: bool,
-}
-
-#[component]
-fn Overview(props: &OverviewProps) -> Element {
-    //let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-    // let storage = storage.lock().expect("Expected storage lock");
-
-    let mut delete_dialog_signal: Signal<Element> = use_signal(|| rsx!());
-    rsx! {
-        section {
-            h2 { class: "text-2xl font-bold mb-4", "Overview" }
-            input {
-                class: "border p-2 rounded w-full mb-4",
-                r#type: "text",
-                placeholder: "Project name",
-                value: if !props.name.is_empty() { props.name.clone() },
-            }
-            div { class: "flex flex-wrap gap-4 mb-4",
-                div { class: "px-4",
-                    if props.uploaded {
-                        button { class: "bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 cursor-pointer",
-                            "Remove from Cloud"
-                        }
-                    } else {
-                        button { class: "bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 cursor-pointer",
-                            "Upload to Cloud"
-                        }
-                    }
-                }
-
-                div { class: "ml-auto px-4",
-                    button {
-                        class: "border border-red-500 text-red-500 px-4 py-2 rounded hover:bg-red-100 cursor-pointer",
-                        onclick: move |_| { delete_dialog_signal.set(rsx! {
-                            {delete_project_dialog(delete_dialog_signal, Uuid::new_v4())}
-                        }) },
-                        "Delete Project"
-                    }
-                }
-                div { class: "bg-yellow-100 border border-yellow-300 text-yellow-800 p-4 rounded max-w-xl",
-                    h3 { class: "font-bold mb-2", "Cloud Info" }
-                    p { "Projects stored only locally ensure your data stays on your machine." }
-                    p {
-                        "Uploading to the cloud enables live access to route sheets, syncing across devices, and backups."
-                    }
-                    p { class: "mt-2 font-semibold",
-                        "Note: Cloud functionality requires you to be logged in."
-                    }
-                }
-            }
-        }
-        {delete_dialog_signal}
-    }
-}
-
-fn delete_project_dialog(mut delete_project_signal: Signal<Element>, project_id: Uuid) -> Element {
-    rsx! {
-        div { class: "backdrop-blur fixed inset-0 flex h-screen w-screen justify-center items-center",
-            div { class: "relative bg-white shadow-md rounded-xl p-6 h-54 hover:shadow-lg transition-all cursor-pointer ",
-
-                // Title
-                h2 { class: "text-2xl font-semibold text-red-800 mb-4", "Delete Project" }
-
-                p { class: "text-red-600 font-semibold mb-4", "Warning:" }
-                p { class: "text-red-600 font-semibold mb-4",
-                    "Deleting this project will permanently and irreversibly remove it. This action cannot be undone."
-                }
-
-                // Delete button
-                button {
-                    class: "absolute top-3 right-3 cursor-pointer",
-                    onclick: move |_| {
-                        delete_project_signal.set(rsx! {});
-                    },
-                    svg {
-                        class: "w-6 h-6",
-                        stroke: "currentColor",
-                        xmlns: "http://www.w3.org/2000/svg",
-                        view_box: "0 0 24 24",
-                        path { d: "M6 18L18 6M6 6l12 12" }
-                    }
-                }
-
-                button {
-                    class: "bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 cursor-pointer",
-                    onclick: move |_| {
-                        delete_project_signal.set(rsx! {});
-                    },
-                    "Delete Project"
-                }
-            }
-        }
-    }
-}
-
-struct TeamsProps {
-    team_list: Vec<TeamProps>,
-}
-
-#[component]
-fn Teams(props: &TeamsProps) -> Element {
-    {
-        rsx! {
-            section {
-                h2 { class: "text-2xl font-bold mb-4", "Teams" }
-
-                // Buttons
-                div { class: "flex space-x-4 mb-4",
-                    button { class: "bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600",
-                        "+ Add Team"
-                    }
-                    button { class: "bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600",
-                        "Import from Excel"
-                    }
-                }
-
-                // Scrollable grid
-                div { class: "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-h-[calc(100vh-16rem)] overflow-y-auto pr-2",
-                    //add here
-                    {props.team_list.iter().map(|team| { Team(team) })}
-                }
-            }
-        }
-    }
-}
-
-struct TeamProps {
-    id: Uuid,
-    name: String,
-    address: String,
-    allergies: Vec<String>,
-}
-
-#[component]
-fn Team(props: &TeamProps) -> Element {
-    rsx! {
-        div { key: {props.id}, class: "border rounded bg-white p-4 shadow",
-            h3 { class: "text-lg font-semibold mb-1", "{props.name}" }
-            p { class: "text-sm text-gray-600 mb-1", "📍 {props.address}" }
-            if !props.allergies.is_empty() {
-                p { class: "text-sm text-red-600", "⚠ Allergies: {props.allergies.join(\", \")}" }
-            }
-        }
-    }
 }
 
 struct StartEndProps {
