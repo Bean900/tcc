@@ -12,6 +12,7 @@ pub trait StorageW {
     fn delete_cook_and_run(&mut self, id: Uuid) -> Result<(), String>;
     fn rename_cook_and_run(&mut self, id: Uuid, new_name: String) -> Result<(), String>;
     fn add_team_to_cook_and_run(&mut self, id: Uuid, team: ContactData) -> Result<(), String>;
+    fn update_team_in_cook_and_run(&mut self, id: Uuid, team: ContactData) -> Result<(), String>;
 }
 
 pub trait StorageR {
@@ -41,7 +42,19 @@ pub struct ContactData {
     pub address: String,
     pub latitude: f64,
     pub longitude: f64,
+    pub mail: String,
+    pub members: u32,
     pub allergies: Vec<String>,
+    pub needs_check: bool,
+    pub notes: Vec<NoteData>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NoteData {
+    pub id: Uuid,
+    pub headline: String,
+    pub description: String,
+    pub created: DateTime<Utc>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]

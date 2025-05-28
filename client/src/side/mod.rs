@@ -195,6 +195,27 @@ pub(crate) fn Input(
 }
 
 #[component]
+pub(crate) fn InputNumber(
+    place_holer: Option<String>,
+    value: String,
+    error_signal: Option<Signal<String>>,
+    oninput: EventHandler<dioxus::prelude::Event<FormData>>,
+) -> Element {
+    rsx! {
+        input {
+            class: if error_signal.is_some()
+    && !error_signal.expect("Expect error signal").read().is_empty() { "w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" },
+            r#type: "number",
+            placeholder: if place_holer.is_some() { place_holer.expect("Expected place holer") } else { "" },
+            value,
+            oninput: move |e| {
+                oninput.call(e);
+            },
+        }
+    }
+}
+
+#[component]
 pub(crate) fn InputError(error_signal: Signal<String>) -> Element {
     rsx! {
         if !error_signal.read().is_empty() {

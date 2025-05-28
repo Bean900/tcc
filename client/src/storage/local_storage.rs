@@ -223,4 +223,45 @@ impl StorageW for LocalStorage {
         }
         Err(format!("Cook and run project with ID {} not found", id))
     }
+
+    fn update_team_in_cook_and_run(
+        &mut self,
+        id: Uuid,
+        team: super::ContactData,
+    ) -> Result<(), String> {
+        for data in &mut self.stored_data {
+            if data.id == id {
+                if let Some(index) = data.contact_list.iter().position(|x| x.id == team.id) {
+                    data.contact_list[index] = team;
+                    let stored_data_string = serde_json::to_string(&self.stored_data);
+
+                    if stored_data_string.is_err() {
+                        return Err(format!(
+                            "Struct could not be parse into json: {}",
+                            stored_data_string.err().expect("Expected serde error")
+                        ));
+                    }
+
+                    let stored_data_string = stored_data_string.expect("Expected parsed data");
+
+                    let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+
+                    if result.is_err() {
+                        return Err(format!(
+                            "Data could not be stored: {}",
+                            result
+                                .err()
+                                .expect("Expected storage error")
+                                .as_string()
+                                .expect("Expected storage error to be string")
+                        ));
+                    }
+                    return Ok(());
+                } else {
+                    return Err(format!("Team with ID {} not found", team.id));
+                }
+            }
+        }
+        Err(format!("Cook and run project with ID {} not found", id))
+    }
 }

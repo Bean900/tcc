@@ -2,7 +2,7 @@ mod overview;
 mod teams;
 
 use overview::{Overview, OverviewProps};
-use teams::{TeamProps, Teams, TeamsProps};
+use teams::{NoteProps, TeamCardProps, Teams, TeamsProps};
 
 use crate::{
     side::{BlueButton, CloseButton, GreenButton, Input, InputError, RedButton, RedHollowButton},
@@ -75,11 +75,26 @@ pub fn ProjectDetailPage(id: Uuid) -> Element {
                                         .contact_list
                                         .iter()
                                         .map(|contact| {
-                                            TeamProps {
+                                            TeamCardProps {
                                                 id: contact.id,
                                                 name: contact.team_name.clone(),
+                                                members: contact.members.clone(),
+                                                contact_email: contact.mail.clone(),
+                                                latitude: contact.latitude,
+                                                longitude: contact.longitude,
                                                 address: contact.address.clone(),
                                                 allergies: contact.allergies.clone(),
+                                                needs_check: contact.needs_check,
+                                                notes: contact
+                                                    .notes
+                                                    .iter()
+                                                    .map(|note| NoteProps {
+                                                        id: note.id,
+                                                        headline: note.headline.clone(),
+                                                        description: note.description.clone(),
+                                                        created: note.created,
+                                                    })
+                                                    .collect(),
                                             }
                                         })
                                         .collect(),

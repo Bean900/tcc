@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use dioxus::prelude::*;
+mod address_connector;
 mod side;
 mod storage;
 use side::Dashboard;
