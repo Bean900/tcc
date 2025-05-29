@@ -13,6 +13,20 @@ pub trait StorageW {
     fn rename_cook_and_run(&mut self, id: Uuid, new_name: String) -> Result<(), String>;
     fn add_team_to_cook_and_run(&mut self, id: Uuid, team: ContactData) -> Result<(), String>;
     fn update_team_in_cook_and_run(&mut self, id: Uuid, team: ContactData) -> Result<(), String>;
+    fn create_team_note_in_cook_and_run(
+        &mut self,
+        id: Uuid,
+        team_id: Uuid,
+        headline: String,
+        description: String,
+    ) -> Result<(), String>;
+    fn update_team_needs_ckeck_in_cook_and_run(
+        &mut self,
+        id: Uuid,
+        team_id: Uuid,
+        needs_check: bool,
+    ) -> Result<(), String>;
+    fn delete_team_in_cook_and_run(&mut self, id: Uuid, team_id: Uuid) -> Result<(), String>;
 }
 
 pub trait StorageR {

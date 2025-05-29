@@ -1,4 +1,5 @@
 use uuid::Uuid;
+use web_sys::console;
 
 use super::{CookAndRunData, CookAndRunMinimalData, StorageR, StorageW};
 
@@ -259,6 +260,134 @@ impl StorageW for LocalStorage {
                     return Ok(());
                 } else {
                     return Err(format!("Team with ID {} not found", team.id));
+                }
+            }
+        }
+        Err(format!("Cook and run project with ID {} not found", id))
+    }
+
+    fn create_team_note_in_cook_and_run(
+        &mut self,
+        id: Uuid,
+        team_id: Uuid,
+        headline: String,
+        description: String,
+    ) -> Result<(), String> {
+        for data in &mut self.stored_data {
+            if data.id == id {
+                if let Some(team) = data.contact_list.iter_mut().find(|x| x.id == team_id) {
+                    let note = super::NoteData {
+                        id: Uuid::new_v4(),
+                        headline,
+                        description,
+                        created: chrono::Utc::now(),
+                    };
+                    team.notes.push(note);
+                    let stored_data_string = serde_json::to_string(&self.stored_data);
+
+                    if stored_data_string.is_err() {
+                        return Err(format!(
+                            "Struct could not be parse into json: {}",
+                            stored_data_string.err().expect("Expected serde error")
+                        ));
+                    }
+
+                    let stored_data_string = stored_data_string.expect("Expected parsed data");
+
+                    let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+
+                    if result.is_err() {
+                        return Err(format!(
+                            "Data could not be stored: {}",
+                            result
+                                .err()
+                                .expect("Expected storage error")
+                                .as_string()
+                                .expect("Expected storage error to be string")
+                        ));
+                    }
+                    return Ok(());
+                } else {
+                    return Err(format!("Team with ID {} not found", team_id));
+                }
+            }
+        }
+        Err(format!("Cook and run project with ID {} not found", id))
+    }
+
+    fn update_team_needs_ckeck_in_cook_and_run(
+        &mut self,
+        id: Uuid,
+        team_id: Uuid,
+        needs_check: bool,
+    ) -> Result<(), String> {
+        for data in &mut self.stored_data {
+            if data.id == id {
+                if let Some(team) = data.contact_list.iter_mut().find(|x| x.id == team_id) {
+                    team.needs_check = needs_check;
+                    let stored_data_string = serde_json::to_string(&self.stored_data);
+
+                    if stored_data_string.is_err() {
+                        return Err(format!(
+                            "Struct could not be parse into json: {}",
+                            stored_data_string.err().expect("Expected serde error")
+                        ));
+                    }
+
+                    let stored_data_string = stored_data_string.expect("Expected parsed data");
+
+                    let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+
+                    if result.is_err() {
+                        return Err(format!(
+                            "Data could not be stored: {}",
+                            result
+                                .err()
+                                .expect("Expected storage error")
+                                .as_string()
+                                .expect("Expected storage error to be string")
+                        ));
+                    }
+                    return Ok(());
+                } else {
+                    return Err(format!("Team with ID {} not found", team_id));
+                }
+            }
+        }
+        Err(format!("Cook and run project with ID {} not found", id))
+    }
+
+    fn delete_team_in_cook_and_run(&mut self, id: Uuid, team_id: Uuid) -> Result<(), String> {
+        for data in &mut self.stored_data {
+            if data.id == id {
+                if let Some(index) = data.contact_list.iter().position(|x| x.id == team_id) {
+                    data.contact_list.remove(index);
+                    let stored_data_string = serde_json::to_string(&self.stored_data);
+
+                    if stored_data_string.is_err() {
+                        return Err(format!(
+                            "Struct could not be parse into json: {}",
+                            stored_data_string.err().expect("Expected serde error")
+                        ));
+                    }
+
+                    let stored_data_string = stored_data_string.expect("Expected parsed data");
+
+                    let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+
+                    if result.is_err() {
+                        return Err(format!(
+                            "Data could not be stored: {}",
+                            result
+                                .err()
+                                .expect("Expected storage error")
+                                .as_string()
+                                .expect("Expected storage error to be string")
+                        ));
+                    }
+                    return Ok(());
+                } else {
+                    return Err(format!("Team with ID {} not found", team_id));
                 }
             }
         }

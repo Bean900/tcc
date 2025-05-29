@@ -92,7 +92,11 @@ pub fn ProjectDetailPage(id: Uuid) -> Element {
                                                         id: note.id,
                                                         headline: note.headline.clone(),
                                                         description: note.description.clone(),
-                                                        created: note.created,
+                                                        created: note
+                                                            .created
+                                                            .with_timezone(&chrono::Local)
+                                                            .format("%Y-%m-%d %H:%M")
+                                                            .to_string(),
                                                     })
                                                     .collect(),
                                             }
