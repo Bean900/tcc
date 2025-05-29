@@ -1,7 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::vec;
 
-use chrono::{DateTime, Utc};
 use dioxus::prelude::*;
 use uuid::Uuid;
 use web_sys::console;
@@ -10,14 +9,9 @@ use crate::side::details::address::{Address, AddressParam};
 use crate::storage::{AddressData, ContactData, LocalStorage, NoteData};
 
 use crate::{
-    side::{
-        BlueButton, CloseButton, DeleteButton, GreenButton, Input, InputError, InputMultirow,
-        InputNumber, RedButton,
-    },
+    side::{CloseButton, DeleteButton, GreenButton, Input, InputError, InputMultirow, InputNumber},
     storage::StorageW,
 };
-
-use super::address::AddressProps;
 
 fn add_team(
     id: Uuid,
@@ -148,26 +142,6 @@ pub(crate) fn Teams(props: &TeamsProps) -> Element {
         {team_dialog_signal}
     }
 }
-/*
-#[derive(PartialEq, Clone)]
-pub(crate) struct TeamCardProps {
-    pub id: Uuid,
-    pub name: String,
-    pub contact_email: String,
-    pub members: u32,
-    pub address: AddressProps,
-    pub allergies: Vec<String>,
-    pub needs_check: bool,
-    pub notes: Vec<NoteProps>,
-}
-
-#[derive(Clone, PartialEq)]
-pub struct NoteProps {
-    pub id: Uuid,
-    pub headline: String,
-    pub description: String,
-    pub created: String,
-}*/
 
 #[component]
 fn TeamCard(props: ContactData) -> Element {

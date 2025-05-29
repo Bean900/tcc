@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 mod local_storage;
@@ -84,7 +84,7 @@ pub struct NoteData {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MeetingPointData {
-    pub time: DateTime<Utc>,
+    pub time: NaiveTime,
     pub address: AddressData,
 }
 

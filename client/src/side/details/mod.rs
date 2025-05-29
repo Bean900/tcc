@@ -5,7 +5,7 @@ mod teams;
 mod address;
 
 use overview::{Overview, OverviewProps};
-use startend::StartEnd;
+use startend::{StartEnd, StartEndParam};
 use teams::{Teams, TeamsProps};
 
 use crate::storage::{CookAndRunData, LocalStorage, StorageR};
@@ -49,6 +49,20 @@ pub fn ProjectDetailPage(id: Uuid) -> Element {
 
     let cook_and_run = cook_and_run.expect("Expected cook and run data");
 
+    let overview_props = OverviewProps {
+        id: cook_and_run.id,
+        name: cook_and_run.name,
+        uploaded: false,
+    };
+
+    let team_props = TeamsProps {
+        project_id: cook_and_run.id,
+        team_list: cook_and_run.contact_list,
+    };
+
+    let start_end_param =
+        StartEndParam::new(id, &cook_and_run.start_point, &cook_and_run.end_point);
+
     let current_page = use_signal(|| MenuPage::Overview);
     rsx! {
         div { class: "flex h-screen w-full",
@@ -58,24 +72,11 @@ pub fn ProjectDetailPage(id: Uuid) -> Element {
             div { class: "flex justify-center w-full",
                 div { class: "py-4",
                     match current_page() {
-                        MenuPage::Overview => {
-                            Overview(
-                                &OverviewProps {
-                                    id: cook_and_run.id,
-                                    name: cook_and_run.name,
-                                    uploaded: false,
-                                },
-                            )
-                        }
-                        MenuPage::Teams => {
-                            Teams(
-                                &TeamsProps {
-                                    project_id: cook_and_run.id,
-                                    team_list: cook_and_run.contact_list,
-                                },
-                            )
-                        }
-                        MenuPage::StartEnd => todo!(),
+                        MenuPage::Overview => Overview(&overview_props),
+                        MenuPage::Teams => Teams(&team_props),
+                        MenuPage::StartEnd => rsx! {
+                            StartEnd { param: start_end_param }
+                        },
                         MenuPage::Courses => todo!(),
                         MenuPage::Calculation => rsx! {
                             section { class: "mb-8",

@@ -246,7 +246,7 @@ pub(crate) fn Input(
             class: if error_signal.is_some()
     && !error_signal.expect("Expect error signal").read().is_empty() { "w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" },
             r#type: "text",
-            placeholder: if place_holer.is_some() { place_holer.expect("Expected place holer") } else { "" },
+            placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
             value,
             oninput: move |e| {
                 oninput.call(e);
@@ -266,7 +266,7 @@ pub(crate) fn InputMultirow(
         textarea {
             class: if error_signal.is_some()
     && !error_signal.expect("Expect error signal").read().is_empty() { "w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" },
-            placeholder: if place_holer.is_some() { place_holer.expect("Expected place holer") } else { "" },
+            placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
             rows: "3",
             value,
             oninput: move |e| {
@@ -288,7 +288,28 @@ pub(crate) fn InputNumber(
             class: if error_signal.is_some()
     && !error_signal.expect("Expect error signal").read().is_empty() { "w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" },
             r#type: "number",
-            placeholder: if place_holer.is_some() { place_holer.expect("Expected place holer") } else { "" },
+            placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
+            value,
+            oninput: move |e| {
+                oninput.call(e);
+            },
+        }
+    }
+}
+
+#[component]
+pub(crate) fn InputTime(
+    place_holer: Option<String>,
+    value: String,
+    error_signal: Option<Signal<String>>,
+    oninput: EventHandler<dioxus::prelude::Event<FormData>>,
+) -> Element {
+    rsx! {
+        input {
+            class: if error_signal.is_some()
+    && !error_signal.expect("Expect error signal").read().is_empty() { "w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" },
+            r#type: "time",
+            placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
             value,
             oninput: move |e| {
                 oninput.call(e);
