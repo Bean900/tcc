@@ -1,14 +1,14 @@
 mod overview;
+mod startend;
 mod teams;
 
-use overview::{Overview, OverviewProps};
-use teams::{NoteProps, TeamCardProps, Teams, TeamsProps};
+mod address;
 
-use crate::{
-    side::{BlueButton, CloseButton, GreenButton, Input, InputError, RedButton, RedHollowButton},
-    storage::{CookAndRunData, LocalStorage, StorageR, StorageW},
-    Route,
-};
+use overview::{Overview, OverviewProps};
+use startend::StartEnd;
+use teams::{Teams, TeamsProps};
+
+use crate::storage::{CookAndRunData, LocalStorage, StorageR};
 use chrono::{DateTime, Utc};
 use dioxus::prelude::*;
 use std::sync::{Arc, Mutex};
@@ -49,7 +49,7 @@ pub fn ProjectDetailPage(id: Uuid) -> Element {
 
     let cook_and_run = cook_and_run.expect("Expected cook and run data");
 
-    let mut current_page = use_signal(|| MenuPage::Overview);
+    let current_page = use_signal(|| MenuPage::Overview);
     rsx! {
         div { class: "flex h-screen w-full",
             // Sidebar
@@ -71,37 +71,7 @@ pub fn ProjectDetailPage(id: Uuid) -> Element {
                             Teams(
                                 &TeamsProps {
                                     project_id: cook_and_run.id,
-                                    team_list: cook_and_run
-                                        .contact_list
-                                        .iter()
-                                        .map(|contact| {
-                                            TeamCardProps {
-                                                id: contact.id,
-                                                name: contact.team_name.clone(),
-                                                members: contact.members.clone(),
-                                                contact_email: contact.mail.clone(),
-                                                latitude: contact.latitude,
-                                                longitude: contact.longitude,
-                                                address: contact.address.clone(),
-                                                allergies: contact.allergies.clone(),
-                                                needs_check: contact.needs_check,
-                                                notes: contact
-                                                    .notes
-                                                    .iter()
-                                                    .map(|note| NoteProps {
-                                                        id: note.id,
-                                                        headline: note.headline.clone(),
-                                                        description: note.description.clone(),
-                                                        created: note
-                                                            .created
-                                                            .with_timezone(&chrono::Local)
-                                                            .format("%Y-%m-%d %H:%M")
-                                                            .to_string(),
-                                                    })
-                                                    .collect(),
-                                            }
-                                        })
-                                        .collect(),
+                                    team_list: cook_and_run.contact_list,
                                 },
                             )
                         }
@@ -170,75 +140,4 @@ fn get_side_bar(mut current_page: Signal<MenuPage>) -> Element {
             }
         }
     )
-}
-
-struct StartEndProps {
-    start: Option<DateTime<Utc>>,
-    end: Option<DateTime<Utc>>,
-    start_address: Option<String>,
-    end_address: Option<String>,
-    is_start: bool,
-    is_end: bool,
-}
-
-#[component]
-fn StartEnd(props: &StartEndProps) -> Element {
-    rsx! {
-        section {
-            h2 { class: "text-2xl font-bold mb-4", "Start & End Point" }
-
-            div { class: "space-y-6",
-
-                // Start Point
-                div { class: "border p-4 rounded bg-gray-50",
-                    div { class: "flex items-center mb-2",
-                        input {
-                            r#type: "checkbox",
-                            class: "mr-2",
-                            checked: props.is_start,
-                        }
-                        span { class: "font-semibold", "Use Start Point" }
-                    }
-                    div { class: "grid grid-cols-1 md:grid-cols-2 gap-4",
-                        input {
-                            class: "border p-2 rounded w-full",
-                            r#type: "text",
-                            placeholder: "Start address",
-                            value: if props.start_address.is_some() { props.start_address.clone() },
-                        }
-                        input {
-                            class: "border p-2 rounded w-full",
-                            r#type: "time",
-                            value: if props.start.is_some() { props.start.expect("Expected start").format("%H:%M").to_string() },
-                        }
-                    }
-                }
-
-                // End Point
-                div { class: "border p-4 rounded bg-gray-50",
-                    div { class: "flex items-center mb-2",
-                        input {
-                            r#type: "checkbox",
-                            class: "mr-2",
-                            checked: props.is_end,
-                        }
-                        span { class: "font-semibold", "Use End Point" }
-                    }
-                    div { class: "grid grid-cols-1 md:grid-cols-2 gap-4",
-                        input {
-                            class: "border p-2 rounded w-full",
-                            r#type: "text",
-                            placeholder: "End address",
-                            value: if props.end_address.is_some() { props.end_address.clone() },
-                        }
-                        input {
-                            class: "border p-2 rounded w-full",
-                            r#type: "time",
-                            value: if props.end.is_some() { props.end.expect("Expected end").format("%H:%M").to_string() },
-                        }
-                    }
-                }
-            }
-        }
-    }
 }

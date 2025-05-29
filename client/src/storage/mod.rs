@@ -27,6 +27,12 @@ pub trait StorageW {
         needs_check: bool,
     ) -> Result<(), String>;
     fn delete_team_in_cook_and_run(&mut self, id: Uuid, team_id: Uuid) -> Result<(), String>;
+    fn update_start_end_point_in_cook_and_run(
+        &mut self,
+        id: Uuid,
+        start_point: Option<MeetingPointData>,
+        end_point: Option<MeetingPointData>,
+    ) -> Result<(), String>;
 }
 
 pub trait StorageR {
@@ -53,9 +59,7 @@ struct HostingData {
 pub struct ContactData {
     pub id: Uuid,
     pub team_name: String,
-    pub address: String,
-    pub latitude: f64,
-    pub longitude: f64,
+    pub address: AddressData,
     pub mail: String,
     pub members: u32,
     pub allergies: Vec<String>,
@@ -64,11 +68,24 @@ pub struct ContactData {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AddressData {
+    pub address: String,
+    pub latitude: f64,
+    pub longitude: f64,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NoteData {
     pub id: Uuid,
     pub headline: String,
     pub description: String,
     pub created: DateTime<Utc>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MeetingPointData {
+    pub time: DateTime<Utc>,
+    pub address: AddressData,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -87,6 +104,8 @@ pub struct CookAndRunData {
     pub edited: DateTime<Utc>,
     pub contact_list: Vec<ContactData>,
     pub course_list: Vec<CourseData>,
+    pub start_point: Option<MeetingPointData>,
+    pub end_point: Option<MeetingPointData>,
     pub top_plan: Option<PlanData>,
 }
 
@@ -107,6 +126,8 @@ impl CookAndRunData {
             edited: Utc::now(),
             contact_list: vec![],
             course_list: vec![],
+            start_point: None,
+            end_point: None,
             top_plan: None,
         }
     }

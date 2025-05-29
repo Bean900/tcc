@@ -393,4 +393,43 @@ impl StorageW for LocalStorage {
         }
         Err(format!("Cook and run project with ID {} not found", id))
     }
+
+    fn update_start_end_point_in_cook_and_run(
+        &mut self,
+        id: Uuid,
+        start_point: Option<super::MeetingPointData>,
+        end_point: Option<super::MeetingPointData>,
+    ) -> Result<(), String> {
+        for data in &mut self.stored_data {
+            if data.id == id {
+                data.start_point = start_point;
+                data.end_point = end_point;
+                let stored_data_string = serde_json::to_string(&self.stored_data);
+
+                if stored_data_string.is_err() {
+                    return Err(format!(
+                        "Struct could not be parse into json: {}",
+                        stored_data_string.err().expect("Expected serde error")
+                    ));
+                }
+
+                let stored_data_string = stored_data_string.expect("Expected parsed data");
+
+                let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+
+                if result.is_err() {
+                    return Err(format!(
+                        "Data could not be stored: {}",
+                        result
+                            .err()
+                            .expect("Expected storage error")
+                            .as_string()
+                            .expect("Expected storage error to be string")
+                    ));
+                }
+                return Ok(());
+            }
+        }
+        Err(format!("Cook and run project with ID {} not found", id))
+    }
 }
