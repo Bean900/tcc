@@ -342,17 +342,19 @@ pub(crate) fn InputError(error_signal: Signal<String>) -> Element {
     }
 }
 
-pub(crate) fn debounce<I, F>(value_signal: Signal<I>, callback: F)
+pub(crate) fn debounce<I, F>(value_signal: Signal<I>, mut running_signal: Signal<bool>, callback: F)
 where
     I: Clone + PartialEq + 'static,
     F: Fn(I) + 'static,
 {
     let value_on_creation = value_signal.read().clone();
     spawn(async move {
+        running_signal.set(true);
         TimeoutFuture::new(500).await;
         let value_now = value_signal.read().clone();
         if value_now == value_on_creation {
             callback(value_now);
+            running_signal.set(false);
         }
     });
 }

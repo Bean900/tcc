@@ -73,6 +73,10 @@ impl AddressParam {
         }
     }
 
+    pub(crate) fn get_data_signals(&self) -> (Signal<String>, Signal<String>, Signal<String>) {
+        (self.latitude, self.longitude, self.address)
+    }
+
     pub(crate) fn check_address_data(&self) -> Result<(), String> {
         if !check_addr_input(self.address, self.address_error) {
             return Err("Address cannot be empty!".to_string());
@@ -209,7 +213,6 @@ fn AutoAddress(mut param: AddressParam) -> Element {
                             return;
                         }
                         let search_address = address_search_signal.read().to_string();
-                        console::log_1(&format!("Search for address {}", search_address).into());
                         let result = get_address(&search_address).await;
                         if result.is_err() {
                             console::error_1(
@@ -243,12 +246,50 @@ fn AutoAddress(mut param: AddressParam) -> Element {
                     }
                 },
             }
+
             // Show Found Address
             p { class: "mt-2 text-sm text-gray-700",
-                "Found Address: "
-                em { "{param.address}" }
-                em {
-                    InputError { error_signal: address_search_response_error_signal.clone() }
+
+                if !address_search_response_error_signal.read().is_empty() {
+                    span {
+                        InputError { error_signal: address_search_response_error_signal.clone() }
+                    }
+                } else if !param.address.read().is_empty() {
+                    span {
+                        svg {
+                            class: "w-5 h-5 text-green-600 inline-block",
+                            xmlns: "http://www.w3.org/2000/svg",
+                            fill: "none",
+                            view_box: "0 0 24 24",
+                            stroke_width: "1.5",
+                            stroke: "currentColor",
+
+                            path {
+                                stroke_linecap: "round",
+                                stroke_linejoin: "round",
+                                d: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
+                            }
+                        }
+                        "{param.address}"
+                    }
+                } else {
+                    span {
+                        svg {
+                            class: "w-5 h-5 text-gray-600 inline-block",
+                            xmlns: "http://www.w3.org/2000/svg",
+                            fill: "none",
+                            view_box: "0 0 24 24",
+                            stroke_width: "1.5",
+                            stroke: "currentColor",
+
+                            path {
+                                stroke_linecap: "round",
+                                stroke_linejoin: "round",
+                                d: "M12 4.5v15m7.5-7.5h-15",
+                            }
+                        }
+                        "No address set"
+                    }
                 }
             }
         }

@@ -27,11 +27,15 @@ pub trait StorageW {
         needs_check: bool,
     ) -> Result<(), String>;
     fn delete_team_in_cook_and_run(&mut self, id: Uuid, team_id: Uuid) -> Result<(), String>;
-    fn update_start_end_point_in_cook_and_run(
+    fn update_start_point_in_cook_and_run(
         &mut self,
         id: Uuid,
         start_point: Option<MeetingPointData>,
-        end_point: Option<MeetingPointData>,
+    ) -> Result<(), String>;
+    fn update_goal_point_in_cook_and_run(
+        &mut self,
+        id: Uuid,
+        goal_point: Option<MeetingPointData>,
     ) -> Result<(), String>;
 }
 
