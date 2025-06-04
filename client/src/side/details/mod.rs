@@ -1,9 +1,11 @@
+mod courses;
 mod overview;
 mod startend;
 mod teams;
 
 mod address;
 
+use courses::CoursesParam;
 use overview::{Overview, OverviewProps};
 use startend::{StartEnd, StartEndParam};
 use teams::{Teams, TeamsProps};
@@ -50,18 +52,20 @@ pub fn ProjectDetailPage(id: Uuid) -> Element {
     let cook_and_run = cook_and_run.expect("Expected cook and run data");
 
     let overview_props = OverviewProps {
-        id: cook_and_run.id,
+        id: id,
         name: cook_and_run.name,
         uploaded: false,
     };
 
     let team_props = TeamsProps {
-        project_id: cook_and_run.id,
+        project_id: id,
         team_list: cook_and_run.contact_list,
     };
 
     let start_end_param =
         StartEndParam::new(id, &cook_and_run.start_point, &cook_and_run.end_point);
+
+    let courses_param = CoursesParam::new(id, cook_and_run.course_list);
 
     let current_page = use_signal(|| MenuPage::Overview);
     rsx! {
@@ -77,7 +81,9 @@ pub fn ProjectDetailPage(id: Uuid) -> Element {
                         MenuPage::StartEnd => rsx! {
                             StartEnd { param: start_end_param }
                         },
-                        MenuPage::Courses => todo!(),
+                        MenuPage::Courses => rsx! {
+                            courses::Courses { param: courses_param }
+                        },
                         MenuPage::Calculation => rsx! {
                             section { class: "mb-8",
                                 h2 { class: "text-2xl font-bold mb-4", "Berechnung" }

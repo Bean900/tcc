@@ -37,6 +37,21 @@ pub trait StorageW {
         id: Uuid,
         goal_point: Option<MeetingPointData>,
     ) -> Result<(), String>;
+    fn add_course_in_cook_and_run(
+        &mut self,
+        id: Uuid,
+        course_data: CourseData,
+    ) -> Result<(), String>;
+    fn update_course_in_cook_and_run(
+        &mut self,
+        id: Uuid,
+        course_data: CourseData,
+    ) -> Result<(), String>;
+    fn delete_course_in_cook_and_run(
+        &mut self,
+        id: Uuid,
+        course_data_id: Uuid,
+    ) -> Result<(), String>;
 }
 
 pub trait StorageR {
@@ -45,10 +60,10 @@ pub trait StorageR {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-struct CourseData {
-    id: Uuid,
-    name: String,
-    time: DateTime<Utc>,
+pub struct CourseData {
+    pub id: Uuid,
+    pub name: String,
+    pub time: NaiveTime,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]

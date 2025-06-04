@@ -1,12 +1,12 @@
 use std::sync::{Arc, Mutex};
 
 use chrono::NaiveTime;
-use dioxus::{html::script::r#async, prelude::*};
+use dioxus::prelude::*;
 use uuid::Uuid;
 use web_sys::console;
 
 use crate::{
-    side::{debounce, details::address::Address, InputTime},
+    side::{debounce, details::address::Address, InputTime, SavingIcon},
     storage::{LocalStorage, MeetingPointData, StorageW},
 };
 
@@ -165,7 +165,7 @@ impl StartEndParam {
             end_saving_error_signal,
         }
     }
-    fn to_start_data(&self) -> (Result<Option<MeetingPointData>, String>) {
+    fn to_start_data(&self) -> Result<Option<MeetingPointData>, String> {
         if !*self.is_start.read() {
             return Ok(None);
         }
@@ -180,7 +180,7 @@ impl StartEndParam {
         }));
     }
 
-    fn to_end_data(&self) -> (Result<Option<MeetingPointData>, String>) {
+    fn to_end_data(&self) -> Result<Option<MeetingPointData>, String> {
         if !*self.is_end.read() {
             return Ok(None);
         }
@@ -272,50 +272,9 @@ pub fn StartEnd(param: StartEndParam) -> Element {
 
                         // Loading or Error Icon
                         div { class: "flex items-center space-x-2",
-
-                            if !param.start_saving_error_signal.read().is_empty() {
-                                div { title: param.start_saving_error_signal,
-                                    svg {
-                                        class: "w-5 h-5 text-red-600",
-                                        xmlns: "http://www.w3.org/2000/svg",
-                                        fill: "none",
-                                        view_box: "0 0 24 24",
-                                        stroke_width: "2",
-                                        stroke: "currentColor",
-
-                                        circle {
-                                            cx: "12",
-                                            cy: "12",
-                                            r: "10",
-                                            stroke: "currentColor",
-                                            stroke_width: "2",
-                                        }
-                                        line {
-                                            x1: "12",
-                                            y1: "8",
-                                            x2: "12",
-                                            y2: "12",
-                                            stroke: "currentColor",
-                                            stroke_width: "2",
-                                            stroke_linecap: "round",
-                                        }
-                                        line {
-                                            x1: "12",
-                                            y1: "16",
-                                            x2: "12",
-                                            y2: "16",
-                                            stroke: "currentColor",
-                                            stroke_width: "2",
-                                            stroke_linecap: "round",
-                                        }
-                                    }
-                                
-                                }
-                            } else if *param.start_saving_signal.read() {
-                                div {
-                                    class: "loader w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin",
-                                    title: "Saving in progress...",
-                                }
+                            SavingIcon {
+                                saving_signal: param.start_saving_signal,
+                                error_signal: param.start_saving_error_signal,
                             }
                         }
                     }
@@ -397,50 +356,9 @@ pub fn StartEnd(param: StartEndParam) -> Element {
 
                         // Loading or Error Icon
                         div { class: "flex items-center space-x-2",
-
-                            if !param.end_saving_error_signal.read().is_empty() {
-                                div { title: param.end_saving_error_signal,
-                                    svg {
-                                        class: "w-5 h-5 text-red-600",
-                                        xmlns: "http://www.w3.org/2000/svg",
-                                        fill: "none",
-                                        view_box: "0 0 24 24",
-                                        stroke_width: "2",
-                                        stroke: "currentColor",
-
-                                        circle {
-                                            cx: "12",
-                                            cy: "12",
-                                            r: "10",
-                                            stroke: "currentColor",
-                                            stroke_width: "2",
-                                        }
-                                        line {
-                                            x1: "12",
-                                            y1: "8",
-                                            x2: "12",
-                                            y2: "12",
-                                            stroke: "currentColor",
-                                            stroke_width: "2",
-                                            stroke_linecap: "round",
-                                        }
-                                        line {
-                                            x1: "12",
-                                            y1: "16",
-                                            x2: "12",
-                                            y2: "16",
-                                            stroke: "currentColor",
-                                            stroke_width: "2",
-                                            stroke_linecap: "round",
-                                        }
-                                    }
-                                
-                                }
-                            } else if *param.end_saving_signal.read() {
-                                div {
-                                    class: "loader w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin",
-                                    title: "Saving in progress...",
-                                }
+                            SavingIcon {
+                                saving_signal: param.end_saving_signal,
+                                error_signal: param.end_saving_error_signal,
                             }
                         }
                     }

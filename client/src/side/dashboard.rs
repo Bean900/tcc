@@ -142,7 +142,7 @@ fn DashboardCard(props: DashboardCardProps) -> Element {
 #[component]
 fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
     let mut project_name_signal = use_signal(|| "".to_string());
-    let mut error_signal = use_signal(|| "Project name cannot be empty!".to_string());
+    let mut error_signal = use_signal(|| "".to_string());
 
     rsx! {
         div { class: "backdrop-blur fixed inset-0 flex h-screen w-screen justify-center items-center",
@@ -165,9 +165,9 @@ fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
                     value: project_name_signal.clone(),
                     error_signal: error_signal.clone(),
                     oninput: move |e: Event<FormData>| {
-                        let value = e.value().trim().to_string();
+                        let value = e.value().to_string();
                         project_name_signal.set(value.clone());
-                        if value.is_empty() {
+                        if value.trim().is_empty() {
                             error_signal.set("Project name cannot be empty!".to_string());
                         } else {
                             error_signal.set("".to_string());
@@ -183,6 +183,10 @@ fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
                         text: "Create".to_string(),
                         error_signal: error_signal.clone(),
                         onclick: move |_| {
+                            if project_name_signal.read().trim().is_empty() {
+                                error_signal.set("Project name cannot be empty!".to_string());
+                                return;
+                            }
                             let project_id = Uuid::new_v4();
                             let storage = use_context::<Arc<Mutex<LocalStorage>>>();
                             let mut storage = storage.lock().expect("Expected storage lock");

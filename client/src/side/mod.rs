@@ -242,6 +242,7 @@ pub(crate) fn Input(
     oninput: EventHandler<dioxus::prelude::Event<FormData>>,
 ) -> Element {
     rsx! {
+
         input {
             class: if error_signal.is_some()
     && !error_signal.expect("Expect error signal").read().is_empty() { "w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" },
@@ -337,6 +338,56 @@ pub(crate) fn InputError(error_signal: Signal<String>) -> Element {
                     }
                 }
                 span { "{error_signal.read()}" }
+            }
+        }
+    }
+}
+
+#[component]
+pub(crate) fn SavingIcon(saving_signal: Signal<bool>, error_signal: Signal<String>) -> Element {
+    rsx! {
+        if !error_signal.read().is_empty() {
+            div { title: error_signal,
+                svg {
+                    class: "w-5 h-5 text-red-600",
+                    xmlns: "http://www.w3.org/2000/svg",
+                    fill: "none",
+                    view_box: "0 0 24 24",
+                    stroke_width: "2",
+                    stroke: "currentColor",
+
+                    circle {
+                        cx: "12",
+                        cy: "12",
+                        r: "10",
+                        stroke: "currentColor",
+                        stroke_width: "2",
+                    }
+                    line {
+                        x1: "12",
+                        y1: "8",
+                        x2: "12",
+                        y2: "12",
+                        stroke: "currentColor",
+                        stroke_width: "2",
+                        stroke_linecap: "round",
+                    }
+                    line {
+                        x1: "12",
+                        y1: "16",
+                        x2: "12",
+                        y2: "16",
+                        stroke: "currentColor",
+                        stroke_width: "2",
+                        stroke_linecap: "round",
+                    }
+                }
+            
+            }
+        } else if *saving_signal.read() {
+            div {
+                class: "loader w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin",
+                title: "Saving in progress...",
             }
         }
     }
