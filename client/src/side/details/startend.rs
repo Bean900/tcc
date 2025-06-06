@@ -273,8 +273,8 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                         // Loading or Error Icon
                         div { class: "flex items-center space-x-2",
                             SavingIcon {
-                                saving_signal: param.start_saving_signal,
-                                error_signal: param.start_saving_error_signal,
+                                saving: *param.start_saving_signal.read(),
+                                error: param.start_saving_error_signal.read().is_empty(),
                             }
                         }
                     }
@@ -301,6 +301,7 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                         },
                         InputTime {
                             value: param.start_signal,
+                            is_error: false,
                             oninput: move |event: Event<FormData>| {
                                 let time = NaiveTime::parse_from_str(&event.value(), "%H:%M");
                                 if time.is_err() {
@@ -357,8 +358,8 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                         // Loading or Error Icon
                         div { class: "flex items-center space-x-2",
                             SavingIcon {
-                                saving_signal: param.end_saving_signal,
-                                error_signal: param.end_saving_error_signal,
+                                saving: *param.end_saving_signal.read(),
+                                error: param.end_saving_error_signal.read(),
                             }
                         }
                     }
@@ -386,6 +387,7 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                         },
                         InputTime {
                             value: param.end_signal,
+                            is_error: false,
                             oninput: move |event: Event<FormData>| {
                                 let time = NaiveTime::parse_from_str(&event.value(), "%H:%M");
                                 if time.is_err() {

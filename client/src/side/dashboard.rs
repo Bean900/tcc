@@ -163,7 +163,7 @@ fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
                 Input {
                     place_holer: Some("Project Name".to_string()),
                     value: project_name_signal.clone(),
-                    error_signal: error_signal.clone(),
+                    is_error: !error_signal.read().is_empty(),
                     oninput: move |e: Event<FormData>| {
                         let value = e.value().to_string();
                         project_name_signal.set(value.clone());
@@ -175,7 +175,7 @@ fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
                     },
                 }
                 // Error message
-                InputError { error_signal: error_signal.clone() }
+                InputError { error: error_signal.read() }
 
                 div { class: "flex justify-center",
 

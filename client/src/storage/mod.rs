@@ -1,10 +1,10 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash};
 
 use chrono::{DateTime, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 mod local_storage;
-mod mapper;
+pub mod mapper;
 pub use local_storage::LocalStorage;
 
 pub trait StorageW {
@@ -52,6 +52,12 @@ pub trait StorageW {
         id: Uuid,
         course_data_id: Uuid,
     ) -> Result<(), String>;
+
+    fn update_course_with_more_hosts_in_cook_and_run(
+        &mut self,
+        id: Uuid,
+        course_data_id: Uuid,
+    ) -> Result<(), String>;
 }
 
 pub trait StorageR {
@@ -74,7 +80,7 @@ struct HostingData {
     guest_list: Vec<Uuid /*Contact ID */>,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
 pub struct ContactData {
     pub id: Uuid,
     pub team_name: String,
@@ -86,14 +92,28 @@ pub struct ContactData {
     pub notes: Vec<NoteData>,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct AddressData {
     pub address: String,
     pub latitude: f64,
     pub longitude: f64,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+impl PartialEq for AddressData {
+    fn eq(&self, other: &Self) -> bool {
+        self.address.eq(&other.address)
+    }
+}
+
+impl Eq for AddressData {}
+
+impl Hash for AddressData {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.address.hash(state);
+    }
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
 pub struct NoteData {
     pub id: Uuid,
     pub headline: String,
@@ -108,11 +128,11 @@ pub struct MeetingPointData {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-struct PlanData {
-    id: Uuid,
-    hosting_list: Vec<HostingData>,
-    walking_path: HashMap<Uuid /*Contact ID */, Vec<Uuid /*Hosting ID */>>,
-    greatest_distance: f64,
+pub struct PlanData {
+    pub id: Uuid,
+    pub hosting_list: Vec<HostingData>,
+    pub walking_path: HashMap<Uuid /*Contact ID */, Vec<Uuid /*Hosting ID */>>,
+    pub greatest_distance: f64,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -123,6 +143,7 @@ pub struct CookAndRunData {
     pub edited: DateTime<Utc>,
     pub contact_list: Vec<ContactData>,
     pub course_list: Vec<CourseData>,
+    pub course_with_more_hosts: Option<Uuid>,
     pub start_point: Option<MeetingPointData>,
     pub end_point: Option<MeetingPointData>,
     pub top_plan: Option<PlanData>,
@@ -145,6 +166,7 @@ impl CookAndRunData {
             edited: Utc::now(),
             contact_list: vec![],
             course_list: vec![],
+            course_with_more_hosts: None,
             start_point: None,
             end_point: None,
             top_plan: None,

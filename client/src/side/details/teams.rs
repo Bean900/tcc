@@ -454,29 +454,29 @@ fn TeamDialog(
                 label { class: "block font-semibold text-gray-700 mb-1", "Team Name" }
                 Input {
                     place_holer: Some("e.g. The Chili Chasers".to_string()),
+                    is_error: !team_name_error_signal.read().is_empty(),
                     value: team_name_signal.clone(),
-                    error_signal: team_name_error_signal.clone(),
                     oninput: move |e: Event<FormData>| {
                         let team_name = e.value();
                         team_name_signal.set(team_name.clone());
                         check_team_name(team_name_signal, team_name_error_signal);
                     },
                 }
-                InputError { error_signal: team_name_error_signal.clone() }
+                InputError { error: team_name_error_signal.read() }
 
                 // Contact E-Mail
                 label { class: "block font-semibold text-gray-700 mb-1", "Contact E-Mail" }
                 Input {
                     place_holer: Some("e.g. chili@chasers.de".to_string()),
+                    is_error: !contact_email_error_signal.read().is_empty(),
                     value: contact_email_signal.clone(),
-                    error_signal: contact_email_error_signal.clone(),
                     oninput: move |e: Event<FormData>| {
                         let contact_email = e.value();
                         contact_email_signal.set(contact_email.clone());
                         check_contact_email(contact_email_signal, contact_email_error_signal);
                     },
                 }
-                InputError { error_signal: contact_email_error_signal.clone() }
+                InputError { error: contact_email_error_signal.read() }
 
                 // Number of Members
                 label { class: "block font-semibold text-gray-700 mb-1", "Number of Members" }
@@ -490,13 +490,14 @@ fn TeamDialog(
                         check_members(members_signal, members_error_signal);
                     },
                 }
-                InputError { error_signal: members_error_signal.clone() }
+                InputError { error: members_error_signal.read() }
 
                 // Allergies
                 label { class: "block font-semibold text-gray-700 mb-1", "Allergies" }
                 div { class: "w-full",
                     Input {
                         place_holer: Some("e.g. nuts, gluten ...".to_string()),
+                        is_error: false,
                         value: allergies_signal.clone(),
                         oninput: move |e: Event<FormData>| {
                             let allergies = e.value();
@@ -542,7 +543,7 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                 Input {
                     place_holer: Some("e.g. Participation fee".to_string()),
                     value: create_note_headline_signal.clone(),
-                    error_signal: create_note_headline_error_signal.clone(),
+                    is_error: !create_note_headline_error_signal.read().is_empty(),
                     oninput: move |e: Event<FormData>| {
                         let headline = e.value();
                         create_note_headline_signal.set(headline.clone());
@@ -557,7 +558,7 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                         }
                     },
                 }
-                InputError { error_signal: create_note_headline_error_signal.clone() }
+                InputError { error: create_note_headline_error_signal.read() }
 
                 InputMultirow {
                     place_holer: Some("e.g. Participation fee is partially paid!".to_string()),
@@ -579,7 +580,7 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                     },
                 }
 
-                InputError { error_signal: create_note_description_error_signal.clone() }
+                InputError { error: create_note_description_error_signal.read() }
 
                 GreenButton {
                     text: "Post Note".to_string(),
@@ -649,7 +650,7 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                         }
                     },
                 }
-                InputError { error_signal: creating_error_signal.clone() }
+                InputError { error: creating_error_signal.read() }
             }
 
             // Right side: Note block

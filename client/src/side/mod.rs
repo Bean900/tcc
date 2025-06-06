@@ -1,12 +1,15 @@
 mod dashboard;
 mod details;
 
+use std::collections::HashMap;
+
 pub use dashboard::Dashboard;
 pub use details::ProjectDetailPage;
 
 use dioxus::prelude::*;
 use dioxus::signals::{Readable, Signal};
 use gloo_timers::future::TimeoutFuture;
+use uuid::Uuid;
 
 const DISABLED_BUTTON: &str = "bg-gray-300 text-gray-500 rounded-lg px-2 py-2 cursor-not-allowed";
 const ENABLED_BUTTON_BLUE: &str =
@@ -238,14 +241,13 @@ pub(crate) fn DeleteButton(
 pub(crate) fn Input(
     place_holer: Option<String>,
     value: String,
-    error_signal: Option<Signal<String>>,
+    is_error: bool,
     oninput: EventHandler<dioxus::prelude::Event<FormData>>,
 ) -> Element {
     rsx! {
 
         input {
-            class: if error_signal.is_some()
-    && !error_signal.expect("Expect error signal").read().is_empty() { "w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" },
+            class: if is_error { "w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" },
             r#type: "text",
             placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
             value,
@@ -302,13 +304,12 @@ pub(crate) fn InputNumber(
 pub(crate) fn InputTime(
     place_holer: Option<String>,
     value: String,
-    error_signal: Option<Signal<String>>,
+    is_error: bool,
     oninput: EventHandler<dioxus::prelude::Event<FormData>>,
 ) -> Element {
     rsx! {
         input {
-            class: if error_signal.is_some()
-    && !error_signal.expect("Expect error signal").read().is_empty() { "w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" },
+            class: if is_error { "w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" },
             r#type: "time",
             placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
             value,
@@ -320,9 +321,9 @@ pub(crate) fn InputTime(
 }
 
 #[component]
-pub(crate) fn InputError(error_signal: Signal<String>) -> Element {
+pub(crate) fn InputError(error: String) -> Element {
     rsx! {
-        if !error_signal.read().is_empty() {
+        if !error.is_empty() {
             div { class: "flex items-center text-red-500 text-sm mb-4",
                 svg {
                     class: "w-5 h-5 mr-2",
@@ -337,17 +338,17 @@ pub(crate) fn InputError(error_signal: Signal<String>) -> Element {
                         d: "M12 9v2m0 4h.01M12 2a10 10 0 100 20 10 10 0 000-20z",
                     }
                 }
-                span { "{error_signal.read()}" }
+                span { "{error}" }
             }
         }
     }
 }
 
 #[component]
-pub(crate) fn SavingIcon(saving_signal: Signal<bool>, error_signal: Signal<String>) -> Element {
+pub(crate) fn SavingIcon(saving: bool, error: String) -> Element {
     rsx! {
-        if !error_signal.read().is_empty() {
-            div { title: error_signal,
+        if !error.is_empty() {
+            div { title: error,
                 svg {
                     class: "w-5 h-5 text-red-600",
                     xmlns: "http://www.w3.org/2000/svg",
@@ -384,7 +385,7 @@ pub(crate) fn SavingIcon(saving_signal: Signal<bool>, error_signal: Signal<Strin
                 }
             
             }
-        } else if *saving_signal.read() {
+        } else if saving {
             div {
                 class: "loader w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin",
                 title: "Saving in progress...",

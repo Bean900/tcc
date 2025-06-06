@@ -195,7 +195,7 @@ fn AutoAddress(mut param: AddressParam) -> Element {
             Input {
                 place_holer: Some("Street, City, ZIP code".to_string()),
                 value: address_search_signal.clone(),
-                error_signal: address_search_error_signal.clone(),
+                is_error: !address_search_error_signal.read().is_empty(),
                 oninput: move |e: Event<FormData>| {
                     let address = e.value();
                     address_search_signal.set(address);
@@ -203,7 +203,7 @@ fn AutoAddress(mut param: AddressParam) -> Element {
                 },
             }
 
-            InputError { error_signal: address_search_error_signal }
+            InputError { error: address_search_error_signal.read() }
 
             BlueButton {
                 text: "Search".to_string(),
@@ -252,7 +252,7 @@ fn AutoAddress(mut param: AddressParam) -> Element {
 
                 if !address_search_response_error_signal.read().is_empty() {
                     span {
-                        InputError { error_signal: address_search_response_error_signal.clone() }
+                        InputError { error: address_search_response_error_signal.read() }
                     }
                 } else if !param.address.read().is_empty() {
                     span {
@@ -315,39 +315,42 @@ fn ManualAddress(mut param: AddressParam) -> Element {
 
             Input {
                 place_holer: Some("e.g. 50.1127197".to_string()),
-                value: param.latitude,
+                value: param.latitude.read(),
+                is_error: false,
                 oninput: move |e: Event<FormData>| {
                     let lat = e.value();
                     param.latitude.set(lat);
                     let _ = check_cord_input(param.latitude, param.latitude_error);
                 },
             }
-            InputError { error_signal: param.latitude_error.clone() }
+            InputError { error: param.latitude_error.read() }
 
             label { class: "block font-semibold text-gray-700 mb-1", "Longitude" }
             Input {
                 place_holer: Some("e.g. 8.682092".to_string()),
-                value: param.longitude,
+                value: param.longitude.read(),
+                is_error: false,
                 oninput: move |e: Event<FormData>| {
                     let lon = e.value();
                     param.longitude.set(lon);
                     let _ = check_cord_input(param.longitude, param.longitude_error);
                 },
             }
-            InputError { error_signal: param.longitude_error.clone() }
+            InputError { error: param.longitude_error.read() }
 
 
             label { class: "block font-semibold text-gray-700 mb-1", "Address" }
             Input {
                 place_holer: Some("e.g. Main Street 1, 12345 City".to_string()),
-                value: param.address,
+                value: param.address.read(),
+                is_error: false,
                 oninput: move |e: Event<FormData>| {
                     let addr = e.value();
                     param.address.set(addr.clone());
                     let _ = check_addr_input(param.address, param.address_error);
                 },
             }
-            InputError { error_signal: param.address_error.clone() }
+            InputError { error: param.address_error.read() }
         }
     )
 }

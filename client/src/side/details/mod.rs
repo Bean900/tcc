@@ -11,7 +11,6 @@ use startend::{StartEnd, StartEndParam};
 use teams::{Teams, TeamsProps};
 
 use crate::storage::{CookAndRunData, LocalStorage, StorageR};
-use chrono::{DateTime, Utc};
 use dioxus::prelude::*;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
@@ -65,7 +64,11 @@ pub fn ProjectDetailPage(id: Uuid) -> Element {
     let start_end_param =
         StartEndParam::new(id, &cook_and_run.start_point, &cook_and_run.end_point);
 
-    let courses_param = CoursesParam::new(id, cook_and_run.course_list);
+    let courses_param = CoursesParam::new(
+        id,
+        cook_and_run.course_list,
+        cook_and_run.course_with_more_hosts,
+    );
 
     let current_page = use_signal(|| MenuPage::Overview);
     rsx! {
@@ -84,17 +87,7 @@ pub fn ProjectDetailPage(id: Uuid) -> Element {
                         MenuPage::Courses => rsx! {
                             courses::Courses { param: courses_param }
                         },
-                        MenuPage::Calculation => rsx! {
-                            section { class: "mb-8",
-                                h2 { class: "text-2xl font-bold mb-4", "Berechnung" }
-                                div { class: "flex space-x-4 items-center",
-                                    button { class: "bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600",
-                                        "Berechnung starten"
-                                    }
-                                    a { href: "#", class: "text-blue-500 underline", "Laufzettel anzeigen" }
-                                }
-                            }
-                        },
+                        MenuPage::Calculation => todo!(),
                     }
                 }
             }

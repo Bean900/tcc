@@ -90,11 +90,11 @@ pub(crate) fn Overview(props: &OverviewProps) -> Element {
 
             Input {
                 place_holer: Some("Project Name".to_string()),
-                value: name_signal.clone(),
-                error_signal: error_message.clone(),
+                value: name_signal.read(),
+                is_error: !error_message.read().is_empty(),
                 oninput: on_input,
             }
-            InputError { error_signal: error_message.clone() }
+            InputError { error: error_message.read() }
 
             div { class: "flex flex-wrap gap-4 items-center mt-4",
                 GreenButton {
