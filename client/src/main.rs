@@ -8,6 +8,7 @@ mod side;
 mod storage;
 use side::Dashboard;
 use side::ProjectDetailPage;
+use side::RunSchedule;
 use storage::LocalStorage;
 use uuid::Uuid;
 use web_sys::console;
@@ -15,7 +16,6 @@ use web_sys::console;
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const TAILWIND_CSS: Asset = asset!("/assets/output.css");
 const LOGO: Asset = asset!("/assets/logo.png");
-
 fn main() {
     dioxus::launch(App);
 }
@@ -28,8 +28,10 @@ enum Route {
     #[nest("/cook-and-run")]
         #[route("/")]
         Dashboard {},
-        #[route("/:id")]
-        ProjectDetailPage { id: Uuid },
+        #[route("/:cook_and_run_id")]
+        ProjectDetailPage { cook_and_run_id: Uuid },
+        #[route("/:cook_and_run_id/run-schedule/:contact_id")]
+        RunSchedule {cook_and_run_id:Uuid, contact_id: Uuid },
     #[end_nest]
     #[route("/:..route")]
     NotFound {

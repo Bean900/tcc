@@ -1,10 +1,13 @@
 use std::sync::{Arc, Mutex};
 
+use chrono::NaiveDate;
 use dioxus::prelude::*;
 use uuid::Uuid;
 use web_sys::console;
 
-use crate::storage::LocalStorage;
+use crate::side::InputMultirow;
+use crate::side::InputTime_completions::Component::InputTime;
+use crate::storage::{CookAndRunData, LocalStorage};
 
 use crate::{
     side::{CloseButton, GreenButton, Input, InputError, RedButton, RedHollowButton},
@@ -19,21 +22,27 @@ fn delete_cook_and_run_project(id: Uuid) -> Result<(), String> {
     result
 }
 
-fn rename_project(id: Uuid, new_name: String) -> Result<(), String> {
+fn update_meta_of_cook_and_run(
+    id: Uuid,
+    new_name: String,
+    new_plan_text: String,
+    occur: NaiveDate,
+) -> Result<(), String> {
+    let new_plan_text = new_plan_text.trim();
+    let plan_text = if new_plan_text.is_empty() {
+        None
+    } else {
+        Some(new_plan_text.to_string())
+    };
+
     let storage = use_context::<Arc<Mutex<LocalStorage>>>();
     let mut storage = storage.lock().expect("Expected storage lock");
-    let result = storage.rename_cook_and_run(id, new_name);
+    let result = storage.update_meta_of_cook_and_run(id, new_name, plan_text, occur);
     result
 }
 
-pub(crate) struct OverviewProps {
-    pub id: Uuid,
-    pub name: String,
-    pub uploaded: bool,
-}
-
 #[component]
-pub(crate) fn Overview(props: &OverviewProps) -> Element {
+pub(crate) fn Overview(props: CookAndRunData) -> Element {
     let mut delete_dialog_signal: Signal<Element> = use_signal(|| rsx!());
 
     let mut error_message = use_signal(|| "".to_string());
@@ -48,7 +57,7 @@ pub(crate) fn Overview(props: &OverviewProps) -> Element {
     let mut name_signal = use_signal(|| props.name.clone());
 
     let project_id = props.id.clone();
-    let on_input = {
+    let on_name_input = {
         move |evt: FormEvent| {
             let current_name = evt.value();
             name_signal.set(current_name.clone());
@@ -60,12 +69,27 @@ pub(crate) fn Overview(props: &OverviewProps) -> Element {
         }
     };
 
+    let mut plan_text_signal = use_signal(|| props.plan_text.unwrap_or("".to_string()));
+    let on_plan_text_input = {
+        move |evt: FormEvent| {
+            let text = evt.value();
+            plan_text_signal.set(text.clone());
+        }
+    };
+
+    let mut occur_signal = use_signal(|| props.occur);
+
     let on_save = move |_| {
         let current_name = name_signal.read().clone();
         if current_name.is_empty() {
             error_message.set("Project name can not be empty!".to_string());
         } else {
-            let result = rename_project(project_id, current_name);
+            let result = update_meta_of_cook_and_run(
+                project_id,
+                current_name,
+                plan_text_signal.read().clone(),
+                occur_signal.read().clone(),
+            );
             if result.is_err() {
                 console::error_1(
                     &format!(
@@ -88,13 +112,43 @@ pub(crate) fn Overview(props: &OverviewProps) -> Element {
         section {
             h2 { class: "text-2xl font-bold mb-4", "Overview" }
 
+            "Project Name"
             Input {
                 place_holer: Some("Project Name".to_string()),
                 value: name_signal.read(),
                 is_error: !error_message.read().is_empty(),
-                oninput: on_input,
+                oninput: on_name_input,
             }
             InputError { error: error_message.read() }
+
+
+            InputMultirow {
+                place_holer: "A bit of text that appears at the end on the participants' progress sheets."
+                    .to_string(),
+                value: plan_text_signal.read(),
+                oninput: on_plan_text_input,
+            }
+
+            input {
+                class: "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500",
+                r#type: "date",
+                value: occur_signal.read().to_string(),
+                oninput: move |e| {
+                    let date = NaiveDate::parse_from_str(&e.value(), "%Y-%m-%d");
+                    if date.is_err() {
+                        console::error_1(
+                            &format!(
+                                "Date format is not correct: {}",
+                                date.expect_err("Expect error"),
+                            )
+                                .into(),
+                        );
+                        return;
+                    }
+                    occur_signal.set(date.expect("Expect date!"));
+                },
+            }
+
 
             div { class: "flex flex-wrap gap-4 items-center mt-4",
                 GreenButton {
@@ -103,7 +157,7 @@ pub(crate) fn Overview(props: &OverviewProps) -> Element {
                     error_signal: error_message.clone(),
                 }
 
-                if props.uploaded {
+                if props.is_in_cloud {
                     button { class: "bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 cursor-pointer",
                         "Remove from Cloud"
                     }
@@ -121,12 +175,7 @@ pub(crate) fn Overview(props: &OverviewProps) -> Element {
                         text: "Delete Project".to_string(),
                     }
                 }
-            
             }
-
-
-
-
 
             div { class: "bg-yellow-100 border border-yellow-300 text-yellow-800 p-4 rounded max-w-xl mt-6",
                 h3 { class: "font-bold mb-2", "Cloud Info" }

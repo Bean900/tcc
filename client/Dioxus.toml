@@ -7,12 +7,15 @@ title = "TCC"
 
 # include `assets` in web platform
 [web.resource]
+asset_dir = "assets"
+watch_path = ["src", "assets"]
+base_path = "/"
 
 [web.watcher]
 index_on_404 = true
 
 # Additional CSS style files
-style = ["assets/tailwind.css"]
+style = ["/assets/output.css"]
 
 # Additional JavaScript files
 script = []

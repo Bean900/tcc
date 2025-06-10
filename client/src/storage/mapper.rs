@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use super::{ContactData, CourseData, HostingData, PlanData};
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct Hosting {
     pub id: Uuid,
     pub course: CourseData,

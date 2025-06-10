@@ -1,6 +1,6 @@
 use std::{collections::HashMap, hash::Hash};
 
-use chrono::{DateTime, NaiveTime, Utc};
+use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 mod local_storage;
@@ -10,7 +10,13 @@ pub use local_storage::LocalStorage;
 pub trait StorageW {
     fn create_cook_and_run(&mut self, uuid: Uuid, name: String) -> Result<(), String>;
     fn delete_cook_and_run(&mut self, id: Uuid) -> Result<(), String>;
-    fn rename_cook_and_run(&mut self, id: Uuid, new_name: String) -> Result<(), String>;
+    fn update_meta_of_cook_and_run(
+        &mut self,
+        id: Uuid,
+        new_name: String,
+        new_plan_text: Option<String>,
+        occur: NaiveDate,
+    ) -> Result<(), String>;
     fn add_team_to_cook_and_run(&mut self, id: Uuid, team: ContactData) -> Result<(), String>;
     fn update_team_in_cook_and_run(&mut self, id: Uuid, team: ContactData) -> Result<(), String>;
     fn create_team_note_in_cook_and_run(
@@ -73,11 +79,11 @@ pub struct CourseData {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-struct HostingData {
-    id: Uuid,
-    name: Uuid, /*Course ID*/
-    host: Uuid, /*Contact ID */
-    guest_list: Vec<Uuid /*Contact ID */>,
+pub struct HostingData {
+    pub id: Uuid,
+    pub name: Uuid, /*Course ID*/
+    pub host: Uuid, /*Contact ID */
+    pub guest_list: Vec<Uuid /*Contact ID */>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
@@ -86,8 +92,9 @@ pub struct ContactData {
     pub team_name: String,
     pub address: AddressData,
     pub mail: String,
+    pub phone_number: String,
     pub members: u32,
-    pub allergies: Vec<String>,
+    pub diets: Vec<String>,
     pub needs_check: bool,
     pub notes: Vec<NoteData>,
 }
@@ -123,6 +130,7 @@ pub struct NoteData {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MeetingPointData {
+    pub name: String,
     pub time: NaiveTime,
     pub address: AddressData,
 }
@@ -141,12 +149,17 @@ pub struct CookAndRunData {
     pub name: String,
     pub created: DateTime<Utc>,
     pub edited: DateTime<Utc>,
+    pub occur: NaiveDate,
+    pub is_in_cloud: bool,
     pub contact_list: Vec<ContactData>,
     pub course_list: Vec<CourseData>,
     pub course_with_more_hosts: Option<Uuid>,
     pub start_point: Option<MeetingPointData>,
     pub end_point: Option<MeetingPointData>,
     pub top_plan: Option<PlanData>,
+    pub plan_text: Option<String>,
+    pub invite_allowed: bool,
+    pub invite_text: Option<String>,
 }
 
 impl CookAndRunData {
@@ -164,12 +177,17 @@ impl CookAndRunData {
             name,
             created: Utc::now(),
             edited: Utc::now(),
+            occur: Utc::now().date_naive(),
+            is_in_cloud: false,
             contact_list: vec![],
             course_list: vec![],
             course_with_more_hosts: None,
             start_point: None,
             end_point: None,
             top_plan: None,
+            plan_text: None,
+            invite_allowed: false,
+            invite_text: None,
         }
     }
 }

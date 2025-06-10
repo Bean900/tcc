@@ -6,7 +6,10 @@ use uuid::Uuid;
 use web_sys::console;
 
 use crate::{
-    side::{debounce, details::address::Address, InputTime, SavingIcon},
+    side::{
+        debounce, details::address::Address, EndSVG, Input, InputError, InputTime, SavingIcon,
+        StartSVG,
+    },
     storage::{LocalStorage, MeetingPointData, StorageW},
 };
 
@@ -87,8 +90,12 @@ pub struct StartEndParam {
     project_id: Uuid,
     start_signal: Signal<NaiveTime>,
     start_error_signal: Signal<String>,
+    start_name_signal: Signal<String>,
+    start_name_error_signal: Signal<String>,
     end_signal: Signal<NaiveTime>,
     end_error_signal: Signal<String>,
+    end_name_signal: Signal<String>,
+    end_name_error_signal: Signal<String>,
     start_address: AddressParam,
     end_address: AddressParam,
     is_start: Signal<bool>,
@@ -108,28 +115,34 @@ impl StartEndParam {
         start_point: &Option<MeetingPointData>,
         end_point: &Option<MeetingPointData>,
     ) -> Self {
-        let (start_signal, start_address, is_start) = if let Some(start_point) = start_point {
-            (
-                use_signal(|| start_point.time),
-                AddressParam::new(&start_point.address),
-                use_signal(|| true),
-            )
-        } else {
-            (
-                use_signal(|| NaiveTime::from_hms_opt(00, 00, 00).expect("Expect time!")),
-                AddressParam::default(),
-                use_signal(|| false),
-            )
-        };
-        let (end_signal, end_address, is_end) = if let Some(end_point) = end_point {
+        let (start_signal, start_name_signal, start_address, is_start) =
+            if let Some(start_point) = start_point {
+                (
+                    use_signal(|| start_point.time),
+                    use_signal(|| start_point.name.to_string()),
+                    AddressParam::new(&start_point.address),
+                    use_signal(|| true),
+                )
+            } else {
+                (
+                    use_signal(|| NaiveTime::from_hms_opt(00, 00, 00).expect("Expect time!")),
+                    use_signal(|| "".to_string()),
+                    AddressParam::default(),
+                    use_signal(|| false),
+                )
+            };
+        let (end_signal, end_name_signal, end_address, is_end) = if let Some(end_point) = end_point
+        {
             (
                 use_signal(|| end_point.time),
+                use_signal(|| end_point.name.to_string()),
                 AddressParam::new(&end_point.address),
                 use_signal(|| true),
             )
         } else {
             (
                 use_signal(|| NaiveTime::from_hms_opt(00, 00, 00).expect("Expect time!")),
+                use_signal(|| "".to_string()),
                 AddressParam::default(),
                 use_signal(|| false),
             )
@@ -137,6 +150,9 @@ impl StartEndParam {
 
         let start_error_signal = use_signal(|| "".to_string());
         let end_error_signal = use_signal(|| "".to_string());
+
+        let start_name_error_signal = use_signal(|| "".to_string());
+        let end_name_error_signal = use_signal(|| "".to_string());
 
         let start_data_signal = use_signal(|| start_point.clone());
         let end_data_signal = use_signal(|| end_point.clone());
@@ -150,8 +166,12 @@ impl StartEndParam {
             project_id,
             start_signal,
             start_error_signal,
+            start_name_signal,
+            start_name_error_signal,
             end_signal,
             end_error_signal,
+            end_name_signal,
+            end_name_error_signal,
             start_address,
             end_address,
             is_start,
@@ -175,6 +195,7 @@ impl StartEndParam {
         }
 
         return Ok(Some(MeetingPointData {
+            name: self.start_name_signal.read().clone(),
             time: self.start_signal.read().clone(),
             address: address.expect("Expect address to be set!"),
         }));
@@ -190,6 +211,7 @@ impl StartEndParam {
         }
 
         return Ok(Some(MeetingPointData {
+            name: self.end_name_signal.read().clone(),
             time: self.end_signal.read().clone(),
             address: address.expect("Expect address to be set!"),
         }));
@@ -253,20 +275,7 @@ pub fn StartEnd(param: StartEndParam) -> Element {
 
                     h3 { class: "text-lg font-semibold mb-2 flex items-center justify-between",
                         div { class: "flex items-center space-x-2",
-                            svg {
-                                class: "w-5 h-5 text-blue-600",
-                                xmlns: "http://www.w3.org/2000/svg",
-                                fill: "none",
-                                view_box: "0 0 24 24",
-                                stroke_width: "1.5",
-                                stroke: "currentColor",
-
-                                path {
-                                    stroke_linecap: "round",
-                                    stroke_linejoin: "round",
-                                    d: "M12 4.5v15m0-15l-3 3m3-3l3 3",
-                                }
-                            }
+                            StartSVG {}
                             span { "Start Point" }
                         }
 
@@ -274,7 +283,7 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                         div { class: "flex items-center space-x-2",
                             SavingIcon {
                                 saving: *param.start_saving_signal.read(),
-                                error: param.start_saving_error_signal.read().is_empty(),
+                                error: param.start_saving_error_signal.read(),
                             }
                         }
                     }
@@ -299,6 +308,20 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                                 if *param.is_start.read() { "" } else { "opacity-50 pointer-events-none" },
                             )
                         },
+                        Input {
+                            value: param.start_name_signal,
+                            place_holer: "Start".to_string(),
+                            is_error: false,
+                            oninput: move |event: Event<FormData>| {
+                                let name = &event.value();
+                                param.start_name_signal.set(name.clone());
+                                if name.trim().is_empty() {
+                                    param.start_name_error_signal.set("Name can not be empty!".to_string());
+                                }
+                            },
+                        }
+                        InputError { error: param.start_name_error_signal.read() }
+
                         InputTime {
                             value: param.start_signal,
                             is_error: false,
@@ -338,20 +361,7 @@ pub fn StartEnd(param: StartEndParam) -> Element {
 
                     h3 { class: "text-lg font-semibold mb-2 flex items-center justify-between",
                         div { class: "flex items-center space-x-2",
-                            svg {
-                                class: "w-5 h-5 text-blue-600",
-                                xmlns: "http://www.w3.org/2000/svg",
-                                fill: "none",
-                                view_box: "0 0 24 24",
-                                stroke_width: "1.5",
-                                stroke: "currentColor",
-
-                                path {
-                                    stroke_linecap: "round",
-                                    stroke_linejoin: "round",
-                                    d: "M6 3v18m0-18c2.5 0 5 1.5 7.5 1.5S21 3 21 3v12s-2.5-1.5-5-1.5S6 15 6 15",
-                                }
-                            }
+                            EndSVG {}
                             span { "End Point" }
                         }
 
@@ -385,6 +395,21 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                                 if *param.is_end.read() { "" } else { "opacity-50 pointer-events-none" },
                             )
                         },
+
+                        Input {
+                            value: param.end_name_signal,
+                            place_holer: "End".to_string(),
+                            is_error: false,
+                            oninput: move |event: Event<FormData>| {
+                                let name = &event.value();
+                                param.end_name_signal.set(name.clone());
+                                if name.trim().is_empty() {
+                                    param.end_name_error_signal.set("Name can not be empty!".to_string());
+                                }
+                            },
+                        }
+                        InputError { error: param.end_name_error_signal.read() }
+
                         InputTime {
                             value: param.end_signal,
                             is_error: false,

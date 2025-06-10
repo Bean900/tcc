@@ -1,12 +1,12 @@
+mod address;
+mod calculate;
 mod courses;
 mod overview;
 mod startend;
 mod teams;
 
-mod address;
-
 use courses::CoursesParam;
-use overview::{Overview, OverviewProps};
+use overview::Overview;
 use startend::{StartEnd, StartEndParam};
 use teams::{Teams, TeamsProps};
 
@@ -33,8 +33,8 @@ enum MenuPage {
 }
 
 #[component]
-pub fn ProjectDetailPage(id: Uuid) -> Element {
-    let cook_and_run = get_cook_and_run_data(id);
+pub fn ProjectDetailPage(cook_and_run_id: Uuid) -> Element {
+    let cook_and_run = get_cook_and_run_data(cook_and_run_id);
     if cook_and_run.is_err() {
         console::error_1(
             &format!(
@@ -49,28 +49,27 @@ pub fn ProjectDetailPage(id: Uuid) -> Element {
     }
 
     let cook_and_run = cook_and_run.expect("Expected cook and run data");
-
-    let overview_props = OverviewProps {
-        id: id,
-        name: cook_and_run.name,
-        uploaded: false,
-    };
+    let cook_and_run_overview = cook_and_run.clone();
 
     let team_props = TeamsProps {
-        project_id: id,
+        project_id: cook_and_run_id,
         team_list: cook_and_run.contact_list,
     };
 
-    let start_end_param =
-        StartEndParam::new(id, &cook_and_run.start_point, &cook_and_run.end_point);
+    let start_end_param = StartEndParam::new(
+        cook_and_run_id,
+        &cook_and_run.start_point,
+        &cook_and_run.end_point,
+    );
 
     let courses_param = CoursesParam::new(
-        id,
+        cook_and_run_id,
         cook_and_run.course_list,
         cook_and_run.course_with_more_hosts,
     );
 
     let current_page = use_signal(|| MenuPage::Overview);
+
     rsx! {
         div { class: "flex h-screen w-full",
             // Sidebar
@@ -79,7 +78,7 @@ pub fn ProjectDetailPage(id: Uuid) -> Element {
             div { class: "flex justify-center w-full",
                 div { class: "py-4",
                     match current_page() {
-                        MenuPage::Overview => Overview(&overview_props),
+                        MenuPage::Overview => Overview(cook_and_run_overview),
                         MenuPage::Teams => Teams(&team_props),
                         MenuPage::StartEnd => rsx! {
                             StartEnd { param: start_end_param }
@@ -87,7 +86,9 @@ pub fn ProjectDetailPage(id: Uuid) -> Element {
                         MenuPage::Courses => rsx! {
                             courses::Courses { param: courses_param }
                         },
-                        MenuPage::Calculation => todo!(),
+                        MenuPage::Calculation => rsx! {
+                            calculate::Calculate { id: cook_and_run.id }
+                        },
                     }
                 }
             }

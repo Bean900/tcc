@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use uuid::Uuid;
 use web_sys::console;
 
@@ -164,10 +165,18 @@ impl StorageW for LocalStorage {
         Ok(())
     }
 
-    fn rename_cook_and_run(&mut self, id: Uuid, new_name: String) -> Result<(), String> {
+    fn update_meta_of_cook_and_run(
+        &mut self,
+        id: Uuid,
+        new_name: String,
+        new_plan_text: Option<String>,
+        occur: NaiveDate,
+    ) -> Result<(), String> {
         for data in &mut self.stored_data {
             if data.id == id {
                 data.name = new_name;
+                data.plan_text = new_plan_text;
+                data.occur = occur;
                 let stored_data_string = serde_json::to_string(&self.stored_data);
 
                 if stored_data_string.is_err() {

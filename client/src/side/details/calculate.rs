@@ -1,162 +1,89 @@
 use std::sync::{Arc, Mutex};
 
-use chrono::NaiveTime;
 use dioxus::prelude::*;
 use uuid::Uuid;
 use web_sys::console;
 
 use crate::{
-    side::{debounce, Input, InputError, InputTime, RedButton, SavingIcon},
-    storage::{CourseData, LocalStorage, StorageW},
+    side::AddressSVG,
+    storage::{ContactData, LocalStorage, StorageR},
+    Route,
 };
 
 #[component]
 pub fn Calculate(id: Uuid) -> Element {
     let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-    let storage = storage.lock().expect("Expected storage lock");
+    let storage: std::sync::MutexGuard<'_, LocalStorage> =
+        storage.lock().expect("Expected storage lock");
     let cook_and_run = storage.select_cook_and_run(id);
 
+    if cook_and_run.is_err() {
+        console::error_1(
+            &format!(
+                "Error while loading cook and run: {}",
+                cook_and_run.expect_err("Expect error"),
+            )
+            .into(),
+        );
+        return rsx!( "Error while loading cook and run" );
+    }
+    let cook_and_run = cook_and_run.expect("Expect cook and run");
+
     rsx! {
-        a { class: "relative  shadow-md rounded-xl p-6 hover:shadow-lg transition-all",
-            SavingIcon {
-                saving_signal: course.saving_signal,
-                error_signal: course.saving_error_signal,
+        section {
+            h2 { class: "text-3xl font-bold mb-6 text-gray-900", "Calculate" }
+            button { class: "bg-blue-500 text-white font-semibold py-2 px-4 rounded hover:bg-blue-600 transition-all",
+                "Calculate"
             }
+            hr { class: "my-6 border-gray-300" }
+            h2 { class: "text-3xl font-bold mb-6 text-gray-900", "Run Schedule" }
+            div { class: "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 p-6 max-h-[calc(100vh-16rem)] overflow-y-auto pr-2",
 
-            div { class: "grid grid-cols-10 gap-4",
-                div { class: "flex flex-col col-span-7", key: course.id,
-                    span { class: "text-sm font-semibold mb-1 text-gray-700", "Name:" }
-                    Input {
-                        place_holer: "Course name",
-                        value: course.name_signal,
-                        error_signal: course.name_error_signal,
-                        oninput: move |e: Event<FormData>| {
-                            let name_value = e.value();
-                            course.name_signal.set(name_value.clone());
-                            if name_value.trim().is_empty() {
-                                course.name_error_signal.set("Course name cannot be empty!".to_string());
-                            } else {
-                                course.name_error_signal.set("".to_string());
+                {
+                    cook_and_run
+                        .contact_list
+                        .iter()
+                        .map(|contact| {
+                            let contact_id = contact.id.clone();
+                            rsx! {
+                                a {
+                                    key: {contact_id},
+                                    onclick: move |_| {
+                                        let cook_and_run_id = id;
+                                        use_navigator()
+                                            .push(Route::RunSchedule {
+                                                cook_and_run_id,
+                                                contact_id,
+                                            });
+                                    },
+                                    class: "bg-white relative shadow-lg rounded-xl p-6 hover:shadow-xl transition-all cursor-pointer hover:scale-105",
+                                    div { class: "flex flex-col items-start", {ContactCard(contact.clone())} }
+                                }
                             }
-                        },
-                    }
-                    InputError { error_signal: course.name_error_signal }
-                }
-
-                div { class: "flex flex-col col-span-3",
-                    span { class: "text-sm font-semibold mb-1 text-gray-700", "Time:" }
-                    InputTime {
-                        value: course.time_signal,
-                        error_signal: course.time_error_signal,
-                        oninput: move |event: Event<FormData>| {
-                            let time = NaiveTime::parse_from_str(&event.value(), "%H:%M");
-                            if time.is_err() {
-                                console::error_1(
-                                    &format!(
-                                        "Time format is not correct: {}",
-                                        time.expect_err("Expect error"),
-                                    )
-                                        .into(),
-                                );
-                                course.time_error_signal.set("Time format is not correct!".to_string());
-                                return;
-                            }
-                            debounce(
-                                course.time_signal,
-                                course.saving_signal,
-                                move |_| {
-                                    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-                                    let mut storage = storage.lock().expect("Expected storage lock");
-                                    let result = storage
-                                        .update_course_in_cook_and_run(
-                                            course.cook_and_run_id,
-                                            course.to_course_data(),
-                                        );
-                                    if result.is_err() {
-                                        course
-                                            .clone()
-                                            .saving_error_signal
-                                            .set("Error while saving data!".to_string());
-                                    }
-                                },
-                            );
-                            course.time_error_signal.set("".to_string());
-                            let time = time.expect("Expect time");
-                            course.time_signal.set(time);
-                        },
-                    }
-                    InputError { error_signal: course.time_error_signal }
-                }
-            }
-
-            div { class: "flex flex-wrap items-center gap-3",
-
-
-                RedButton {
-                    text: "Delete",
-                    onclick: move |_| {
-                        let mut to_delete_index_opt = None;
-                        for (index, element) in course_list_signal.iter().enumerate() {
-                            if element.id.eq(&course.clone().id) {
-                                to_delete_index_opt = Some(index);
-                            }
-                        }
-                        if let Some(to_delete_index) = to_delete_index_opt {
-                            course_list_signal.remove(to_delete_index);
-                        }
-                    },
-                }
-
-
-                div { class: "flex items-center gap-2",
-
-                    input {
-                        r#type: "radio",
-                        name: "multi_participant_course",
-                        checked: true,
-                        onchange: move |_| {},
-                    }
-                    label { class: "text-sm text-gray-700", "Allow multiple participants" }
+                        })
                 }
             }
         }
     }
 }
-
 #[component]
-pub fn Courses(param: CoursesParam) -> Element {
+fn ContactCard(props: ContactData) -> Element {
     rsx! {
-        section {
-            h2 { class: "text-2xl font-bold mb-4", "Courses" }
-
-            // Scrollable grid
-            div { class: "grid grid-cols-1 gap-4 p-8 max-h-[calc(100vh-16rem)] overflow-y-auto pr-6",
-
-                for course in param.courses_signal.read().iter() {
-                    Course {
-                        course: course.clone(),
-                        course_list_signal: param.courses_signal.clone(),
-                    }
+        div {
+            // Name
+            h2 { class: "text-2xl font-semibold text-gray-800 mb-2", "{props.team_name}" }
+            // Address
+            div { class: "flex items-center space-x-2 mb-1",
+                AddressSVG {}
+                p { class: "text-sm text-gray-600 inline-flex items-center",
+                    "{props.address.address}"
                 }
-                div {
-                    a {
-                        class: "border-4 border-dashed border-gray-300 rounded-xl p-6 flex items-center justify-center text-gray-400 hover:bg-gray-50 hover:text-blue-500 hover:scale-105 transition-all duration-200 cursor-pointer",
-                        onclick: move |_| {
-                            let course = CourseParam::default(param.cook_and_run_id);
-                            let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-                            let mut storage = storage.lock().expect("Expected storage lock");
-                            let result = storage
-                                .add_course_in_cook_and_run(param.cook_and_run_id, course.to_course_data());
-                            if result.is_ok() {
-                                param.courses_signal.push(course);
-                            }
-                        },
-                        div {
-                            div { class: "text-5xl font-bold", "+" }
-                        }
-                    }
+            }
+            // Needs Check Indicator
+            if props.needs_check {
+                div { class: "absolute top-2 right-2 bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1",
+                    "!"
                 }
-            
             }
         }
     }

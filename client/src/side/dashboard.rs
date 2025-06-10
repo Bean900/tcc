@@ -204,7 +204,7 @@ fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
                             create_project_signal.set(rsx! {});
                             use_navigator()
                                 .push(Route::ProjectDetailPage {
-                                    id: project_id,
+                                    cook_and_run_id: project_id,
                                 });
                         },
                     }

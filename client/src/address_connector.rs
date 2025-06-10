@@ -1,3 +1,4 @@
+use dioxus::html::cite;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -51,6 +52,32 @@ pub struct Address {
     pub house_number: Option<String>,
     pub road: Option<String>,
     pub postcode: Option<String>,
+    village: Option<String>,
+    town: Option<String>,
+    city: Option<String>,
+}
+
+impl Address {
+    pub fn get_city(&self) -> String {
+        if self.city.is_some() {
+            return self.city.clone().expect("Expect city to be set!");
+        }
+        if self.town.is_some() {
+            return self
+                .town
+                .clone()
+                .expect("Expect town to be set!")
+                .to_string();
+        }
+        if self.village.is_some() {
+            return self
+                .village
+                .clone()
+                .expect("Expect village to be set!")
+                .to_string();
+        }
+        "".to_string()
+    }
 }
 
 fn deserialize_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>

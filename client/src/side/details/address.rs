@@ -1,4 +1,7 @@
-use crate::address_connector::get_address;
+use crate::{
+    address_connector::get_address,
+    side::{AddressSVG, InfoSVG},
+};
 use dioxus::prelude::*;
 use web_sys::console;
 
@@ -121,7 +124,10 @@ pub(crate) fn Address(param: AddressParam) -> Element {
     let manual_param = param.clone();
 
     rsx!(
-        label { class: "block font-semibold text-gray-700 mb-2", "Address" }
+        div { class: "flex items-center mb-2",
+            AddressSVG {}
+            label { class: "block font-semibold text-gray-700 ml-2", "Address" }
+        }
 
         TabBar { tab_signal }
 
@@ -161,6 +167,7 @@ fn TabBar(tab_signal: Signal<bool>) -> Element {
 
 #[component]
 fn AutoAddress(mut param: AddressParam) -> Element {
+    let mut is_searching_signal = use_signal(|| false);
     let mut address_search_signal = use_signal(|| "".to_string());
     let address_search_error_signal = use_signal(|| "".to_string());
     let mut address_search_response_error_signal = use_signal(|| "".to_string());
@@ -170,21 +177,9 @@ fn AutoAddress(mut param: AddressParam) -> Element {
             div { class: "flex items-center justify-between mb-2",
                 label { class: "block font-semibold text-gray-700", "Search Address" }
                 div { class: "flex items-center text-sm text-gray-600",
-                    svg {
-                        class: "w-4 h-4 mr-1 text-blue-500",
-                        fill: "none",
-                        stroke: "currentColor",
-                        stroke_width: "2",
-                        view_box: "0 0 24 24",
-                        xmlns: "http://www.w3.org/2000/svg",
-                        path {
-                            stroke_linecap: "round",
-                            stroke_linejoin: "round",
-                            d: "M13 16h-1v-4h-1m1-4h.01M12 18a6 6 0 100-12 6 6 0 000 12z",
-                        }
-                    }
+
                     span { class: "relative group cursor-pointer",
-                        "Info"
+                        InfoSVG {}
                         span { class: "absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block bg-gray-700 text-white text-xs rounded px-2 py-1 w-max max-w-xs z-10 shadow-md",
                             "The entered address will be forwarded to Nominatim (OpenStreetMap) for location determination."
                         }
@@ -210,6 +205,7 @@ fn AutoAddress(mut param: AddressParam) -> Element {
                 onclick: move |_| {
                     async move {
                         if !check_addr_input(address_search_signal, address_search_error_signal) {
+                            is_searching_signal.set(false);
                             return;
                         }
                         let search_address = address_search_signal.read().to_string();
@@ -230,10 +226,15 @@ fn AutoAddress(mut param: AddressParam) -> Element {
                                 .address
                                 .set(
                                     format!(
-                                        "{} {}, {}",
-                                        address.address.road.unwrap_or("-".to_string()),
-                                        address.address.house_number.unwrap_or("-".to_string()),
-                                        address.address.postcode.unwrap_or("-".to_string()),
+                                        "{} {}, {} {}",
+                                        address.address.clone().road.unwrap_or("-".to_string()),
+                                        address
+                                            .address
+                                            .clone()
+                                            .house_number
+                                            .unwrap_or("-".to_string()),
+                                        address.address.clone().postcode.unwrap_or("-".to_string()),
+                                        address.address.clone().get_city(),
                                     ),
                                 );
                             param.address_error.set("".to_string());
@@ -243,6 +244,7 @@ fn AutoAddress(mut param: AddressParam) -> Element {
                             param.longitude_error.set("".to_string());
                             address_search_response_error_signal.set("".to_string());
                         }
+                        is_searching_signal.set(false);
                     }
                 },
             }
@@ -273,22 +275,26 @@ fn AutoAddress(mut param: AddressParam) -> Element {
                         "{param.address}"
                     }
                 } else {
-                    span {
-                        svg {
-                            class: "w-5 h-5 text-gray-600 inline-block",
-                            xmlns: "http://www.w3.org/2000/svg",
-                            fill: "none",
-                            view_box: "0 0 24 24",
-                            stroke_width: "1.5",
-                            stroke: "currentColor",
+                    if param.address_error.read().is_empty() {
+                        span {
+                            svg {
+                                class: "w-5 h-5 text-gray-600 inline-block",
+                                xmlns: "http://www.w3.org/2000/svg",
+                                fill: "none",
+                                view_box: "0 0 24 24",
+                                stroke_width: "1.5",
+                                stroke: "currentColor",
 
-                            path {
-                                stroke_linecap: "round",
-                                stroke_linejoin: "round",
-                                d: "M12 4.5v15m7.5-7.5h-15",
+                                path {
+                                    stroke_linecap: "round",
+                                    stroke_linejoin: "round",
+                                    d: "M12 4.5v15m7.5-7.5h-15",
+                                }
                             }
+                            "No address set"
                         }
-                        "No address set"
+                    } else {
+                        InputError { error: param.address_error.read() }
                     }
                 }
             }
