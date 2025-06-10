@@ -98,41 +98,40 @@ pub fn ProjectDetailPage(cook_and_run_id: Uuid) -> Element {
 
 fn get_side_bar(mut current_page: Signal<MenuPage>) -> Element {
     rsx!(
-        nav { class: "w-64 bg-gray-100 p-4 border-r border-gray-300",
+        nav { class: "w-64 bg-[#fdfaf6] p-4 shadow",
 
-            h2 { class: "text-xl font-bold mb-4", "Menü" }
             ul { class: "space-y-2",
                 li {
                     button {
-                        class: "block text-left text-gray-700 hover:text-blue-500 w-full",
+                        class: "block text-left text-gray-700 hover:text-[#C66741] w-full",
                         onclick: move |_| current_page.set(MenuPage::Overview),
                         "Overview"
                     }
                 }
                 li {
                     button {
-                        class: "block text-left text-gray-700 hover:text-blue-500 w-full",
+                        class: "block text-left text-gray-700 hover:text-[#C66741] w-full",
                         onclick: move |_| current_page.set(MenuPage::Teams),
                         "Teams"
                     }
                 }
                 li {
                     button {
-                        class: "block text-left text-gray-700 hover:text-blue-500 w-full",
+                        class: "block text-left text-gray-700 hover:text-[#C66741] w-full",
                         onclick: move |_| current_page.set(MenuPage::StartEnd),
                         "Start and end point"
                     }
                 }
                 li {
                     button {
-                        class: "block text-left text-gray-700 hover:text-blue-500 w-full",
+                        class: "block text-left text-gray-700 hover:text-[#C66741] w-full",
                         onclick: move |_| current_page.set(MenuPage::Courses),
                         "Courses"
                     }
                 }
                 li {
                     button {
-                        class: "block text-left text-gray-700 hover:text-blue-500 w-full",
+                        class: "block text-left text-gray-700 hover:text-[#C66741] w-full",
                         onclick: move |_| current_page.set(MenuPage::Calculation),
                         "Calculation"
                     }

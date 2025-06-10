@@ -4,7 +4,6 @@ mod run_schedule;
 
 pub use dashboard::Dashboard;
 pub use details::ProjectDetailPage;
-use dioxus::html::head;
 pub use run_schedule::RunSchedule;
 
 use dioxus::prelude::*;
@@ -249,13 +248,13 @@ pub(crate) fn DeleteButton(
 pub(crate) fn Input(
     place_holer: Option<String>,
     value: String,
-    is_error: bool,
+    is_error: Option<bool>,
     oninput: EventHandler<dioxus::prelude::Event<FormData>>,
 ) -> Element {
     rsx! {
 
         input {
-            class: if is_error { "w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" },
+            class: if is_error.is_some_and(|e| e) { "bg-white w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 bg-white focus:ring-[#C66741]" },
             r#type: "text",
             placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
             value,
@@ -270,13 +269,12 @@ pub(crate) fn Input(
 pub(crate) fn InputMultirow(
     place_holer: Option<String>,
     value: String,
-    error_signal: Option<Signal<String>>,
+    is_error: Option<bool>,
     oninput: EventHandler<dioxus::prelude::Event<FormData>>,
 ) -> Element {
     rsx! {
         textarea {
-            class: if error_signal.is_some()
-    && !error_signal.expect("Expect error signal").read().is_empty() { "w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" },
+            class: if is_error.is_some_and(|e| e) { "bg-white w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 bg-white focus:ring-[#C66741]" },
             placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
             rows: "3",
             value,
@@ -291,13 +289,12 @@ pub(crate) fn InputMultirow(
 pub(crate) fn InputNumber(
     place_holer: Option<String>,
     value: String,
-    error_signal: Option<Signal<String>>,
+    is_error: Option<bool>,
     oninput: EventHandler<dioxus::prelude::Event<FormData>>,
 ) -> Element {
     rsx! {
         input {
-            class: if error_signal.is_some()
-    && !error_signal.expect("Expect error signal").read().is_empty() { "w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" },
+            class: if is_error.is_some_and(|e| e) { "bg-white w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 bg-white focus:ring-[#C66741]" },
             r#type: "number",
             placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
             value,
@@ -317,7 +314,7 @@ pub(crate) fn InputPhoneNumber(
 ) -> Element {
     rsx! {
         input {
-            class: if is_error.is_some_and(|e| e) { "w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" },
+            class: if is_error.is_some_and(|e| e) { "bg-white w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 bg-white focus:ring-[#C66741]" },
             r#type: "tel",
             placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
             value,
@@ -332,13 +329,33 @@ pub(crate) fn InputPhoneNumber(
 pub(crate) fn InputTime(
     place_holer: Option<String>,
     value: String,
-    is_error: bool,
+    is_error: Option<bool>,
     oninput: EventHandler<dioxus::prelude::Event<FormData>>,
 ) -> Element {
     rsx! {
         input {
-            class: if is_error { "w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" },
+            class: if is_error.is_some_and(|e| e) { "bg-white w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 bg-white focus:ring-[#C66741]" },
             r#type: "time",
+            placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
+            value,
+            oninput: move |e| {
+                oninput.call(e);
+            },
+        }
+    }
+}
+
+#[component]
+pub(crate) fn InputDate(
+    place_holer: Option<String>,
+    value: String,
+    is_error: Option<bool>,
+    oninput: EventHandler<dioxus::prelude::Event<FormData>>,
+) -> Element {
+    rsx! {
+        input {
+            class: if is_error.is_some_and(|e| e) { "bg-white w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 bg-white focus:ring-[#C66741]" },
+            r#type: "date",
             placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
             value,
             oninput: move |e| {

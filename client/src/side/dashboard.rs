@@ -56,7 +56,7 @@ pub fn Dashboard() -> Element {
             }
 
             a {
-                class: "border-4 border-dashed border-gray-300 rounded-xl p-6 h-36 flex items-center justify-center text-gray-400 hover:bg-gray-50 hover:text-blue-500 hover:scale-105 transition-all duration-200 cursor-pointer",
+                class: "border-4 border-dashed border-gray-300 rounded-xl p-6 h-36 flex items-center justify-center text-gray-400 hover:bg-[#fdfaf6] hover:text-[#C66741] hover:scale-105 transition-all duration-200 cursor-pointer",
                 onclick: move |_| {
                     create_project_signal.set(create_dialog.clone());
                 },
@@ -78,13 +78,12 @@ struct DashboardCardProps {
     updated: String,
     uploaded: bool,
 }
-
 #[component]
 fn DashboardCard(props: DashboardCardProps) -> Element {
     rsx! {
         a {
             href: format!("/cook-and-run/{}", props.id),
-            class: "relative bg-white shadow-md rounded-xl p-6 h-36 hover:shadow-lg transition-all cursor-pointer hover:scale-105",
+            class: "relative bg-[#fdfaf6] shadow-md rounded-xl p-6 h-36 hover:shadow-lg transition-all cursor-pointer hover:scale-105",
 
             div { key: {props.id},
 
@@ -146,7 +145,7 @@ fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
 
     rsx! {
         div { class: "backdrop-blur fixed inset-0 flex h-screen w-screen justify-center items-center",
-            div { class: "relative bg-white shadow-md rounded-xl p-6 w-72 hover:shadow-lg transition-all cursor-pointer ",
+            div { class: "relative bg-[#fdfaf6] shadow-md rounded-xl p-6 w-72 hover:shadow-lg transition-all cursor-pointer ",
 
 
                 // Close button

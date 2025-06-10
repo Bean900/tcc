@@ -5,8 +5,7 @@ use dioxus::prelude::*;
 use uuid::Uuid;
 use web_sys::console;
 
-use crate::side::InputMultirow;
-use crate::side::InputTime_completions::Component::InputTime;
+use crate::side::{InputDate, InputMultirow};
 use crate::storage::{CookAndRunData, LocalStorage};
 
 use crate::{
@@ -128,12 +127,9 @@ pub(crate) fn Overview(props: CookAndRunData) -> Element {
                 value: plan_text_signal.read(),
                 oninput: on_plan_text_input,
             }
-
-            input {
-                class: "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500",
-                r#type: "date",
+            InputDate {
                 value: occur_signal.read().to_string(),
-                oninput: move |e| {
+                oninput: move |e: FormEvent| {
                     let date = NaiveDate::parse_from_str(&e.value(), "%Y-%m-%d");
                     if date.is_err() {
                         console::error_1(
@@ -176,6 +172,7 @@ pub(crate) fn Overview(props: CookAndRunData) -> Element {
                     }
                 }
             }
+
 
             div { class: "bg-yellow-100 border border-yellow-300 text-yellow-800 p-4 rounded max-w-xl mt-6",
                 h3 { class: "font-bold mb-2", "Cloud Info" }

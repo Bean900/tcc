@@ -149,7 +149,7 @@ fn TabBar(tab_signal: Signal<bool>) -> Element {
                     tab_signal.set(true);
                 },
                 id: "tab-search",
-                class: if *tab_signal.read() { "px-4 py-2 font-semibold text-sm text-blue-600 border-b-2 border-blue-600" } else { "px-4 py-2 font-semibold text-sm text-gray-600 hover:text-blue-600" },
+                class: if *tab_signal.read() { "px-4 py-2 font-semibold text-sm text-[#C66741] border-b-2 border-[#C66741]" } else { "px-4 py-2 font-semibold text-sm text-gray-600 hover:text-[#C66741]" },
                 "Automatic"
             }
             button {
@@ -158,7 +158,7 @@ fn TabBar(tab_signal: Signal<bool>) -> Element {
                     tab_signal.set(false);
                 },
                 id: "tab-coords",
-                class: if !*tab_signal.read() { "px-4 py-2 font-semibold text-sm text-blue-600 border-b-2 border-blue-600" } else { "px-4 py-2 font-semibold text-sm text-gray-600 hover:text-blue-600" },
+                class: if !*tab_signal.read() { "px-4 py-2 font-semibold text-sm text-[#C66741] border-b-2 border-[#C66741]" } else { "px-4 py-2 font-semibold text-sm text-gray-600 hover:text-[#C66741]" },
                 "Manual"
             }
         }

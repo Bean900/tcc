@@ -106,7 +106,7 @@ pub(crate) fn Teams(props: &TeamsProps) -> Element {
                             let background = if team.needs_check {
                                 "bg-orange-100"
                             } else {
-                                "bg-white"
+                                "bg-[#fdfaf6]"
                             };
                             rsx! {
                                 a {
@@ -130,7 +130,7 @@ pub(crate) fn Teams(props: &TeamsProps) -> Element {
                 }
 
                 a {
-                    class: "border-4 border-dashed border-gray-300 rounded-xl p-6   flex items-center justify-center text-gray-400 hover:bg-gray-50 hover:text-blue-500 hover:scale-105 transition-all duration-200 cursor-pointer",
+                    class: "border-4 border-dashed border-gray-300 rounded-xl p-6 flex items-center justify-center text-gray-400 hover:bg-[#fdfaf6] hover:text-[#C66741] hover:scale-105 transition-all duration-200 cursor-pointer",
                     onclick: move |_| {
                         team_dialog_signal.set(add_team_dialog.clone());
                     },
@@ -317,7 +317,7 @@ fn EditTeamDialog(
                             onclick: move |_| {
                                 is_edit_team_signal.set(true);
                             },
-                            class: if *is_edit_team_signal.read() { "px-4 py-2 font-semibold text-sm text-blue-600 border-b-2 border-blue-600" } else { "px-4 py-2 font-semibold text-sm text-gray-600 hover:text-blue-600" },
+                            class: if *is_edit_team_signal.read() { "px-4 py-2 font-semibold text-sm text-[#C66741] border-b-2 border-[#C66741]" } else { "px-4 py-2 font-semibold text-sm text-gray-600 hover:text-[#C66741]" },
                             "Team Data"
                         }
                         button {
@@ -325,7 +325,7 @@ fn EditTeamDialog(
                             onclick: move |_| {
                                 is_edit_team_signal.set(false);
                             },
-                            class: if !*is_edit_team_signal.read() { "px-4 py-2 font-semibold text-sm text-blue-600 border-b-2 border-blue-600" } else { "px-4 py-2 font-semibold text-sm text-gray-600 hover:text-blue-600" },
+                            class: if !*is_edit_team_signal.read() { "px-4 py-2 font-semibold text-sm text-[#C66741] border-b-2 border-[#C66741]" } else { "px-4 py-2 font-semibold text-sm text-gray-600 hover:text-[#C66741]" },
                             "Notes"
                         }
                     }
@@ -335,7 +335,7 @@ fn EditTeamDialog(
                             input {
                                 r#type: "checkbox",
                                 checked: needs_check_signal,
-                                class: "text-blue-600 rounded",
+                                class: "text-[#C66741] rounded",
                                 onclick: move |_| {
                                     let new_value = !*needs_check_signal.read();
                                     let result = update_team_needs_check(project_id, contact_data.id, new_value);
@@ -525,7 +525,7 @@ fn TeamDialog(
                 InputNumber {
                     place_holer: Some("e.g. 2".to_string()),
                     value: members_signal.clone(),
-                    error_signal: members_error_signal.clone(),
+                    is_error: !members_error_signal.read().is_empty(),
                     oninput: move |e: Event<FormData>| {
                         let members = e.value();
                         members_signal.set(members.clone());
@@ -605,7 +605,7 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                 InputMultirow {
                     place_holer: Some("e.g. Participation fee is partially paid!".to_string()),
                     value: create_note_description_signal.clone(),
-                    error_signal: create_note_description_error_signal.clone(),
+                    is_error: !create_note_description_error_signal.read().is_empty(),
                     oninput: move |e: Event<FormData>| {
                         let description = e.value();
                         create_note_description_signal.set(description.clone());

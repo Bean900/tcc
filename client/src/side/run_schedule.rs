@@ -3,10 +3,7 @@ use dioxus::prelude::*;
 use uuid::Uuid;
 
 use crate::{
-    side::{
-        AddressSVG, CourseSVG, GroupSVG, Headline1, Headline2, PersonSVG, PhoneSVG, StartSVG,
-        TimeSVG, WarningSVG,
-    },
+    side::{AddressSVG, Headline1, Headline2, PersonSVG, PhoneSVG, StartSVG, WarningSVG},
     storage::{mapper::Hosting, AddressData, ContactData, CourseData, MeetingPointData},
 };
 
@@ -84,7 +81,7 @@ pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
         .cloned()
         .expect("Expect to find hosting of current contact!");
     rsx!(
-        div { class: "flex justify-center w-full bg-[#F8EFE1]",
+        div { class: "flex justify-center w-full h-full",
             div { class: "space-y-8 w-full max-w-3xl",
                 div { class: "relative",
                     img {

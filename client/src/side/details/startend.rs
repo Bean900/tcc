@@ -271,7 +271,7 @@ pub fn StartEnd(param: StartEndParam) -> Element {
             div { class: "grid grid-cols-1 md:grid-cols-2 gap-6",
 
                 // Start Point
-                div { class: "bg-white shadow rounded-xl p-4 border w-100 h-160",
+                div { class: "bg-[#fdfaf6] shadow rounded-xl p-4 border w-100 h-160",
 
                     h3 { class: "text-lg font-semibold mb-2 flex items-center justify-between",
                         div { class: "flex items-center space-x-2",
@@ -355,7 +355,7 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                 }
 
                 // Goal Point
-                div { class: "bg-white shadow rounded-xl p-4 border w-100 h-160",
+                div { class: "bg-[#fdfaf6] shadow rounded-xl p-4 border w-100 h-160",
 
 
 

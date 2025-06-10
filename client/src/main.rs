@@ -89,8 +89,8 @@ fn App() -> Element {
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: TAILWIND_CSS }
-        div { class: "min-h-screen bg-gray-50 flex flex-col",
-            header { class: "bg-white shadow sticky top-0 z-50",
+        div { class: "min-h-screen flex flex-col bg-[#F8EFE1]",
+            header { class: "shadow sticky top-0 z-50 bg-[#fdfaf6]",
                 div { class: "max-w-7xl mx-auto px-4 py-4 flex justify-between items-center",
                     a { href: "/cook-and-run",
                         img {

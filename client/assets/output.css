@@ -860,8 +860,17 @@
   .border-\[\#543D2B\] {
     border-color: #543D2B;
   }
+  .border-\[\#C66741\] {
+    border-color: #C66741;
+  }
   .border-blue-600 {
     border-color: var(--color-blue-600);
+  }
+  .border-gray-100 {
+    border-color: var(--color-gray-100);
+  }
+  .border-gray-200 {
+    border-color: var(--color-gray-200);
   }
   .border-gray-300 {
     border-color: var(--color-gray-300);
@@ -875,14 +884,35 @@
   .border-t-transparent {
     border-top-color: transparent;
   }
+  .bg-\[\#8B9F73\] {
+    background-color: #8B9F73;
+  }
   .bg-\[\#543D2B\] {
     background-color: #543D2B;
+  }
+  .bg-\[\#B0C4B0\] {
+    background-color: #B0C4B0;
+  }
+  .bg-\[\#C2D8D8\] {
+    background-color: #C2D8D8;
   }
   .bg-\[\#C66741\] {
     background-color: #C66741;
   }
+  .bg-\[\#EADECF\] {
+    background-color: #EADECF;
+  }
+  .bg-\[\#F0E4D6\] {
+    background-color: #F0E4D6;
+  }
   .bg-\[\#F8EFE1\] {
     background-color: #F8EFE1;
+  }
+  .bg-\[\#eed9b8\] {
+    background-color: #eed9b8;
+  }
+  .bg-\[\#fdfaf6\] {
+    background-color: #fdfaf6;
   }
   .bg-amber-500 {
     background-color: var(--color-amber-500);
@@ -1063,6 +1093,9 @@
   .text-\[\#543D2B\] {
     color: #543D2B;
   }
+  .text-\[\#C66741\] {
+    color: #C66741;
+  }
   .text-blue-600 {
     color: var(--color-blue-600);
   }
@@ -1227,6 +1260,13 @@
       }
     }
   }
+  .hover\:bg-\[\#fdfaf6\] {
+    &:hover {
+      @media (hover: hover) {
+        background-color: #fdfaf6;
+      }
+    }
+  }
   .hover\:bg-blue-600 {
     &:hover {
       @media (hover: hover) {
@@ -1259,6 +1299,27 @@
     &:hover {
       @media (hover: hover) {
         background-color: var(--color-red-600);
+      }
+    }
+  }
+  .hover\:text-\[\#543D2B\] {
+    &:hover {
+      @media (hover: hover) {
+        color: #543D2B;
+      }
+    }
+  }
+  .hover\:text-\[\#C66741\] {
+    &:hover {
+      @media (hover: hover) {
+        color: #C66741;
+      }
+    }
+  }
+  .hover\:text-\[\#fdfaf6\] {
+    &:hover {
+      @media (hover: hover) {
+        color: #fdfaf6;
       }
     }
   }
@@ -1303,6 +1364,16 @@
     &:focus {
       --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
       box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+    }
+  }
+  .focus\:ring-\[\#C66741\] {
+    &:focus {
+      --tw-ring-color: #C66741;
+    }
+  }
+  .focus\:ring-\[\#fdfaf6\] {
+    &:focus {
+      --tw-ring-color: #fdfaf6;
     }
   }
   .focus\:ring-blue-500 {
