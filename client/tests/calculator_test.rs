@@ -10,9 +10,14 @@ use std::sync::Once;
 
 use chrono::Local;
 use data::{get_contact_list, get_course_list};
-use tcc::storage::{mapper::Plan, ContactData, CookAndRunData, CourseData};
+use tcc::{
+    calculator::generate_cook_and_run_plan,
+    storage::{mapper::Plan, ContactData, CookAndRunData, CourseData},
+};
 use tcc::{calculator::Calculator, storage::mapper::Hosting};
 use uuid::Uuid;
+
+use crate::data::get_cook_and_run;
 
 static INIT: Once = Once::new();
 
@@ -188,7 +193,7 @@ fn check_course(
 }
 // END ASSERT AREA
 // START TEST AREA
-
+/*
 fn run_calculation(calculator: &mut Calculator) {
     calculator.calculate();
 
@@ -210,7 +215,7 @@ fn run_calculation(calculator: &mut Calculator) {
             start_time.elapsed().as_secs()
         );
     }
-}
+}*/
 
 #[test]
 fn test_team_of_nine() {
@@ -221,24 +226,11 @@ fn test_team_of_nine() {
 
     print_test_params(&contact_list, &course_list);
 
-    let cook_and_run = CookAndRunData {
-        id: Uuid::new_v4(),
-        name: "Test team of ten".to_string(),
-        created: Local::now().to_utc(),
-        edited: Local::now().to_utc(),
-        contact_list: contact_list.clone(),
-        course_list: course_list.clone(),
-        start_point: None,
-        end_point: None,
-        top_plan: None,
-    };
+    let cook_and_run =
+        get_cook_and_run(contact_list.clone(), course_list.clone(), None, None, None);
 
-    let calculator = Calculator::new(cook_and_run);
-    let mut calculator = calculator.expect("Expect no error");
+    let plan_data = generate_cook_and_run_plan(cook_and_run);
 
-    run_calculation(&mut calculator);
-
-    let plan_data = calculator.get_top_plan();
     let plan_data = plan_data.expect("Expect plan");
     let plan = Plan::to_plan(&plan_data, &course_list, &contact_list);
 

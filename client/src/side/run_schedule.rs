@@ -1,10 +1,18 @@
 use chrono::NaiveTime;
 use dioxus::prelude::*;
 use uuid::Uuid;
+use web_sys::{
+    js_sys,
+    wasm_bindgen::{JsCast, JsValue},
+    window,
+};
 
 use crate::{
-    side::{AddressSVG, Headline1, Headline2, PersonSVG, PhoneSVG, StartSVG, WarningSVG},
+    side::{
+        AddressSVG, DownloadSVG, Headline1, Headline2, PersonSVG, PhoneSVG, StartSVG, WarningSVG,
+    },
     storage::{mapper::Hosting, AddressData, ContactData, CourseData, MeetingPointData},
+    Route,
 };
 
 const POT: Asset = asset!("/assets/pot.png");
@@ -13,6 +21,21 @@ const LEAF_1: Asset = asset!("/assets/leaf_1.png");
 const LEAF_2: Asset = asset!("/assets/leaf_2.png");
 const CAKE: Asset = asset!("/assets/cake.png");
 const CARROT: Asset = asset!("/assets/carrot.png");
+
+fn export_as_image(element_id: &str, filename: &str) {
+    if let Some(window) = window() {
+        if let Some(export_fn) = window
+            .get("exportElementAsImage")
+            .and_then(|val| val.dyn_into::<js_sys::Function>().ok())
+        {
+            let _ = export_fn.call2(
+                &JsValue::NULL,
+                &JsValue::from_str(element_id),
+                &JsValue::from_str(filename),
+            );
+        }
+    }
+}
 
 #[component]
 pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
@@ -81,6 +104,60 @@ pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
         .cloned()
         .expect("Expect to find hosting of current contact!");
     rsx!(
+        div { class: "fixed bottom-4 right-4 z-50 flex gap-4",
+
+
+            // Back Button
+            button {
+                class: "bg-gray-600 hover:bg-gray-700 text-white p-3 rounded-full shadow-lg",
+                onclick: move |_| {
+                    use_navigator()
+                        .push(Route::ProjectDetailPage {
+                            cook_and_run_id,
+                        });
+                },
+                svg {
+                    class: "w-6 h-6",
+                    fill: "none",
+                    stroke: "currentColor",
+                    stroke_width: "2",
+                    view_box: "0 0 24 24",
+                    xmlns: "http://www.w3.org/2000/svg",
+                    path { d: "M15 19l-7-7 7-7" }
+                }
+            }
+
+            // Download Button
+            button {
+                class: "bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg",
+                onclick: |_| { println!("Download") },
+                DownloadSVG {}
+            }
+
+
+
+            // Share Button
+            button {
+                class: "bg-green-600 hover:bg-green-700 text-white p-3 rounded-full shadow-lg",
+                onclick: |_| { export_as_image("screenshot-target", "screenshot.png") },
+                svg {
+                    class: "w-6 h-6",
+                    fill: "none",
+                    stroke: "currentColor",
+                    stroke_width: "2",
+                    stroke_linecap: "round",
+                    stroke_linejoin: "round",
+                    view_box: "0 0 24 24",
+                    xmlns: "http://www.w3.org/2000/svg",
+                    // Linien
+                    path { d: "M16 5l-8 5v4l8 5" }
+                    // Kreise (als Punkte)
+                    circle { cx: "16", cy: "5", r: "2" }
+                    circle { cx: "6", cy: "12", r: "2" }
+                    circle { cx: "16", cy: "19", r: "2" }
+                }
+            }
+        }
         div { class: "flex justify-center w-full h-full",
             div { class: "space-y-8 w-full max-w-3xl",
                 div { class: "relative",
@@ -274,10 +351,6 @@ fn TimeLineElement(
     address: String,
     you_are_hosting: bool,
 ) -> Element {
-    let address_split: Vec<String> = address
-        .split(",")
-        .map(|s| s.to_string())
-        .collect::<Vec<String>>();
     let point_format = if you_are_hosting {
         "bg-[#C66741] rotate-45"
     } else {
@@ -294,6 +367,11 @@ fn TimeLineElement(
             }
         )
     } else {
+        let address_split: Vec<String> = address
+            .split(",")
+            .map(|s| s.to_string())
+            .collect::<Vec<String>>();
+
         rsx!(
 
             if course_team_tel.is_some() {
@@ -307,10 +385,15 @@ fn TimeLineElement(
             div { class: "font-thin flex items-start",
                 div { class: "my-2", AddressSVG {} }
                 div { class: "mx-0  text-[#543D2B] font-gluten leading-tight",
-                    span { "{address_split[0]}" }
-                    div {}
-                    span { "{address_split[1]}" }
+                    if address_split.len() == 2 {
+                        span { "{address_split[0]}" }
+                        div {}
+                        span { "{address_split[1]}" }
+                    } else {
+                        span { "{address}" }
+                    }
                 }
+            
             }
         )
     };
@@ -441,4 +524,57 @@ fn MyInfo(contact: ContactData) -> Element {
             }
         }
     )
+}
+fn get_contact_1() -> ContactData {
+    ContactData {
+        id: Uuid::new_v4(),
+        team_name: "Die coolen Kartoffeln".to_string(),
+        address: AddressData {
+            address: "Maximilian-Kolbe-Weg 25, 36093 Künzell".to_string(),
+            latitude: 50.54239119819311,
+            longitude: 9.727350797271194,
+        },
+        mail: "".to_string(),
+        phone_number: "+49 12345876".to_string(),
+        members: 2,
+        diets: vec!["Kiwi".to_string()],
+        needs_check: false,
+        notes: vec![],
+    }
+}
+
+fn get_contact_2() -> ContactData {
+    ContactData {
+        id: Uuid::new_v4(),
+        team_name: "Der rote Knoten".to_string(),
+        address: AddressData {
+            address: "Neuenberger Str. 28, 36041 Fulda".to_string(),
+            latitude: 50.54845582305795,
+            longitude: 9.660697060598386,
+        },
+        mail: "".to_string(),
+        phone_number: "+49 7654535".to_string(),
+        members: 3,
+        diets: vec![],
+        needs_check: false,
+        notes: vec![],
+    }
+}
+
+fn get_you(id: Uuid) -> ContactData {
+    ContactData {
+        id,
+        team_name: "Wolperts".to_string(),
+        address: AddressData {
+            address: "Maganbertstraße 24, 36041 Fulda".to_string(),
+            latitude: 50.56142498405875,
+            longitude: 9.640207061201759,
+        },
+        mail: "wolpi@wolpert.de".to_string(),
+        phone_number: "+49 346346346".to_string(),
+        members: 1,
+        diets: vec!["schlechtes Essen".to_string()],
+        needs_check: false,
+        notes: vec![],
+    }
 }

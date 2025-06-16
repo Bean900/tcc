@@ -197,7 +197,7 @@ pub fn Courses(param: CoursesParam) -> Element {
 
                     {
                         rsx! {
-                            div { class: "relative  shadow-md rounded-xl p-6 hover:shadow-lg transition-all",
+                            div { class: "relative bg-[#fdfaf6] shadow-md rounded-xl p-6 hover:shadow-lg transition-all",
                                 SavingIcon {
                                     saving: param.get_course(&course_id).saving,
                                     error: param.get_course(&course_id).saving_error,

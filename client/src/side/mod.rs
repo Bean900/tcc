@@ -438,6 +438,21 @@ pub(crate) fn EndSVG() -> Element {
 }
 
 #[component]
+pub(crate) fn DownloadSVG() -> Element {
+    rsx!(
+        svg {
+            class: "w-6 h-6",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "2",
+            view_box: "0 0 24 24",
+            xmlns: "http://www.w3.org/2000/svg",
+            path { d: "M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" }
+        }
+    )
+}
+
+#[component]
 pub(crate) fn AddressSVG() -> Element {
     rsx!(
         svg {

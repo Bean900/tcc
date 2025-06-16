@@ -311,7 +311,7 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                         Input {
                             value: param.start_name_signal,
                             place_holer: "Start".to_string(),
-                            is_error: false,
+                            is_error: !param.start_name_error_signal.read().is_empty(),
                             oninput: move |event: Event<FormData>| {
                                 let name = &event.value();
                                 param.start_name_signal.set(name.clone());
@@ -399,7 +399,7 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                         Input {
                             value: param.end_name_signal,
                             place_holer: "End".to_string(),
-                            is_error: false,
+                            is_error: !param.end_name_error_signal.read().is_empty(),
                             oninput: move |event: Event<FormData>| {
                                 let name = &event.value();
                                 param.end_name_signal.set(name.clone());
