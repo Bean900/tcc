@@ -112,7 +112,7 @@ pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
                 class: "bg-gray-600 hover:bg-gray-700 text-white p-3 rounded-full shadow-lg",
                 onclick: move |_| {
                     use_navigator()
-                        .push(Route::ProjectDetailPage {
+                        .push(Route::ProjectCalculationPage {
                             cook_and_run_id,
                         });
                 },
@@ -126,15 +126,6 @@ pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
                     path { d: "M15 19l-7-7 7-7" }
                 }
             }
-
-            // Download Button
-            button {
-                class: "bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg",
-                onclick: |_| { println!("Download") },
-                DownloadSVG {}
-            }
-
-
 
             // Share Button
             button {
@@ -158,7 +149,9 @@ pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
                 }
             }
         }
-        div { class: "flex justify-center w-full h-full",
+        div {
+            id: "section-to-print",
+            class: "flex justify-center w-full h-full",
             div { class: "space-y-8 w-full max-w-3xl",
                 div { class: "relative",
                     img {
@@ -524,4 +517,58 @@ fn MyInfo(contact: ContactData) -> Element {
             }
         }
     )
+}
+
+fn get_contact_1() -> ContactData {
+    ContactData {
+        id: Uuid::new_v4(),
+        team_name: "Die coolen Kartoffeln".to_string(),
+        address: AddressData {
+            address: "Maximilian-Kolbe-Weg 25, 36093 Künzell".to_string(),
+            latitude: 50.54239119819311,
+            longitude: 9.727350797271194,
+        },
+        mail: "".to_string(),
+        phone_number: "+49 12345876".to_string(),
+        members: 2,
+        diets: vec!["Kiwi".to_string()],
+        needs_check: false,
+        notes: vec![],
+    }
+}
+
+fn get_contact_2() -> ContactData {
+    ContactData {
+        id: Uuid::new_v4(),
+        team_name: "Der rote Knoten".to_string(),
+        address: AddressData {
+            address: "Neuenberger Str. 28, 36041 Fulda".to_string(),
+            latitude: 50.54845582305795,
+            longitude: 9.660697060598386,
+        },
+        mail: "".to_string(),
+        phone_number: "+49 7654535".to_string(),
+        members: 3,
+        diets: vec![],
+        needs_check: false,
+        notes: vec![],
+    }
+}
+
+fn get_you(id: Uuid) -> ContactData {
+    ContactData {
+        id,
+        team_name: "Wolperts".to_string(),
+        address: AddressData {
+            address: "Maganbertstraße 24, 36041 Fulda".to_string(),
+            latitude: 50.56142498405875,
+            longitude: 9.640207061201759,
+        },
+        mail: "wolpi@wolpert.de".to_string(),
+        phone_number: "+49 346346346".to_string(),
+        members: 1,
+        diets: vec!["schlechtes Essen".to_string()],
+        needs_check: false,
+        notes: vec![],
+    }
 }

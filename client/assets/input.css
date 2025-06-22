@@ -8,4 +8,17 @@
     --font-gluten: "Gluten", "sans-serif"; 
 }
 
- 
+@media print {
+    header {
+        visibility: hidden;
+    }
+    body {
+      visibility: hidden;
+    }
+    #section-to-print {
+      visibility: visible;
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+  }
