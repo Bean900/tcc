@@ -5,10 +5,14 @@ use std::{
     time::Duration,
 };
 
+use log::debug;
 use uuid::Uuid;
 
-use crate::storage::{AddressData, ContactData, CookAndRunData, HostingData, PlanData};
+use crate::storage::{
+    mapper::Hosting, AddressData, ContactData, CookAndRunData, HostingData, PlanData,
+};
 
+#[derive(Debug)]
 pub struct Calculator {
     contact_list: HashMap<Uuid, ContactData>,
     course_list: Vec<Uuid>,
@@ -24,6 +28,59 @@ struct Plan {
     hosting_list: HashMap<Uuid /*Hosting ID */, HostingData>,
     walking_path: HashMap<Uuid /*Contact ID */, Vec<Uuid /*Hosting ID */>>,
     greatest_distance: f64,
+}
+
+#[derive(Clone, Debug)]
+struct ContactWithCentrality {
+    contact: ContactData,
+    centrality_score: f64,
+}
+
+#[derive(Debug)]
+struct MeetingTracker {
+    meetings: HashMap<Uuid, HashMap<Uuid, u32>>,
+}
+
+impl MeetingTracker {
+    fn new() -> Self {
+        Self {
+            meetings: HashMap::new(),
+        }
+    }
+
+    fn record_meeting(&mut self, person1: Uuid, person2: Uuid) {
+        *self
+            .meetings
+            .entry(person1)
+            .or_default()
+            .entry(person2)
+            .or_default() += 1;
+        *self
+            .meetings
+            .entry(person2)
+            .or_default()
+            .entry(person1)
+            .or_default() += 1;
+    }
+
+    fn get_meeting_count(&self, person1: Uuid, person2: Uuid) -> u32 {
+        self.meetings
+            .get(&person1)
+            .and_then(|m| m.get(&person2))
+            .copied()
+            .unwrap_or(0)
+    }
+
+    fn has_met(&self, person1: Uuid, person2: Uuid) -> bool {
+        self.get_meeting_count(person1, person2) > 0
+    }
+
+    fn total_meetings_for_person(&self, person: Uuid) -> u32 {
+        self.meetings
+            .get(&person)
+            .map(|m| m.values().sum())
+            .unwrap_or(0)
+    }
 }
 
 impl Plan {
@@ -132,34 +189,49 @@ impl Plan {
         course_sorted_list: &Vec<Uuid>,
         hosting_list: &HashMap<Uuid, HostingData>,
     ) -> HashMap<Uuid, Vec<Uuid>> {
-        let mut walking_path: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+        let mut walking_path: HashMap<
+            Uuid, /*Contact ID */
+            Vec<(Uuid /*Hosting ID */, Uuid /*Course ID */)>,
+        > = HashMap::new();
 
         for hosting in hosting_list.values() {
             walking_path
                 .entry(hosting.host)
                 .or_default()
-                .push(hosting.id);
+                .push((hosting.id, hosting.name));
             for &guest in &hosting.guest_list {
-                walking_path.entry(guest).or_default().push(hosting.id);
+                walking_path
+                    .entry(guest)
+                    .or_default()
+                    .push((hosting.id, hosting.name));
             }
         }
 
         // Sort the walking path by course order
         for (_, path) in walking_path.iter_mut() {
-            path.sort_by_key(|&hosting_id| {
+            path.sort_by_key(|&hosting| {
                 course_sorted_list
                     .iter()
-                    .position(|&course| course == hosting_id)
+                    .position(|&course| course == hosting.1)
                     .expect("Expect to find Hosting ID in course list")
             });
         }
 
         walking_path
+            .iter()
+            .map(|(contact_id, path)| {
+                (
+                    *contact_id,
+                    path.iter().map(|(hosting_id, _)| *hosting_id).collect(),
+                )
+            })
+            .collect()
     }
 }
 
 impl Calculator {
     pub fn new(cook_and_run_data: &CookAndRunData) -> Result<Calculator, String> {
+        println!("Creating Calculator");
         let mut course_list = cook_and_run_data.course_list.clone();
         course_list.sort_by(|a, b| a.time.cmp(&b.time));
         let course_list = course_list.iter().map(|c| c.id).collect();
@@ -185,6 +257,7 @@ impl Calculator {
     }
 
     pub fn calculate(&self) {
+        println!("Starting deterministic calculation...");
         let contact_list = self.contact_list.clone();
         let course_list = self.course_list.clone();
         let start_point = self.start_point.clone();
@@ -194,36 +267,341 @@ impl Calculator {
         let top_plan = Arc::clone(&self.top_plan);
         let should_stop = Arc::clone(&self.should_stop);
 
-        // Setze should_stop zurück
+        // Reset should_stop
         *should_stop.lock().unwrap() = false;
 
         thread::spawn(move || {
-            // Generiere und bewerte verschiedene Lösungen
-            while !*should_stop.lock().unwrap() {
-                let hosting_map = assigne_hosting_distance(
-                    &contact_list,
-                    &course_list,
-                    &start_point,
-                    &end_point,
-                    &course_with_more_hosts,
-                );
-                let result = assigne_guest_list(hosting_map, &contact_list, 1);
-                if let Ok(map) = result {
-                    let plan =
-                        Plan::new(&start_point, &end_point, &course_list, map, &contact_list);
-                    let top_plan_opt = top_plan.lock().unwrap().clone();
-                    if top_plan_opt.is_none()
-                        || plan.greatest_distance
-                            < top_plan_opt
-                                .expect("Expect best_plan to be set")
-                                .greatest_distance
-                    {
-                        top_plan.lock().unwrap().replace(plan.clone());
+            // Deterministic calculation
+            let result = Self::calculate_optimal_plan(
+                &contact_list,
+                &course_list,
+                &start_point,
+                &end_point,
+                &course_with_more_hosts,
+            );
+
+            match result {
+                Ok(hosting_map) => {
+                    println!("Found optimal PLAN with {} hostings", hosting_map.len());
+                    let plan = Plan::new(
+                        &start_point,
+                        &end_point,
+                        &course_list,
+                        hosting_map,
+                        &contact_list,
+                    );
+                    println!("Plan fitness: {}", plan.greatest_distance);
+                    top_plan.lock().unwrap().replace(plan);
+                }
+                Err(err) => {
+                    println!("Error during optimal calculation: {}", err);
+                    // Fallback to relaxed constraints
+                    if let Ok(fallback_map) = Self::calculate_with_relaxed_constraints(
+                        &contact_list,
+                        &course_list,
+                        &start_point,
+                        &end_point,
+                        &course_with_more_hosts,
+                    ) {
+                        println!("Found fallback PLAN with {} hostings", fallback_map.len());
+                        let plan = Plan::new(
+                            &start_point,
+                            &end_point,
+                            &course_list,
+                            fallback_map,
+                            &contact_list,
+                        );
+                        println!("Fallback plan fitness: {}", plan.greatest_distance);
+                        top_plan.lock().unwrap().replace(plan);
+                    } else {
+                        println!("Even fallback calculation failed");
                     }
                 }
-                thread::sleep(Duration::from_millis(1));
             }
         });
+    }
+
+    fn calculate_optimal_plan(
+        contact_list: &HashMap<Uuid, ContactData>,
+        course_list: &Vec<Uuid>,
+        start_point: &Option<AddressData>,
+        end_point: &Option<AddressData>,
+        course_with_more_hosts: &Option<Uuid>,
+    ) -> Result<HashMap<Uuid, HostingData>, String> {
+        // Phase 1: Optimal host assignment
+        let host_assignments = Self::assign_hosts_optimally(
+            contact_list,
+            course_list,
+            start_point,
+            end_point,
+            course_with_more_hosts,
+        );
+
+        // Phase 2: Deterministic guest assignment
+        Self::assign_guests_deterministically(host_assignments, contact_list, course_list)
+    }
+
+    fn calculate_with_relaxed_constraints(
+        contact_list: &HashMap<Uuid, ContactData>,
+        course_list: &Vec<Uuid>,
+        start_point: &Option<AddressData>,
+        end_point: &Option<AddressData>,
+        course_with_more_hosts: &Option<Uuid>,
+    ) -> Result<HashMap<Uuid, HostingData>, String> {
+        // Same as optimal but with relaxed meeting constraints
+        let host_assignments = Self::assign_hosts_optimally(
+            contact_list,
+            course_list,
+            start_point,
+            end_point,
+            course_with_more_hosts,
+        );
+
+        Self::assign_guests_with_relaxed_constraints(host_assignments, contact_list, course_list)
+    }
+
+    fn assign_hosts_optimally(
+        contact_list: &HashMap<Uuid, ContactData>,
+        course_list: &Vec<Uuid>,
+        start_point: &Option<AddressData>,
+        end_point: &Option<AddressData>,
+        course_with_more_hosts: &Option<Uuid>,
+    ) -> HashMap<Uuid, HostingData> {
+        println!(
+            "Assigning {} hosting with distance calculation",
+            contact_list.len()
+        );
+        let mut contact_start_distance = Vec::new();
+        let mut contact_goal_distance = Vec::new();
+
+        for contact in contact_list.values() {
+            if let Some(start_point) = start_point.as_ref() {
+                let start_distance = start_point.distance(&contact.address);
+                if let Some(end_point) = end_point.as_ref() {
+                    let end_distance = end_point.distance(&contact.address);
+                    if start_distance < end_distance {
+                        contact_start_distance.push((contact, start_distance));
+                    } else {
+                        contact_goal_distance.push((contact, end_distance));
+                    }
+                } else {
+                    contact_start_distance.push((contact, start_distance));
+                }
+            } else if let Some(end_point) = end_point.as_ref() {
+                let end_distance = end_point.distance(&contact.address);
+                contact_goal_distance.push((contact, end_distance));
+            }
+        }
+
+        contact_start_distance.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        contact_goal_distance.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+
+        let contact_list = [contact_start_distance, contact_goal_distance].concat();
+        println!("List of hosts sorted by distance: {:?}", contact_list);
+
+        let hosts_per_course = contact_list.len() / course_list.len();
+        let overhang = contact_list.len() % course_list.len();
+        let mut hosting_list = HashMap::new();
+
+        let mut current_course_index = 0;
+        let mut current_course_hosts = 0;
+
+        println!("Assigne {} hosts per course", hosts_per_course);
+        println!("Overhang: {}", overhang);
+
+        for (contact, _) in contact_list {
+            let course_id = course_list[current_course_index];
+            let hosting_data = HostingData {
+                id: Uuid::new_v4(),
+                host: contact.id,
+                name: course_id,
+                guest_list: Vec::new(),
+            };
+            hosting_list.insert(hosting_data.id, hosting_data);
+
+            current_course_hosts += 1;
+            if current_course_hosts >= hosts_per_course {
+                if course_with_more_hosts.is_some()
+                    && course_with_more_hosts.expect("Expect uuid!") == course_id
+                {
+                    if current_course_hosts == hosts_per_course + overhang {
+                        current_course_index += 1;
+                        current_course_hosts = 0;
+                    }
+                } else {
+                    current_course_index += 1;
+                    current_course_hosts = 0;
+                }
+            }
+        }
+
+        println!("Hosting list created with {} entries", hosting_list.len());
+        println!(
+            "Hosting list: {:?}",
+            hosting_list.values().map(|h| h.id).collect::<Vec<Uuid>>()
+        );
+
+        hosting_list
+    }
+
+    fn assign_guests_deterministically(
+        host_assignments: HashMap<Uuid, HostingData>,
+        contact_list: &HashMap<Uuid, ContactData>,
+        course_list: &Vec<Uuid>,
+    ) -> Result<HashMap<Uuid, HostingData>, String> {
+        let mut new_hosting_map = HashMap::new();
+        let mut meeting_tracker = MeetingTracker::new();
+
+        // Group hostings by course
+        let mut course_hosting_map: HashMap<Uuid, Vec<&HostingData>> = HashMap::new();
+        for hosting in host_assignments.values() {
+            course_hosting_map
+                .entry(hosting.name)
+                .or_default()
+                .push(hosting);
+        }
+
+        // Process each course
+        for &course_id in course_list {
+            if let Some(hosting_list) = course_hosting_map.get(&course_id) {
+                let host_ids: HashSet<Uuid> = hosting_list.iter().map(|h| h.host).collect();
+                let mut available_guests: Vec<Uuid> = contact_list
+                    .keys()
+                    .filter(|&id| !host_ids.contains(id))
+                    .copied()
+                    .collect();
+
+                // Sort guests by total meetings (least meetings first)
+                available_guests
+                    .sort_by_key(|&guest_id| meeting_tracker.total_meetings_for_person(guest_id));
+
+                let guests_per_host = available_guests.len() / hosting_list.len();
+                let extra_guests = available_guests.len() % hosting_list.len();
+                let mut guest_index = 0;
+
+                for (host_index, hosting) in hosting_list.iter().enumerate() {
+                    let mut guest_list = Vec::new();
+                    let mut guests_for_this_host = guests_per_host;
+                    if host_index < extra_guests {
+                        guests_for_this_host += 1;
+                    }
+
+                    for _ in 0..guests_for_this_host {
+                        if guest_index >= available_guests.len() {
+                            return Err("Not enough guests available".to_string());
+                        }
+
+                        let best_guest = Self::find_best_guest(
+                            hosting.host,
+                            &available_guests[guest_index..],
+                            &meeting_tracker,
+                        )
+                        .ok_or("No suitable guest found")?;
+
+                        guest_list.push(best_guest);
+
+                        // Remove guest from available list
+                        if let Some(pos) = available_guests.iter().position(|&x| x == best_guest) {
+                            available_guests.remove(pos);
+                            if pos < guest_index {
+                                guest_index = guest_index.saturating_sub(1);
+                            }
+                        }
+
+                        // Record meetings
+                        meeting_tracker.record_meeting(hosting.host, best_guest);
+                        for &other_guest in &guest_list {
+                            if other_guest != best_guest {
+                                meeting_tracker.record_meeting(best_guest, other_guest);
+                            }
+                        }
+                    }
+
+                    let mut hosting_data = (*hosting).clone();
+                    hosting_data.guest_list = guest_list;
+                    new_hosting_map.insert(hosting_data.id, hosting_data);
+                }
+            }
+        }
+
+        Ok(new_hosting_map)
+    }
+
+    fn assign_guests_with_relaxed_constraints(
+        host_assignments: HashMap<Uuid, HostingData>,
+        contact_list: &HashMap<Uuid, ContactData>,
+        course_list: &Vec<Uuid>,
+    ) -> Result<HashMap<Uuid, HostingData>, String> {
+        let mut new_hosting_map = HashMap::new();
+
+        // Group hostings by course
+        let mut course_hosting_map: HashMap<Uuid, Vec<&HostingData>> = HashMap::new();
+        for hosting in host_assignments.values() {
+            course_hosting_map
+                .entry(hosting.name)
+                .or_default()
+                .push(hosting);
+        }
+
+        // Simple round-robin assignment without meeting constraints
+        for &course_id in course_list {
+            if let Some(hosting_list) = course_hosting_map.get(&course_id) {
+                let host_ids: HashSet<Uuid> = hosting_list.iter().map(|h| h.host).collect();
+                let available_guests: Vec<Uuid> = contact_list
+                    .keys()
+                    .filter(|&id| !host_ids.contains(id))
+                    .copied()
+                    .collect();
+
+                let guests_per_host = available_guests.len() / hosting_list.len();
+                let extra_guests = available_guests.len() % hosting_list.len();
+                let mut guest_index = 0;
+
+                for (host_index, hosting) in hosting_list.iter().enumerate() {
+                    let mut guest_list = Vec::new();
+                    let mut guests_for_this_host = guests_per_host;
+                    if host_index < extra_guests {
+                        guests_for_this_host += 1;
+                    }
+
+                    for _ in 0..guests_for_this_host {
+                        if guest_index < available_guests.len() {
+                            guest_list.push(available_guests[guest_index]);
+                            guest_index += 1;
+                        }
+                    }
+
+                    let mut hosting_data = (*hosting).clone();
+                    hosting_data.guest_list = guest_list;
+                    new_hosting_map.insert(hosting_data.id, hosting_data);
+                }
+            }
+        }
+
+        Ok(new_hosting_map)
+    }
+
+    fn find_best_guest(
+        host: Uuid,
+        available_guests: &[Uuid],
+        meeting_tracker: &MeetingTracker,
+    ) -> Option<Uuid> {
+        // Priority 1: Guests who have never met the host
+        for &guest in available_guests {
+            if !meeting_tracker.has_met(host, guest) {
+                return Some(guest);
+            }
+        }
+
+        // Priority 2: Guests who have met the host only once
+        for &guest in available_guests {
+            if meeting_tracker.get_meeting_count(host, guest) == 1 {
+                return Some(guest);
+            }
+        }
+
+        // Fallback: Any available guest
+        available_guests.first().copied()
     }
 
     pub fn stop(&self) {
@@ -234,175 +612,6 @@ impl Calculator {
         let plan = self.top_plan.lock().unwrap().clone();
         plan.map(|p| p.to_plan_data())
     }
-}
-
-fn assigne_guest_list(
-    hosting_map: HashMap<Uuid, HostingData>,
-    contact_list: &HashMap<Uuid, ContactData>,
-    seed: usize,
-) -> Result<HashMap<Uuid, HostingData>, String> {
-    let mut new_hosting_map = HashMap::new();
-
-    let mut course_hosting_map: HashMap<Uuid, Vec<&HostingData>> = HashMap::new();
-
-    for hosting in hosting_map.values() {
-        course_hosting_map
-            .entry(hosting.name)
-            .or_default()
-            .push(hosting);
-    }
-
-    for (_, hosting_list) in course_hosting_map {
-        let mut first_time_seen: HashMap<Uuid, HashSet<Uuid>> = HashMap::new();
-        let mut second_time_seen: HashMap<Uuid, HashSet<Uuid>> = HashMap::new();
-        let guests_per_hosting = contact_list.len() / hosting_list.len();
-        let overhang = contact_list.len() % hosting_list.len();
-        let mut overhang_assigned = 0;
-        for hosting in hosting_list {
-            let mut guest_list = Vec::new();
-            for _ in 0..guests_per_hosting + (if overhang_assigned < overhang { 1 } else { 0 }) {
-                if let Some(guest) = find_guest(
-                    hosting.host,
-                    contact_list,
-                    &mut first_time_seen,
-                    &mut second_time_seen,
-                ) {
-                    guest_list.push(guest);
-                } else {
-                    return Err("No guest found for hosting!".to_string());
-                }
-
-                if overhang_assigned < overhang {
-                    overhang_assigned += 1;
-                }
-            }
-
-            let mut hosting_data = hosting.clone();
-            hosting_data.guest_list = guest_list;
-            new_hosting_map.insert(hosting_data.id, hosting_data);
-        }
-    }
-
-    Ok(new_hosting_map)
-}
-
-fn find_guest(
-    find_for_contact: Uuid,
-    contact_list: &HashMap<Uuid, ContactData>,
-    first_time_seen: &mut HashMap<Uuid, HashSet<Uuid>>,
-    second_time_seen: &mut HashMap<Uuid, HashSet<Uuid>>,
-) -> Option<Uuid> {
-    for (&contact, _) in contact_list.iter() {
-        if contact == find_for_contact {
-            continue;
-        }
-
-        if first_time_seen
-            .get(&contact)
-            .map_or(true, |set| !set.contains(&find_for_contact))
-        {
-            first_time_seen
-                .entry(contact)
-                .or_default()
-                .insert(find_for_contact);
-            first_time_seen
-                .entry(find_for_contact)
-                .or_default()
-                .insert(contact);
-            return Some(contact);
-        }
-    }
-    for (&contact, _) in contact_list.iter() {
-        if contact == find_for_contact {
-            continue;
-        }
-
-        if second_time_seen
-            .get(&contact)
-            .map_or(true, |set| !set.contains(&find_for_contact))
-        {
-            second_time_seen
-                .entry(contact)
-                .or_default()
-                .insert(find_for_contact);
-            second_time_seen
-                .entry(find_for_contact)
-                .or_default()
-                .insert(contact);
-            return Some(contact);
-        }
-    }
-    None
-}
-
-fn assigne_hosting_distance(
-    contact_list: &HashMap<Uuid, ContactData>,
-    course_list: &Vec<Uuid>,
-    start_point: &Option<AddressData>,
-    end_point: &Option<AddressData>,
-    course_with_more_hosts: &Option<Uuid>,
-) -> HashMap<Uuid, HostingData> {
-    let mut contact_start_distance = Vec::new();
-    let mut contact_goal_distance = Vec::new();
-
-    for contact in contact_list.values() {
-        if let Some(start_point) = start_point.as_ref() {
-            let start_distance = start_point.distance(&contact.address);
-            if let Some(end_point) = end_point.as_ref() {
-                let end_distance = end_point.distance(&contact.address);
-                if start_distance < end_distance {
-                    contact_start_distance.push((contact, start_distance));
-                } else {
-                    contact_goal_distance.push((contact, end_distance));
-                }
-            } else {
-                contact_start_distance.push((contact, start_distance));
-            }
-        } else if let Some(end_point) = end_point.as_ref() {
-            let end_distance = end_point.distance(&contact.address);
-            contact_goal_distance.push((contact, end_distance));
-        }
-    }
-
-    contact_start_distance.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-    contact_goal_distance.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-
-    let contact_list = [contact_start_distance, contact_goal_distance].concat();
-
-    let hosts_per_course = contact_list.len() / course_list.len();
-    let overhang = contact_list.len() % course_list.len();
-    let mut hosting_list = HashMap::new();
-
-    let mut current_course_index = 0;
-    let mut current_course_hosts = 0;
-
-    for (contact, _) in contact_list {
-        let course_id = course_list[current_course_index];
-        let hosting_data = HostingData {
-            id: Uuid::new_v4(),
-            host: contact.id,
-            name: course_id,
-            guest_list: Vec::new(),
-        };
-        hosting_list.insert(hosting_data.id, hosting_data);
-
-        current_course_hosts += 1;
-        if current_course_hosts >= hosts_per_course {
-            if course_with_more_hosts.is_some()
-                && course_with_more_hosts.expect("Expect uuid!") == course_id
-            {
-                if current_course_hosts == hosts_per_course + overhang {
-                    current_course_index += 1;
-                    current_course_hosts = 0;
-                }
-            } else {
-                current_course_index += 1;
-                current_course_hosts = 0;
-            }
-        }
-    }
-
-    hosting_list
 }
 
 impl Calculator {
@@ -433,10 +642,12 @@ impl Calculator {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use uuid::Uuid;
 
     use crate::{
-        calculator::Calculator,
+        calculator::{Calculator, MeetingTracker},
         storage::{ContactData, CookAndRunData, CourseData},
     };
 
@@ -494,5 +705,17 @@ mod tests {
             calculator.course_list[2], course_3.id,
             "Third course should be 'Course 3'"
         );
+    }
+
+    #[test]
+    fn test_meeting_tracker() {
+        let mut tracker = MeetingTracker::new();
+        let person1 = Uuid::new_v4();
+        let person2 = Uuid::new_v4();
+
+        assert!(!tracker.has_met(person1, person2));
+        tracker.record_meeting(person1, person2);
+        assert!(tracker.has_met(person1, person2));
+        assert_eq!(tracker.get_meeting_count(person1, person2), 1);
     }
 }
