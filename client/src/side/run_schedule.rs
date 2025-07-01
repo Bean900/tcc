@@ -174,7 +174,9 @@ pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
 
 
                 p { class: "font-gluten text-[#543D2B] mt-2",
-                    "Welcome to the Run Schedule! Here you can find all the details about your event, including your hosting responsibilities and the timeline of activities."
+                    if let Some(plan_text) = cook_and_run.plan_text {
+                        "{plan_text}"
+                    }
                 }
 
                 // MyInfo
@@ -219,7 +221,7 @@ impl HostingParam {
             course_name: hosting.course.name.clone(),
             course_team_name: hosting.host.team_name.clone(),
             course_team_tel: hosting.host.phone_number.clone(),
-            course_time: hosting.course.time.format("%H:%S").to_string(),
+            course_time: hosting.course.time.format("%H:%M").to_string(),
             address: hosting.host.address.address.clone(),
             guests: hosting
                 .guest_list
@@ -283,7 +285,7 @@ fn TimeLine(
 
             div { class: "absolute top-1/2 -translate-y-1/2 h-(--line-height) w-full bg-[#543D2B]" }
             div { class: "flex h-(--container-height) items-baseline px-(--item-overflow)",
-                if start_point.is_none() {
+                if start_point.is_some() {
                     TimeLineElement {
                         is_up: false,
                         course_name: start_name,
@@ -420,7 +422,7 @@ fn MyHosting(hosting: Hosting) -> Element {
             // Guest
             div { class: "flex items-start",
                 PersonSVG {}
-                div { class: "mx-2 text-[#543D2B] font-gluten",
+                div { class: "mx-2 text-[#543D2B] font-gluten font-bold",
                     span { "({guest.members}) {guest.team_name}" }
                 }
             }
@@ -455,7 +457,7 @@ fn MyInfo(contact: ContactData) -> Element {
         // Team
         div { class: "flex items-start",
             PersonSVG {}
-            div { class: "mx-2 text-[#543D2B] font-gluten",
+            div { class: "mx-2 text-[#543D2B] font-gluten font-bold",
                 span { "({contact.members}) {contact.team_name}" }
             }
         }
@@ -513,7 +515,7 @@ fn MyInfo(contact: ContactData) -> Element {
         div { class: "relative flex items-start",
             img {
                 src: LEAF_1,
-                class: "absolute mx-70 my-10 bottom-1 w-18 h-18 rotate-50",
+                class: "absolute mx-70 my-4 bottom-1 w-18 h-18 rotate-50",
             }
         }
     )
