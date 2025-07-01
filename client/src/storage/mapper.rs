@@ -13,7 +13,7 @@ pub struct Hosting {
 }
 
 impl Hosting {
-    fn to_hosting(
+    fn from_hosting_data(
         hosting_data: &HostingData,
         course_list: &Vec<CourseData>,
         contact_list: &Vec<ContactData>,
@@ -48,7 +48,7 @@ pub struct Plan {
 }
 
 impl Plan {
-    pub fn to_plan(
+    pub fn from_plan_data(
         plan_data: &PlanData,
         course_list: &Vec<CourseData>,
         contact_list: &Vec<ContactData>,
@@ -57,7 +57,7 @@ impl Plan {
         let hosting_list: Vec<Hosting> = plan_data
             .hosting_list
             .iter()
-            .map(|h| Hosting::to_hosting(h, course_list, contact_list))
+            .map(|h| Hosting::from_hosting_data(h, course_list, contact_list))
             .collect();
         let walking_path: HashMap<ContactData, Vec<Hosting>> = plan_data
             .walking_path

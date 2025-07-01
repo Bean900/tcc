@@ -9,7 +9,7 @@ use uuid::Uuid;
 use web_sys::console;
 
 use crate::{
-    side::{debounce, Input, InputError, InputTime, RedButton, SavingIcon},
+    side::{Input, InputError, InputTime, RedButton, SavingIcon},
     storage::{CourseData, LocalStorage, StorageW},
 };
 

@@ -7,8 +7,13 @@ mod calculator;
 mod side;
 mod storage;
 use side::Dashboard;
-use side::ProjectDetailPage;
+use side::ProjectCalculationPage;
+use side::ProjectCoursesPage;
+use side::ProjectOverviewPage;
+use side::ProjectStartEndPage;
+use side::ProjectTeamsPage;
 use side::RunSchedule;
+use side::ShareTeam;
 use storage::LocalStorage;
 use uuid::Uuid;
 use web_sys::console;
@@ -29,7 +34,18 @@ enum Route {
         #[route("/")]
         Dashboard {},
         #[route("/:cook_and_run_id")]
-        ProjectDetailPage { cook_and_run_id: Uuid },
+        #[route("/:cook_and_run_id/overview")]
+        ProjectOverviewPage { cook_and_run_id: Uuid },
+        #[route("/:cook_and_run_id/teams")]
+        ProjectTeamsPage { cook_and_run_id: Uuid },
+        #[route("/:cook_and_run_id/team-share/:share_id")]
+        ShareTeam { cook_and_run_id: Uuid ,share_id: Uuid},
+        #[route("/:cook_and_run_id/start-end")]
+        ProjectStartEndPage { cook_and_run_id: Uuid },
+        #[route("/:cook_and_run_id/courses")]
+        ProjectCoursesPage { cook_and_run_id: Uuid },
+        #[route("/:cook_and_run_id/calculation")]
+        ProjectCalculationPage { cook_and_run_id: Uuid },
         #[route("/:cook_and_run_id/run-schedule/:contact_id")]
         RunSchedule {cook_and_run_id:Uuid, contact_id: Uuid },
     #[end_nest]

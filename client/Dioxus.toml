@@ -13,12 +13,13 @@ base_path = "/"
 
 [web.watcher]
 index_on_404 = true
+reload_html = true
 
 # Additional CSS style files
 style = ["/assets/output.css"]
 
 # Additional JavaScript files
-script = []
+script = [  ]
 
 [web.resource.dev]
 

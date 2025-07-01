@@ -1,17 +1,21 @@
+use std::sync::{Arc, Mutex};
+
 use chrono::NaiveTime;
 use dioxus::prelude::*;
 use uuid::Uuid;
 use web_sys::{
-    js_sys,
+    console, js_sys,
     wasm_bindgen::{JsCast, JsValue},
     window,
 };
 
 use crate::{
-    side::{
-        AddressSVG, DownloadSVG, Headline1, Headline2, PersonSVG, PhoneSVG, StartSVG, WarningSVG,
+    side::{AddressSVG, Headline1, Headline2, PersonSVG, PhoneSVG, StartSVG, WarningSVG},
+    storage::{
+        mapper::{Hosting, Plan},
+        AddressData, ContactData, CookAndRunData, CourseData, HostingData, LocalStorage,
+        MeetingPointData, StorageR,
     },
-    storage::{mapper::Hosting, AddressData, ContactData, CourseData, MeetingPointData},
     Route,
 };
 
@@ -22,87 +26,83 @@ const LEAF_2: Asset = asset!("/assets/leaf_2.png");
 const CAKE: Asset = asset!("/assets/cake.png");
 const CARROT: Asset = asset!("/assets/carrot.png");
 
-fn export_as_image(element_id: &str, filename: &str) {
-    if let Some(window) = window() {
-        if let Some(export_fn) = window
-            .get("exportElementAsImage")
-            .and_then(|val| val.dyn_into::<js_sys::Function>().ok())
-        {
-            let _ = export_fn.call2(
-                &JsValue::NULL,
-                &JsValue::from_str(element_id),
-                &JsValue::from_str(filename),
-            );
-        }
-    }
+fn get_cook_and_run(cook_and_run_id: Uuid) -> Result<CookAndRunData, String> {
+    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
+    let storage = storage.lock().expect("Expected storage lock");
+
+    let result = storage.select_cook_and_run(cook_and_run_id);
+    result
 }
 
 #[component]
 pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
-    let cook_and_run_date = "12.12.2024".to_string();
-    let current_contact = get_you(contact_id);
-    let walking_path: Vec<Hosting> = vec![
-        Hosting {
-            id: Uuid::new_v4(),
-            course: CourseData {
-                id: Uuid::new_v4(),
-                name: "Vorspeise".to_string(),
-                time: NaiveTime::from_hms_opt(17, 0, 0).unwrap(),
-            },
-            guest_list: vec![get_contact_1(), get_you(contact_id)],
-            host: get_contact_2(),
-        },
-        Hosting {
-            id: Uuid::new_v4(),
-            course: CourseData {
-                id: Uuid::new_v4(),
-                name: "Hauptgang".to_string(),
-                time: NaiveTime::from_hms_opt(18, 30, 0).unwrap(),
-            },
-            guest_list: vec![get_contact_1(), get_contact_2()],
-            host: get_you(contact_id),
-        },
-        Hosting {
-            id: Uuid::new_v4(),
-            course: CourseData {
-                id: Uuid::new_v4(),
-                name: "Nachtisch".to_string(),
-                time: NaiveTime::from_hms_opt(20, 0, 0).unwrap(),
-            },
-            guest_list: vec![get_contact_1(), get_you(contact_id)],
-            host: get_contact_2(),
-        },
-    ];
-
-    let start_point: Option<MeetingPointData> = Some(MeetingPointData {
-        name: "Custome Startpunkt".to_string(),
-        time: NaiveTime::from_hms_opt(16, 0, 0).unwrap(),
-        address: AddressData {
-            address: "Peterstor 1, 36037 Fulda".to_string(),
-            latitude: 50.55006388937696,
-            longitude: 9.678819552401489,
-        },
-    });
-    let end_point = Some(MeetingPointData {
-        name: "Open end Karaoke".to_string(),
-        time: NaiveTime::from_hms_opt(21, 0, 0).unwrap(),
-        address: AddressData {
-            address: "Peterstor 1, 36037 Fulda".to_string(),
-            latitude: 50.55006388937696,
-            longitude: 9.678819552401489,
-        },
-    });
-
-    let hosting_param_list: Vec<HostingParam> = walking_path
+    let cook_and_run = get_cook_and_run(cook_and_run_id);
+    if cook_and_run.is_err() {
+        console::error_1(
+            &format!(
+                "Error while loading cook and run: {}",
+                cook_and_run.expect_err("Expect error"),
+            )
+            .into(),
+        );
+        return rsx!(
+            div { "Cook and Run not found!" }
+        );
+    }
+    let cook_and_run = cook_and_run.expect("Expect cook and run");
+    let cook_and_run_date = cook_and_run.occur.format("%d.%m.%Y").to_string();
+    let current_contact = cook_and_run
+        .contact_list
         .iter()
-        .map(|h| HostingParam::new(h.clone(), current_contact.id))
+        .filter(|c| c.id.eq(&contact_id))
+        .next();
+    if current_contact.is_none() {
+        console::error_1(
+            &format!(
+                "Error while loading contact: {}",
+                "Contact not found in cook and run",
+            )
+            .into(),
+        );
+        return rsx!(
+            div { "Cook and Run not found!" }
+        );
+    }
+    let current_contact = current_contact.expect("Expect current contact").clone();
+
+    let plan_data = cook_and_run.top_plan;
+    if plan_data.is_none() {
+        console::error_1(&format!("Error while loading top plan: {}", "No top plan found",).into());
+        return rsx!(
+            div { "Cook and Run not found!" }
+        );
+    }
+
+    let plan_data = plan_data.expect("Expect walking path");
+    let plan = Plan::from_plan_data(
+        &plan_data,
+        &cook_and_run.course_list,
+        &cook_and_run.contact_list,
+    );
+
+    let start_point = cook_and_run.start_point.clone();
+    let end_point = cook_and_run.end_point.clone();
+
+    let hosting_param_list: Vec<HostingParam> = plan
+        .walking_path
+        .iter()
+        .filter(|current_walking_path| current_walking_path.0.id.eq(&current_contact.id))
+        .flat_map(|current_walking_path| current_walking_path.1.iter())
+        .map(|hosting| HostingParam::new(hosting, current_contact.id))
         .collect();
 
-    let current_hosting = walking_path
+    let current_hosting = plan
+        .hosting_list
         .iter()
-        .find(|h| h.host.id == current_contact.id)
+        .find(|h| h.host.id.eq(&current_contact.id))
         .cloned()
-        .expect("Expect to find hosting of current contact!");
+        .expect("Expect one hosting for current contact");
+
     rsx!(
         div { class: "fixed bottom-4 right-4 z-50 flex gap-4",
 
@@ -130,7 +130,7 @@ pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
             // Share Button
             button {
                 class: "bg-green-600 hover:bg-green-700 text-white p-3 rounded-full shadow-lg",
-                onclick: |_| { export_as_image("screenshot-target", "screenshot.png") },
+                onclick: |_| {},
                 svg {
                     class: "w-6 h-6",
                     fill: "none",
@@ -212,15 +212,15 @@ struct HostingParam {
 }
 
 impl HostingParam {
-    fn new(hosting: Hosting, current_contact_id: Uuid) -> Self {
+    fn new(hosting: &Hosting, current_contact_id: Uuid) -> Self {
         HostingParam {
             id: hosting.id,
             you_are_hosting: hosting.host.id.eq(&current_contact_id),
-            course_name: hosting.course.name,
-            course_team_name: hosting.host.team_name,
-            course_team_tel: hosting.host.phone_number,
+            course_name: hosting.course.name.clone(),
+            course_team_name: hosting.host.team_name.clone(),
+            course_team_tel: hosting.host.phone_number.clone(),
             course_time: hosting.course.time.format("%H:%S").to_string(),
-            address: hosting.host.address.address,
+            address: hosting.host.address.address.clone(),
             guests: hosting
                 .guest_list
                 .iter()
@@ -517,58 +517,4 @@ fn MyInfo(contact: ContactData) -> Element {
             }
         }
     )
-}
-
-fn get_contact_1() -> ContactData {
-    ContactData {
-        id: Uuid::new_v4(),
-        team_name: "Die coolen Kartoffeln".to_string(),
-        address: AddressData {
-            address: "Maximilian-Kolbe-Weg 25, 36093 Künzell".to_string(),
-            latitude: 50.54239119819311,
-            longitude: 9.727350797271194,
-        },
-        mail: "".to_string(),
-        phone_number: "+49 12345876".to_string(),
-        members: 2,
-        diets: vec!["Kiwi".to_string()],
-        needs_check: false,
-        notes: vec![],
-    }
-}
-
-fn get_contact_2() -> ContactData {
-    ContactData {
-        id: Uuid::new_v4(),
-        team_name: "Der rote Knoten".to_string(),
-        address: AddressData {
-            address: "Neuenberger Str. 28, 36041 Fulda".to_string(),
-            latitude: 50.54845582305795,
-            longitude: 9.660697060598386,
-        },
-        mail: "".to_string(),
-        phone_number: "+49 7654535".to_string(),
-        members: 3,
-        diets: vec![],
-        needs_check: false,
-        notes: vec![],
-    }
-}
-
-fn get_you(id: Uuid) -> ContactData {
-    ContactData {
-        id,
-        team_name: "Wolperts".to_string(),
-        address: AddressData {
-            address: "Maganbertstraße 24, 36041 Fulda".to_string(),
-            latitude: 50.56142498405875,
-            longitude: 9.640207061201759,
-        },
-        mail: "wolpi@wolpert.de".to_string(),
-        phone_number: "+49 346346346".to_string(),
-        members: 1,
-        diets: vec!["schlechtes Essen".to_string()],
-        needs_check: false,
-        notes: vec![],
-    }
 }

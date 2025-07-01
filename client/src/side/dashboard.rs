@@ -1,11 +1,14 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    fs,
+    sync::{Arc, Mutex},
+};
 
 use dioxus::prelude::*;
 use uuid::Uuid;
-use web_sys::console;
+use web_sys::{console, wasm_bindgen::JsCast, HtmlInputElement};
 
 use crate::{
-    side::{CloseButton, GreenButton, Input, InputError},
+    side::{BlueButton, CloseButton, GreenButton, Input, InputError},
     storage::{LocalStorage, StorageR, StorageW},
     Route,
 };
@@ -159,6 +162,7 @@ fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
                 h2 { class: "text-2xl font-semibold text-gray-800 mb-4", "Create Project" }
 
                 // Input field
+
                 Input {
                     place_holer: Some("Project Name".to_string()),
                     value: project_name_signal.clone(),
@@ -173,10 +177,68 @@ fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
                         }
                     },
                 }
+
+                // Input file
+                input {
+                    id: "project_upload",
+                    r#type: "file",
+                    accept: ".tcc",
+                    hidden: true,
+                    multiple: false,
+                    onchange: move |evt| {
+                        async move {
+                            if let Some(file_engine) = evt.files() {
+                                let files = file_engine.files();
+                                for file_name in &files {
+                                    if let Some(file) = file_engine.read_file_to_string(file_name).await
+                                    {
+                                        let storage = use_context::<Arc<Mutex<LocalStorage>>>();
+                                        let mut storage = storage.lock().expect("Expected storage lock");
+                                        let project_id = Uuid::new_v4();
+                                        let result = storage.create_cook_and_run_json(project_id, file);
+                                        if result.is_err() {
+                                            console::error_1(
+                                                &format!(
+                                                    "Error creating project from file: {}",
+                                                    result.err().expect("Expected error"),
+                                                )
+                                                    .into(),
+                                            );
+                                            error_signal
+                                                .set("Error creating project from file".to_string());
+                                        } else {
+                                            create_project_signal
+                                                .set(rsx! {});
+                                            use_navigator()
+                                                .push(Route::ProjectOverviewPage {
+                                                    cook_and_run_id: project_id,
+                                                });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                }
+
                 // Error message
                 InputError { error: error_signal.read() }
 
                 div { class: "flex justify-center",
+
+                    BlueButton {
+                        text: "Upload Project".to_string(),
+                        onclick: move |_| {
+                            if let Some(doc) = web_sys::window().and_then(|w| w.document()) {
+                                if let Some(el) = doc.get_element_by_id("project_upload") {
+                                    if let Ok(input) = el.dyn_into::<HtmlInputElement>() {
+                                        input.click();
+                                    }
+                                }
+                            }
+                        },
+                    }
+
 
                     GreenButton {
                         text: "Create".to_string(),
@@ -202,7 +264,7 @@ fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
                             }
                             create_project_signal.set(rsx! {});
                             use_navigator()
-                                .push(Route::ProjectDetailPage {
+                                .push(Route::ProjectOverviewPage {
                                     cook_and_run_id: project_id,
                                 });
                         },

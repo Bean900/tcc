@@ -88,11 +88,49 @@ impl StorageR for LocalStorage {
         }
         Err(format!("Cook and run project with ID {} not found", id))
     }
+
+    fn select_cook_and_run_json(&self, id: Uuid) -> Result<String, String> {
+        console::log_1(&format!("LocalStorage - Load cook and run JSON!").into());
+        for data in &self.stored_data {
+            if data.id == id {
+                let json_string = serde_json::to_string(data);
+                if json_string.is_err() {
+                    let error = json_string.err().expect("Expected serde error");
+                    console::error_1(
+                        &format!("LocalStorage - JSON parsing error: {}", error).into(),
+                    );
+                    return Err(format!(
+                        "Cook and run project could not be parsed into JSON: {}",
+                        error
+                    ));
+                }
+                return Ok(json_string.expect("Expected parsed JSON"));
+            }
+        }
+        Err(format!("Cook and run project with ID {} not found", id))
+    }
 }
 
 impl StorageW for LocalStorage {
     fn create_cook_and_run(&mut self, uuid: Uuid, name: String) -> Result<(), String> {
         console::log_1(&format!("LocalStorage - Create cook and run \"{}\"!", name).into());
+
+        for data in &mut self.stored_data {
+            if data.id == uuid {
+                console::error_1(
+                    &format!(
+                        "LocalStorage - Cook and run with ID {} already exists!",
+                        uuid
+                    )
+                    .into(),
+                );
+                return Err(format!(
+                    "Cook and run project with ID {} already exists",
+                    uuid
+                ));
+            }
+        }
+
         let cook_and_run = CookAndRunData::new(uuid, name);
         self.stored_data.push(cook_and_run.clone());
 
@@ -645,5 +683,109 @@ impl StorageW for LocalStorage {
             }
         }
         Err(format!("Cook and run project with ID {} not found", id))
+    }
+
+    fn update_top_plan_in_cook_and_run(
+        &mut self,
+        id: Uuid,
+        top_plan: Option<super::PlanData>,
+    ) -> Result<(), String> {
+        for data in &mut self.stored_data {
+            if data.id == id {
+                data.top_plan = top_plan;
+                let stored_data_string = serde_json::to_string(&self.stored_data);
+
+                if stored_data_string.is_err() {
+                    return Err(format!(
+                        "Struct could not be parsed into json: {}",
+                        stored_data_string.err().expect("Expected serde error")
+                    ));
+                }
+
+                let stored_data_string = stored_data_string.expect("Expected parsed data");
+
+                let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+
+                if result.is_err() {
+                    return Err(format!(
+                        "Data could not be stored: {}",
+                        result
+                            .err()
+                            .expect("Expected storage error")
+                            .as_string()
+                            .expect("Expected storage error to be string")
+                    ));
+                }
+                return Ok(());
+            }
+        }
+        Err(format!("Cook and run project with ID {} not found", id))
+    }
+
+    fn create_cook_and_run_json(&mut self, uuid: Uuid, json: String) -> Result<(), String> {
+        console::log_1(&format!("LocalStorage - Create cook and run from JSON!").into());
+
+        for data in &mut self.stored_data {
+            if data.id == uuid {
+                console::error_1(
+                    &format!(
+                        "LocalStorage - Cook and run with ID {} already exists!",
+                        uuid
+                    )
+                    .into(),
+                );
+                return Err(format!(
+                    "Cook and run project with ID {} already exists",
+                    uuid
+                ));
+            }
+        }
+
+        let cook_and_run: Result<CookAndRunData, serde_json::Error> = serde_json::from_str(&json);
+        if cook_and_run.is_err() {
+            let error = cook_and_run.err().expect("Expected serde error");
+            console::error_1(&format!("LocalStorage - JSON parsing error: {}", error).into());
+            return Err(format!(
+                "Cook and run project could not be parsed from JSON: {}",
+                error
+            ));
+        }
+        let mut cook_and_run = cook_and_run.expect("Expected parsed CookAndRunData");
+        cook_and_run.id = uuid;
+
+        self.stored_data.push(cook_and_run.clone());
+
+        let stored_data_string = serde_json::to_string(&self.stored_data);
+
+        if stored_data_string.is_err() {
+            self.stored_data.pop();
+            let error = stored_data_string.err().expect("Expected serde error");
+            console::error_1(
+                &format!(
+                    "LocalStorage - Struct could not be parse into json: {}",
+                    error
+                )
+                .into(),
+            );
+            return Err(format!("Struct could not be parse into json: {}", error));
+        }
+
+        let stored_data_string = stored_data_string.expect("Expected parsed data");
+
+        let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+
+        if result.is_err() {
+            self.stored_data.pop();
+            let error = result
+                .err()
+                .expect("Expected storage error")
+                .as_string()
+                .expect("Expected storage error to be string");
+            console::error_1(&format!("LocalStorage - Data could not be stored: {}", error).into());
+            return Err(format!("Data could not be stored: {}", error));
+        }
+
+        console::log_1(&format!("LocalStorage - Created cook and run from JSON!").into());
+        Ok(())
     }
 }

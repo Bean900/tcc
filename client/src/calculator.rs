@@ -1,18 +1,13 @@
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
-    thread,
-    time::Duration,
 };
 
-use log::debug;
 use uuid::Uuid;
 
-use crate::storage::{
-    mapper::Hosting, AddressData, ContactData, CookAndRunData, HostingData, PlanData,
-};
+use crate::storage::{AddressData, ContactData, CookAndRunData, HostingData, PlanData};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Calculator {
     contact_list: HashMap<Uuid, ContactData>,
     course_list: Vec<Uuid>,
@@ -28,12 +23,6 @@ struct Plan {
     hosting_list: HashMap<Uuid /*Hosting ID */, HostingData>,
     walking_path: HashMap<Uuid /*Contact ID */, Vec<Uuid /*Hosting ID */>>,
     greatest_distance: f64,
-}
-
-#[derive(Clone, Debug)]
-struct ContactWithCentrality {
-    contact: ContactData,
-    centrality_score: f64,
 }
 
 #[derive(Debug)]
@@ -270,55 +259,55 @@ impl Calculator {
         // Reset should_stop
         *should_stop.lock().unwrap() = false;
 
-        thread::spawn(move || {
-            // Deterministic calculation
-            let result = Self::calculate_optimal_plan(
-                &contact_list,
-                &course_list,
-                &start_point,
-                &end_point,
-                &course_with_more_hosts,
-            );
+        // thread::spawn(move || {
+        // Deterministic calculation
+        let result = Self::calculate_optimal_plan(
+            &contact_list,
+            &course_list,
+            &start_point,
+            &end_point,
+            &course_with_more_hosts,
+        );
 
-            match result {
-                Ok(hosting_map) => {
-                    println!("Found optimal PLAN with {} hostings", hosting_map.len());
+        match result {
+            Ok(hosting_map) => {
+                println!("Found optimal PLAN with {} hostings", hosting_map.len());
+                let plan = Plan::new(
+                    &start_point,
+                    &end_point,
+                    &course_list,
+                    hosting_map,
+                    &contact_list,
+                );
+                println!("Plan fitness: {}", plan.greatest_distance);
+                top_plan.lock().unwrap().replace(plan);
+            }
+            Err(err) => {
+                println!("Error during optimal calculation: {}", err);
+                // Fallback to relaxed constraints
+                if let Ok(fallback_map) = Self::calculate_with_relaxed_constraints(
+                    &contact_list,
+                    &course_list,
+                    &start_point,
+                    &end_point,
+                    &course_with_more_hosts,
+                ) {
+                    println!("Found fallback PLAN with {} hostings", fallback_map.len());
                     let plan = Plan::new(
                         &start_point,
                         &end_point,
                         &course_list,
-                        hosting_map,
+                        fallback_map,
                         &contact_list,
                     );
-                    println!("Plan fitness: {}", plan.greatest_distance);
+                    println!("Fallback plan fitness: {}", plan.greatest_distance);
                     top_plan.lock().unwrap().replace(plan);
-                }
-                Err(err) => {
-                    println!("Error during optimal calculation: {}", err);
-                    // Fallback to relaxed constraints
-                    if let Ok(fallback_map) = Self::calculate_with_relaxed_constraints(
-                        &contact_list,
-                        &course_list,
-                        &start_point,
-                        &end_point,
-                        &course_with_more_hosts,
-                    ) {
-                        println!("Found fallback PLAN with {} hostings", fallback_map.len());
-                        let plan = Plan::new(
-                            &start_point,
-                            &end_point,
-                            &course_list,
-                            fallback_map,
-                            &contact_list,
-                        );
-                        println!("Fallback plan fitness: {}", plan.greatest_distance);
-                        top_plan.lock().unwrap().replace(plan);
-                    } else {
-                        println!("Even fallback calculation failed");
-                    }
+                } else {
+                    println!("Even fallback calculation failed");
                 }
             }
-        });
+        }
+        // });
     }
 
     fn calculate_optimal_plan(
@@ -642,7 +631,6 @@ impl Calculator {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
 
     use uuid::Uuid;
 

@@ -1,6 +1,4 @@
-use dioxus::html::cite;
 use serde::Deserialize;
-use serde_json::json;
 
 pub async fn get_address(address: &str) -> Result<Feature, String> {
     let url = format!(
@@ -90,6 +88,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
 
     #[test]

@@ -5,10 +5,19 @@ use uuid::Uuid;
 use web_sys::console;
 
 use crate::{
-    side::AddressSVG,
-    storage::{ContactData, LocalStorage, StorageR},
+    calculator::Calculator,
+    side::{AddressSVG, BlueButton},
+    storage::{ContactData, LocalStorage, PlanData, StorageR, StorageW},
     Route,
 };
+
+fn save_plan(cook_and_run_id: Uuid, plan: Option<PlanData>) -> Result<(), String> {
+    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
+    let mut storage = storage.lock().expect("Expected storage lock");
+
+    let result = storage.update_top_plan_in_cook_and_run(cook_and_run_id, plan);
+    result
+}
 
 #[component]
 pub fn Calculate(id: Uuid) -> Element {
@@ -28,39 +37,73 @@ pub fn Calculate(id: Uuid) -> Element {
         return rsx!( "Error while loading cook and run" );
     }
     let cook_and_run = cook_and_run.expect("Expect cook and run");
+    let mut top_plan_signal = use_signal(|| cook_and_run.top_plan.clone());
+
+    let calculator = Calculator::new(&cook_and_run);
+    if calculator.is_err() {
+        console::error_1(
+            &format!(
+                "Error while creating calculator: {}",
+                calculator.expect_err("Expect error"),
+            )
+            .into(),
+        );
+        return rsx!( "Error while creating calculator. Are all fields set?" );
+    }
+    let calculator = calculator.expect("Expect calculator");
 
     rsx! {
         section {
             h2 { class: "text-3xl font-bold mb-6 text-gray-900", "Calculate" }
-            button { class: "bg-blue-500 text-white font-semibold py-2 px-4 rounded hover:bg-blue-600 transition-all",
-                "Calculate"
+
+            BlueButton {
+                text: "Calculate",
+                onclick: move |_| {
+                    calculator.calculate();
+                    calculator.stop();
+                    match calculator.get_top_plan() {
+                        Some(result) => {
+                            if let Err(e) = save_plan(id, Some(result.clone())) {
+                                console::error_1(&format!("Error saving plan: {}", e).into());
+                            } else {
+                                top_plan_signal.set(Some(result));
+                                console::log_1(&"Plan saved successfully".into());
+                            }
+                        }
+                        None => {
+                            console::error_1(&format!("Calculation result not set!").into());
+                        }
+                    }
+                },
             }
             hr { class: "my-6 border-gray-300" }
             h2 { class: "text-3xl font-bold mb-6 text-gray-900", "Run Schedule" }
             div { class: "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 p-6 max-h-[calc(100vh-16rem)] overflow-y-auto pr-2",
 
-                {
-                    cook_and_run
-                        .contact_list
-                        .iter()
-                        .map(|contact| {
-                            let contact_id = contact.id.clone();
-                            rsx! {
-                                a {
-                                    key: {contact_id},
-                                    onclick: move |_| {
-                                        let cook_and_run_id = id;
-                                        use_navigator()
-                                            .push(Route::RunSchedule {
-                                                cook_and_run_id,
-                                                contact_id,
-                                            });
-                                    },
-                                    class: "bg-white relative shadow-lg rounded-xl p-6 hover:shadow-xl transition-all cursor-pointer hover:scale-105",
-                                    div { class: "flex flex-col items-start", {ContactCard(contact.clone())} }
+                if top_plan_signal.read().is_some() {
+                    {
+                        cook_and_run
+                            .contact_list
+                            .iter()
+                            .map(|contact| {
+                                let contact_id = contact.id.clone();
+                                rsx! {
+                                    a {
+                                        key: {contact_id},
+                                        onclick: move |_| {
+                                            let cook_and_run_id = id;
+                                            use_navigator()
+                                                .push(Route::RunSchedule {
+                                                    cook_and_run_id,
+                                                    contact_id,
+                                                });
+                                        },
+                                        class: "bg-white relative shadow-lg rounded-xl p-6 hover:shadow-xl transition-all cursor-pointer hover:scale-105",
+                                        div { class: "flex flex-col items-start", {ContactCard(contact.clone())} }
+                                    }
                                 }
-                            }
-                        })
+                            })
+                    }
                 }
             }
         }

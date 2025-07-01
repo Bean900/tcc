@@ -7,7 +7,10 @@ mod local_storage;
 pub mod mapper;
 pub use local_storage::LocalStorage;
 
+use std::f64::consts::PI;
+
 pub trait StorageW {
+    fn create_cook_and_run_json(&mut self, uuid: Uuid, json: String) -> Result<(), String>;
     fn create_cook_and_run(&mut self, uuid: Uuid, name: String) -> Result<(), String>;
     fn delete_cook_and_run(&mut self, id: Uuid) -> Result<(), String>;
     fn update_meta_of_cook_and_run(
@@ -64,11 +67,18 @@ pub trait StorageW {
         id: Uuid,
         course_data_id: Uuid,
     ) -> Result<(), String>;
+
+    fn update_top_plan_in_cook_and_run(
+        &mut self,
+        id: Uuid,
+        top_plan: Option<PlanData>,
+    ) -> Result<(), String>;
 }
 
 pub trait StorageR {
     fn select_all_cook_and_run_minimal(&self) -> Result<Vec<CookAndRunMinimalData>, String>;
     fn select_cook_and_run(&self, id: Uuid) -> Result<CookAndRunData, String>;
+    fn select_cook_and_run_json(&self, id: Uuid) -> Result<String, String>; // Returns JSON string of CookAndRunData
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -117,6 +127,29 @@ impl Eq for AddressData {}
 impl Hash for AddressData {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.address.hash(state);
+    }
+}
+
+impl AddressData {
+    fn deg_to_rad(deg: f64) -> f64 {
+        deg * PI / 180.0
+    }
+
+    pub fn distance(&self, addr: &AddressData) -> f64 {
+        let r = 6371.0;
+
+        let dlat = Self::deg_to_rad(addr.latitude - self.latitude);
+        let dlon = Self::deg_to_rad(addr.longitude - self.longitude);
+
+        let lat1_rad = Self::deg_to_rad(self.latitude);
+        let lat2_rad = Self::deg_to_rad(addr.latitude);
+
+        let a = (dlat / 2.0).sin().powi(2)
+            + lat1_rad.cos() * lat2_rad.cos() * (dlon / 2.0).sin().powi(2);
+
+        let c = 2.0 * a.sqrt().asin();
+
+        r * c
     }
 }
 

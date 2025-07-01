@@ -3,13 +3,14 @@ use std::sync::{Arc, Mutex};
 use chrono::NaiveDate;
 use dioxus::prelude::*;
 use uuid::Uuid;
-use web_sys::console;
+use web_sys::wasm_bindgen::{JsCast, JsValue};
+use web_sys::{console, js_sys, Blob, HtmlAnchorElement, Url};
 
 use crate::side::{InputDate, InputMultirow};
-use crate::storage::{CookAndRunData, LocalStorage};
+use crate::storage::{CookAndRunData, LocalStorage, StorageR};
 
 use crate::{
-    side::{CloseButton, GreenButton, Input, InputError, RedButton, RedHollowButton},
+    side::{BlueButton, CloseButton, GreenButton, Input, InputError, RedButton, RedHollowButton},
     storage::StorageW,
     Route,
 };
@@ -38,6 +39,41 @@ fn update_meta_of_cook_and_run(
     let mut storage = storage.lock().expect("Expected storage lock");
     let result = storage.update_meta_of_cook_and_run(id, new_name, plan_text, occur);
     result
+}
+
+fn select_cook_and_run_json(id: Uuid) -> Result<String, String> {
+    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
+    let storage = storage.lock().expect("Expected storage lock");
+    storage.select_cook_and_run_json(id)
+}
+
+pub fn download_file(filename: &str, contents: &str) {
+    // Create a Blob from the string content
+    let array = js_sys::Array::new();
+    array.push(&JsValue::from_str(contents));
+    let blob = Blob::new_with_str_sequence(&array).unwrap();
+
+    // Create a URL for the Blob
+    let url = Url::create_object_url_with_blob(&blob).unwrap();
+
+    // Create a temporary anchor element
+    let document = web_sys::window().unwrap().document().unwrap();
+    let a = document
+        .create_element("a")
+        .unwrap()
+        .dyn_into::<HtmlAnchorElement>()
+        .unwrap();
+
+    a.set_href(&url);
+    a.set_download(filename);
+
+    // Append it to the body and trigger click
+    document.body().unwrap().append_child(&a).unwrap();
+    a.click();
+
+    // Clean up
+    document.body().unwrap().remove_child(&a).unwrap();
+    Url::revoke_object_url(&url).unwrap();
 }
 
 #[component]
@@ -161,6 +197,25 @@ pub(crate) fn Overview(props: CookAndRunData) -> Element {
                     button { class: "bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 cursor-pointer",
                         "Upload to Cloud"
                     }
+                }
+
+                BlueButton {
+                    onclick: move |_| {
+                        let result = select_cook_and_run_json(props.id);
+                        if result.is_err() {
+                            console::error_1(
+                                &format!(
+                                    "Error selecting project JSON: {}",
+                                    result.err().expect("Expected error"),
+                                )
+                                    .into(),
+                            );
+                            return;
+                        }
+                        let json_content = result.expect("Expected JSON content");
+                        download_file(&format!("{}.tcc", props.name), &json_content);
+                    },
+                    text: "Download".to_string(),
                 }
 
                 div { class: "ml-auto",

@@ -2,6 +2,7 @@ mod address;
 mod calculate;
 mod courses;
 mod overview;
+mod share_team;
 mod startend;
 mod teams;
 
@@ -15,6 +16,8 @@ use dioxus::prelude::*;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 use web_sys::console;
+
+pub use share_team::ShareTeam;
 
 fn get_cook_and_run_data(id: Uuid) -> Result<CookAndRunData, String> {
     let storage = use_context::<Arc<Mutex<LocalStorage>>>();
@@ -33,7 +36,39 @@ enum MenuPage {
 }
 
 #[component]
-pub fn ProjectDetailPage(cook_and_run_id: Uuid) -> Element {
+pub fn ProjectOverviewPage(cook_and_run_id: Uuid) -> Element {
+    rsx!(
+        ProjectDetailPage { cook_and_run_id, menu: MenuPage::Overview }
+    )
+}
+
+#[component]
+pub fn ProjectTeamsPage(cook_and_run_id: Uuid) -> Element {
+    rsx!(
+        ProjectDetailPage { cook_and_run_id, menu: MenuPage::Teams }
+    )
+}
+#[component]
+pub fn ProjectStartEndPage(cook_and_run_id: Uuid) -> Element {
+    rsx!(
+        ProjectDetailPage { cook_and_run_id, menu: MenuPage::StartEnd }
+    )
+}
+#[component]
+pub fn ProjectCoursesPage(cook_and_run_id: Uuid) -> Element {
+    rsx!(
+        ProjectDetailPage { cook_and_run_id, menu: MenuPage::Courses }
+    )
+}
+#[component]
+pub fn ProjectCalculationPage(cook_and_run_id: Uuid) -> Element {
+    rsx!(
+        ProjectDetailPage { cook_and_run_id, menu: MenuPage::Calculation }
+    )
+}
+
+#[component]
+fn ProjectDetailPage(cook_and_run_id: Uuid, menu: MenuPage) -> Element {
     let cook_and_run = get_cook_and_run_data(cook_and_run_id);
     if cook_and_run.is_err() {
         console::error_1(
@@ -68,7 +103,7 @@ pub fn ProjectDetailPage(cook_and_run_id: Uuid) -> Element {
         cook_and_run.course_with_more_hosts,
     );
 
-    let current_page = use_signal(|| MenuPage::Overview);
+    let current_page = use_signal(|| menu.clone());
 
     rsx! {
         div { class: "flex h-screen w-full",
