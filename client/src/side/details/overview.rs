@@ -149,7 +149,7 @@ pub(crate) fn Overview(props: CookAndRunData) -> Element {
         section {
             Headline1 { headline: "Overview" }
 
-            Text { text: "Project Name" }
+            label { class: "block font-semibold text-[#3B3B3B]", "Project Name" }
             Input {
                 place_holer: Some("Project Name".to_string()),
                 value: name_signal.read(),
@@ -159,7 +159,7 @@ pub(crate) fn Overview(props: CookAndRunData) -> Element {
             InputError { error: error_message.read() }
 
 
-            Text { text: "Plan Description" }
+            label { class: "block font-semibold text-[#3B3B3B]", "Plan Description" }
             InputMultirow {
                 place_holer: "A bit of text that appears at the end on the participants' progress sheets."
                     .to_string(),
@@ -167,7 +167,7 @@ pub(crate) fn Overview(props: CookAndRunData) -> Element {
                 oninput: on_plan_text_input,
             }
 
-            Text { text: "Occuring" }
+            label { class: "block font-semibold text-[#3B3B3B]", "Occuring" }
             InputDate {
                 value: occur_signal.read().to_string(),
                 oninput: move |e: FormEvent| {
