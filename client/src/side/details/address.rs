@@ -1,12 +1,12 @@
 use crate::{
     address_connector::get_address,
-    side::{AddressSVG, InfoSVG},
+    side::{AddressSVG, Headline3, InfoSVG, Text},
 };
 use dioxus::prelude::*;
 use web_sys::console;
 
 use crate::{
-    side::{BlueButton, Input, InputError},
+    side::{Input, InputError, SecondaryButton},
     storage::AddressData,
 };
 
@@ -126,7 +126,8 @@ pub(crate) fn Address(param: AddressParam) -> Element {
     rsx!(
         div { class: "flex items-center mb-2",
             AddressSVG {}
-            label { class: "block font-semibold text-gray-700 ml-2", "Address" }
+            Headline3 { headline: "Address" }
+                //
         }
 
         TabBar { tab_signal }
@@ -175,7 +176,7 @@ fn AutoAddress(mut param: AddressParam) -> Element {
         // Search Address
         div { id: "address-search",
             div { class: "flex items-center justify-between mb-2",
-                label { class: "block font-semibold text-gray-700", "Search Address" }
+                label { class: "block font-semibold text-[#3B3B3B]", "Search Address" }
                 div { class: "flex items-center text-sm text-gray-600",
 
                     span { class: "relative group cursor-pointer",
@@ -200,7 +201,7 @@ fn AutoAddress(mut param: AddressParam) -> Element {
 
             InputError { error: address_search_error_signal.read() }
 
-            BlueButton {
+            SecondaryButton {
                 text: "Search".to_string(),
                 onclick: move |_| {
                     async move {
@@ -317,7 +318,7 @@ fn ManualAddress(mut param: AddressParam) -> Element {
     rsx!(
         div { id: "coordinates",
 
-            label { class: "block font-semibold text-gray-700 mb-1", "Latitude" }
+            label { class: "block font-semibold text-[#3B3B3B] mb-1", "Latitude" }
 
             Input {
                 place_holer: Some("e.g. 50.1127197".to_string()),
@@ -331,7 +332,7 @@ fn ManualAddress(mut param: AddressParam) -> Element {
             }
             InputError { error: param.latitude_error.read() }
 
-            label { class: "block font-semibold text-gray-700 mb-1", "Longitude" }
+            label { class: "block font-semibold text-[#3B3B3B] mb-1", "Longitude" }
             Input {
                 place_holer: Some("e.g. 8.682092".to_string()),
                 value: param.longitude.read(),
@@ -345,7 +346,7 @@ fn ManualAddress(mut param: AddressParam) -> Element {
             InputError { error: param.longitude_error.read() }
 
 
-            label { class: "block font-semibold text-gray-700 mb-1", "Address" }
+            label { class: "block font-semibold text-[#3B3B3B] mb-1", "Address" }
             Input {
                 place_holer: Some("e.g. Main Street 1, 12345 City".to_string()),
                 value: param.address.read(),

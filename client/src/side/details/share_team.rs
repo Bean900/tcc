@@ -10,7 +10,7 @@ use crate::side::InputPhoneNumber;
 use crate::storage::{AddressData, ContactData, LocalStorage};
 
 use crate::{
-    side::{GreenButton, Input, InputError, InputNumber},
+    side::{ConfirmButton, Input, InputError, InputNumber},
     storage::StorageW,
 };
 
@@ -93,7 +93,7 @@ fn AddTeamDialog(project_id: Uuid, share_id: Uuid) -> Element {
 
                     // Create team button
                     div { class: "flex justify-center mt-4",
-                        GreenButton {
+                        ConfirmButton {
                             text: "Create Team".to_string(),
                             onclick: move |_| {
                                 if !check_all(
@@ -224,7 +224,7 @@ fn TeamDialog(
                         },
                     }
                 }
-            
+
             }
 
             // Right side: Address block

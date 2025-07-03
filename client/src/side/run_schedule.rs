@@ -10,7 +10,7 @@ use web_sys::{
 };
 
 use crate::{
-    side::{AddressSVG, Headline1, Headline2, PersonSVG, PhoneSVG, StartSVG, WarningSVG},
+    side::{AddressSVG, PersonSVG, PhoneSVG, StartSVG, WarningSVG},
     storage::{
         mapper::{Hosting, Plan},
         AddressData, ContactData, CookAndRunData, CourseData, HostingData, LocalStorage,
@@ -126,28 +126,8 @@ pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
                     path { d: "M15 19l-7-7 7-7" }
                 }
             }
+        
 
-            // Share Button
-            button {
-                class: "bg-green-600 hover:bg-green-700 text-white p-3 rounded-full shadow-lg",
-                onclick: |_| {},
-                svg {
-                    class: "w-6 h-6",
-                    fill: "none",
-                    stroke: "currentColor",
-                    stroke_width: "2",
-                    stroke_linecap: "round",
-                    stroke_linejoin: "round",
-                    view_box: "0 0 24 24",
-                    xmlns: "http://www.w3.org/2000/svg",
-                    // Linien
-                    path { d: "M16 5l-8 5v4l8 5" }
-                    // Kreise (als Punkte)
-                    circle { cx: "16", cy: "5", r: "2" }
-                    circle { cx: "6", cy: "12", r: "2" }
-                    circle { cx: "16", cy: "19", r: "2" }
-                }
-            }
         }
         div {
             id: "section-to-print",
@@ -168,8 +148,12 @@ pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
                     }
                 }
                 div { class: "text-center",
-                    Headline1 { headline: "COOK" }
-                    Headline1 { headline: "AND RUN" }
+                    h1 { class: "font-chewy text-9xl text-[#543D2B] tracking-wide",
+                        "COOK"
+                    }
+                    h1 { class: "font-chewy text-9xl text-[#543D2B] tracking-wide",
+                        "AND RUN"
+                    }
                 }
 
 
@@ -264,8 +248,12 @@ fn TimeLine(
         .map_or("".to_string(), |e| e.address.address);
 
     rsx!(
+        div { class: "flex items-center my-4",
+            div { class: "flex-grow h-1 bg-[#C66741]" }
+            span { class: "mx-4 text-xl font-gluten text-[#543D2B]", "{headline}" }
+            div { class: "flex-grow h-1 bg-[#C66741]" }
+        }
 
-        Headline2 { headline }
         div { class: "relative flex items-start",
             img {
                 src: CARROT,
@@ -416,7 +404,12 @@ fn TimeLineElement(
 #[component]
 fn MyHosting(hosting: Hosting) -> Element {
     rsx!(
-        Headline2 { headline: "Guests".to_string() }
+        div { class: "flex items-center my-4",
+            div { class: "flex-grow h-1 bg-[#C66741]" }
+            span { class: "mx-4 text-xl font-gluten text-[#543D2B]", "Guests" }
+            div { class: "flex-grow h-1 bg-[#C66741]" }
+        }
+
 
         for guest in hosting.guest_list {
             // Guest
@@ -452,7 +445,11 @@ fn MyHosting(hosting: Hosting) -> Element {
 fn MyInfo(contact: ContactData) -> Element {
     let diets_string = contact.diets.join(", ");
     rsx!(
-        Headline2 { headline: "You".to_string() }
+        div { class: "flex items-center my-4",
+            div { class: "flex-grow h-1 bg-[#C66741]" }
+            span { class: "mx-4 text-xl font-gluten text-[#543D2B]", "You" }
+            div { class: "flex-grow h-1 bg-[#C66741]" }
+        }
 
         // Team
         div { class: "flex items-start",
@@ -520,3 +517,27 @@ fn MyInfo(contact: ContactData) -> Element {
         }
     )
 }
+
+/*
+// Share Button
+            button {
+                class: "bg-green-600 hover:bg-green-700 text-white p-3 rounded-full shadow-lg",
+                onclick: |_| {},
+                svg {
+                    class: "w-6 h-6",
+                    fill: "none",
+                    stroke: "currentColor",
+                    stroke_width: "2",
+                    stroke_linecap: "round",
+                    stroke_linejoin: "round",
+                    view_box: "0 0 24 24",
+                    xmlns: "http://www.w3.org/2000/svg",
+                    // Linien
+                    path { d: "M16 5l-8 5v4l8 5" }
+                    // Kreise (als Punkte)
+                    circle { cx: "16", cy: "5", r: "2" }
+                    circle { cx: "6", cy: "12", r: "2" }
+                    circle { cx: "16", cy: "19", r: "2" }
+                }
+            }
+*/

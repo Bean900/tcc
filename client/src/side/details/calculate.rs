@@ -6,7 +6,7 @@ use web_sys::console;
 
 use crate::{
     calculator::Calculator,
-    side::{AddressSVG, BlueButton},
+    side::{AddressSVG, Headline1, Headline2, SecondaryButton},
     storage::{ContactData, LocalStorage, PlanData, StorageR, StorageW},
     Route,
 };
@@ -54,10 +54,10 @@ pub fn Calculate(id: Uuid) -> Element {
 
     rsx! {
         section {
-            h2 { class: "text-3xl font-bold mb-6 text-gray-900", "Calculate" }
+            Headline1 { headline: "Calculation".to_string() }
 
-            BlueButton {
-                text: "Calculate",
+            SecondaryButton {
+                text: "Calculat",
                 onclick: move |_| {
                     calculator.calculate();
                     calculator.stop();
@@ -76,8 +76,7 @@ pub fn Calculate(id: Uuid) -> Element {
                     }
                 },
             }
-            hr { class: "my-6 border-gray-300" }
-            h2 { class: "text-3xl font-bold mb-6 text-gray-900", "Run Schedule" }
+
             div { class: "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 p-6 max-h-[calc(100vh-16rem)] overflow-y-auto pr-2",
 
                 if top_plan_signal.read().is_some() {
@@ -114,7 +113,7 @@ fn ContactCard(props: ContactData) -> Element {
     rsx! {
         div {
             // Name
-            h2 { class: "text-2xl font-semibold text-gray-800 mb-2", "{props.team_name}" }
+            Headline2 { headline: props.team_name.clone() }
             // Address
             div { class: "flex items-center space-x-2 mb-1",
                 AddressSVG {}

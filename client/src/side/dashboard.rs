@@ -8,7 +8,7 @@ use uuid::Uuid;
 use web_sys::{console, wasm_bindgen::JsCast, HtmlInputElement};
 
 use crate::{
-    side::{BlueButton, CloseButton, GreenButton, Input, InputError},
+    side::{CloseButton, ConfirmButton, Input, InputError, SecondaryButton},
     storage::{LocalStorage, StorageR, StorageW},
     Route,
 };
@@ -59,7 +59,7 @@ pub fn Dashboard() -> Element {
             }
 
             a {
-                class: "border-4 border-dashed border-gray-300 rounded-xl p-6 h-36 flex items-center justify-center text-gray-400 hover:bg-[#fdfaf6] hover:text-[#C66741] hover:scale-105 transition-all duration-200 cursor-pointer",
+                class: "border-4 border-dashed border-gray-300 rounded-xl p-6 h-36 flex items-center justify-center text-gray-400 hover:bg-[#fdfaf6] hover:text-[#4F7445] hover:scale-105 transition-all duration-200 cursor-pointer",
                 onclick: move |_| {
                     create_project_signal.set(create_dialog.clone());
                 },
@@ -224,9 +224,9 @@ fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
                 // Error message
                 InputError { error: error_signal.read() }
 
-                div { class: "flex justify-center",
+                div { class: "flex flex-wrap gap-4 items-center mt-4 justify-center",
 
-                    BlueButton {
+                    SecondaryButton {
                         text: "Upload Project".to_string(),
                         onclick: move |_| {
                             if let Some(doc) = web_sys::window().and_then(|w| w.document()) {
@@ -240,7 +240,7 @@ fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
                     }
 
 
-                    GreenButton {
+                    ConfirmButton {
                         text: "Create".to_string(),
                         error_signal: error_signal.clone(),
                         onclick: move |_| {

@@ -16,25 +16,25 @@ use dioxus::signals::{Readable, Signal};
 use gloo_timers::future::TimeoutFuture;
 
 const DISABLED_BUTTON: &str = "bg-gray-300 text-gray-500 rounded-lg px-2 py-2 cursor-not-allowed";
-const ENABLED_BUTTON_BLUE: &str =
-    "bg-blue-500 text-white rounded-lg px-2 py-2 hover:bg-blue-600 transition-all cursor-pointer";
-const ENABLED_BUTTON_GREEN: &str =
-    "bg-green-500 text-white rounded-lg px-2 py-2 hover:bg-green-600 transition-all cursor-pointer";
-const ENABLED_BUTTON_RED: &str =
-    "bg-red-500 text-white rounded-lg px-2 py-2 hover:bg-red-600 transition-all cursor-pointer";
+const ENABLED_BUTTON_SECONDARY: &str =
+    "bg-[#5C7A99] text-[#FFFFFF] rounded-lg px-2 py-2 hover:bg-[#4C6883] transition-all cursor-pointer";
+const ENABLED_BUTTON_CONFIRM: &str =
+    "bg-[#4F7445] text-[#FFFFFF] rounded-lg px-2 py-2 hover:bg-[#3C5D36] transition-all cursor-pointer";
+const ENABLED_BUTTON_WARN: &str =
+    "bg-[#C1443F] text-[#FFFFFF] rounded-lg px-2 py-2 hover:bg-[#9E3533] transition-all cursor-pointer";
 const ENABLED_BUTTON_RED_HOLLOW: &str =
     "border border-red-500 text-red-500 px-4 py-2 rounded hover:bg-red-100 cursor-pointer";
 
 #[derive(Clone, PartialEq)]
 enum ButtonColor {
-    Blue,
-    Green,
-    Red,
+    Secondary,
+    Confirm,
+    Warn,
     RedHollow,
 }
 
 #[component]
-pub(crate) fn BlueButton(
+pub(crate) fn SecondaryButton(
     text: String,
     error_signal: Option<Signal<String>>,
     onclick: Option<EventHandler<MouseEvent>>,
@@ -42,7 +42,7 @@ pub(crate) fn BlueButton(
 ) -> Element {
     rsx! {
         CustomButton {
-            color: ButtonColor::Blue,
+            color: ButtonColor::Secondary,
             text: text.clone(),
             error_signal: error_signal.clone(),
             onclick: onclick.clone(),
@@ -52,7 +52,7 @@ pub(crate) fn BlueButton(
 }
 
 #[component]
-pub(crate) fn GreenButton(
+pub(crate) fn ConfirmButton(
     text: String,
     error_signal: Option<Signal<String>>,
     onclick: Option<EventHandler<MouseEvent>>,
@@ -60,7 +60,7 @@ pub(crate) fn GreenButton(
 ) -> Element {
     rsx! {
         CustomButton {
-            color: ButtonColor::Green,
+            color: ButtonColor::Confirm,
             text: text.clone(),
             error_signal: error_signal.clone(),
             onclick: onclick.clone(),
@@ -70,7 +70,7 @@ pub(crate) fn GreenButton(
 }
 
 #[component]
-pub(crate) fn RedButton(
+pub(crate) fn WarnButton(
     text: String,
     error_signal: Option<Signal<String>>,
     onclick: Option<EventHandler<MouseEvent>>,
@@ -78,7 +78,7 @@ pub(crate) fn RedButton(
 ) -> Element {
     rsx! {
         CustomButton {
-            color: ButtonColor::Red,
+            color: ButtonColor::Warn,
             text: text.clone(),
             error_signal: error_signal.clone(),
             onclick: onclick.clone(),
@@ -130,9 +130,9 @@ fn CustomButton(
     };
 
     let enable_button = match color {
-        ButtonColor::Blue => ENABLED_BUTTON_BLUE,
-        ButtonColor::Green => ENABLED_BUTTON_GREEN,
-        ButtonColor::Red => ENABLED_BUTTON_RED,
+        ButtonColor::Secondary => ENABLED_BUTTON_SECONDARY,
+        ButtonColor::Confirm => ENABLED_BUTTON_CONFIRM,
+        ButtonColor::Warn => ENABLED_BUTTON_WARN,
         ButtonColor::RedHollow => ENABLED_BUTTON_RED_HOLLOW,
     };
 
@@ -230,7 +230,7 @@ pub(crate) fn DeleteButton(
                 }
             }
         } else {
-            button { class: ENABLED_BUTTON_RED, onclick: on_click_function,
+            button { class: ENABLED_BUTTON_WARN, onclick: on_click_function,
                 svg {
                     xmlns: "http://www.w3.org/2000/svg",
                     fill: "none",
@@ -641,17 +641,33 @@ pub(crate) fn PersonSVG() -> Element {
 #[component]
 pub(crate) fn Headline1(headline: String) -> Element {
     rsx!(
-        h1 { class: "font-chewy text-9xl text-[#543D2B] tracking-wide", "{headline}" }
+        div { class: "text-[#3B3B3B] font-sans leading-relaxed",
+            h1 { class: "text-3xl font-bold mb-4", "{headline}" }
+        }
     )
 }
 
 #[component]
 pub(crate) fn Headline2(headline: String) -> Element {
     rsx!(
-        div { class: "flex items-center my-4",
-            div { class: "flex-grow h-1 bg-[#C66741]" }
-            span { class: "mx-4 text-xl font-gluten text-[#543D2B]", "{headline}" }
-            div { class: "flex-grow h-1 bg-[#C66741]" }
+        div { class: "font-sans leading-relaxed",
+            h1 { class: "text-xl font-semibold text-[#70513E] mb-2", "{headline}" }
+        }
+    )
+}
+
+#[component]
+pub(crate) fn Headline3(headline: String) -> Element {
+    rsx!(
+        label { class: "block font-semibold text-[#70513E] ml-2", "{headline}" }
+    )
+}
+
+#[component]
+pub(crate) fn Text(text: String) -> Element {
+    rsx!(
+        div { class: "text-[#3B3B3B] font-sans leading-relaxed",
+            p { class: "text-base mb-4", {text} }
         }
     )
 }

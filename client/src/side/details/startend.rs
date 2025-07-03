@@ -7,8 +7,8 @@ use web_sys::console;
 
 use crate::{
     side::{
-        debounce, details::address::Address, EndSVG, Input, InputError, InputTime, SavingIcon,
-        StartSVG,
+        debounce, details::address::Address, EndSVG, Headline1, Headline2, Input, InputError,
+        InputTime, SavingIcon, StartSVG,
     },
     storage::{LocalStorage, MeetingPointData, StorageW},
 };
@@ -266,7 +266,7 @@ pub fn StartEnd(param: StartEndParam) -> Element {
 
     rsx! {
         section {
-            h2 { class: "text-2xl font-bold mb-6", "Start & End Point" }
+            Headline1 { headline: "Start & End Point".to_string() }
 
             div { class: "grid grid-cols-1 md:grid-cols-2 gap-6",
 
@@ -276,7 +276,7 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                     h3 { class: "text-lg font-semibold mb-2 flex items-center justify-between",
                         div { class: "flex items-center space-x-2",
                             StartSVG {}
-                            span { "Start Point" }
+                            Headline2 { headline: "Start Point".to_string() }
                         }
 
                         // Loading or Error Icon
@@ -288,11 +288,11 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                         }
                     }
 
-                    label { class: "inline-flex items-center mb-3 space-x-2",
+                    label { class: "inline-flex items-center space-x-2 text-[#3B3B3B] font-sans leading-relaxed text-base mb-4",
                         input {
                             r#type: "checkbox",
                             checked: param.is_start,
-                            class: "text-blue-600 rounded",
+                            class: "rounded",
                             onclick: move |_| {
                                 let checkbox_state = !*param.is_start.read();
                                 param.is_start.set(checkbox_state);
@@ -362,7 +362,7 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                     h3 { class: "text-lg font-semibold mb-2 flex items-center justify-between",
                         div { class: "flex items-center space-x-2",
                             EndSVG {}
-                            span { "End Point" }
+                            Headline2 { headline: "End Point".to_string() }
                         }
 
                         // Loading or Error Icon
@@ -375,11 +375,11 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                     }
 
 
-                    label { class: "inline-flex items-center mb-3 space-x-2",
+                    label { class: "inline-flex items-center space-x-2 text-[#3B3B3B] font-sans leading-relaxed text-base mb-4",
                         input {
                             r#type: "checkbox",
                             checked: param.is_end,
-                            class: "text-blue-600 rounded",
+                            class: "rounded",
                             onclick: move |_| {
                                 let checkbox_state = !*param.is_end.read();
                                 param.is_end.set(checkbox_state);

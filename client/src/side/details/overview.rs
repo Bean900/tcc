@@ -6,11 +6,13 @@ use uuid::Uuid;
 use web_sys::wasm_bindgen::{JsCast, JsValue};
 use web_sys::{console, js_sys, Blob, HtmlAnchorElement, Url};
 
-use crate::side::{InputDate, InputMultirow};
+use crate::side::{Headline1, Headline2, InputDate, InputMultirow, Text};
 use crate::storage::{CookAndRunData, LocalStorage, StorageR};
 
 use crate::{
-    side::{BlueButton, CloseButton, GreenButton, Input, InputError, RedButton, RedHollowButton},
+    side::{
+        CloseButton, ConfirmButton, Input, InputError, RedHollowButton, SecondaryButton, WarnButton,
+    },
     storage::StorageW,
     Route,
 };
@@ -145,9 +147,9 @@ pub(crate) fn Overview(props: CookAndRunData) -> Element {
 
     rsx! {
         section {
-            h2 { class: "text-2xl font-bold mb-4", "Overview" }
+            Headline1 { headline: "Overview" }
 
-            "Project Name"
+            Text { text: "Project Name" }
             Input {
                 place_holer: Some("Project Name".to_string()),
                 value: name_signal.read(),
@@ -157,12 +159,15 @@ pub(crate) fn Overview(props: CookAndRunData) -> Element {
             InputError { error: error_message.read() }
 
 
+            Text { text: "Plan Description" }
             InputMultirow {
                 place_holer: "A bit of text that appears at the end on the participants' progress sheets."
                     .to_string(),
                 value: plan_text_signal.read(),
                 oninput: on_plan_text_input,
             }
+
+            Text { text: "Occuring" }
             InputDate {
                 value: occur_signal.read().to_string(),
                 oninput: move |e: FormEvent| {
@@ -183,23 +188,15 @@ pub(crate) fn Overview(props: CookAndRunData) -> Element {
 
 
             div { class: "flex flex-wrap gap-4 items-center mt-4",
-                GreenButton {
+                ConfirmButton {
                     onclick: on_save,
                     text: "Save".to_string(),
                     error_signal: error_message.clone(),
                 }
 
-                if props.is_in_cloud {
-                    button { class: "bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 cursor-pointer",
-                        "Remove from Cloud"
-                    }
-                } else {
-                    button { class: "bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 cursor-pointer",
-                        "Upload to Cloud"
-                    }
-                }
 
-                BlueButton {
+
+                SecondaryButton {
                     onclick: move |_| {
                         let result = select_cook_and_run_json(props.id);
                         if result.is_err() {
@@ -219,7 +216,7 @@ pub(crate) fn Overview(props: CookAndRunData) -> Element {
                 }
 
                 div { class: "ml-auto",
-                    RedHollowButton {
+                    WarnButton {
                         onclick: move |_| {
                             delete_dialog_signal.set(delete_dialog.clone());
                         },
@@ -266,7 +263,7 @@ fn DeleteProjectDialog(delete_project_signal: Signal<Element>, project_id: Uuid)
                 }
 
                 // Delete confirmation
-                RedButton {
+                WarnButton {
                     text: "Delete Project".to_string(),
                     onclick: move |_| {
                         let result = delete_cook_and_run_project(project_id);

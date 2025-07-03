@@ -12,7 +12,7 @@ use startend::{StartEnd, StartEndParam};
 use teams::{Teams, TeamsProps};
 
 use crate::storage::{CookAndRunData, LocalStorage, StorageR};
-use dioxus::prelude::*;
+use dioxus::{html::label, prelude::*};
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 use web_sys::console;
@@ -133,46 +133,54 @@ fn ProjectDetailPage(cook_and_run_id: Uuid, menu: MenuPage) -> Element {
 
 fn get_side_bar(mut current_page: Signal<MenuPage>) -> Element {
     rsx!(
-        nav { class: "w-64 bg-[#fdfaf6] p-4 shadow",
+        nav { class: "w-64 h-full bg-[#F8EFE1] p-6 shadow-md rounded-r-2xl flex flex-col",
 
-            ul { class: "space-y-2",
-                li {
-                    button {
-                        class: "block text-left text-gray-700 hover:text-[#C66741] w-full",
-                        onclick: move |_| current_page.set(MenuPage::Overview),
-                        "Overview"
-                    }
+            h2 { class: "text-xl font-semibold text-[#70513E] mb-6 tracking-wide",
+                "Menu"
+            }
+
+            ul { class: "space-y-3",
+
+                SidebarButton {
+                    label: "Overview",
+                    page: MenuPage::Overview,
+                    current_page,
                 }
-                li {
-                    button {
-                        class: "block text-left text-gray-700 hover:text-[#C66741] w-full",
-                        onclick: move |_| current_page.set(MenuPage::Teams),
-                        "Teams"
-                    }
+                SidebarButton { label: "Teams", page: MenuPage::Teams, current_page }
+                SidebarButton {
+                    label: "Start and end point",
+                    page: MenuPage::StartEnd,
+                    current_page,
                 }
-                li {
-                    button {
-                        class: "block text-left text-gray-700 hover:text-[#C66741] w-full",
-                        onclick: move |_| current_page.set(MenuPage::StartEnd),
-                        "Start and end point"
-                    }
+                SidebarButton {
+                    label: "Courses",
+                    page: MenuPage::Courses,
+                    current_page,
                 }
-                li {
-                    button {
-                        class: "block text-left text-gray-700 hover:text-[#C66741] w-full",
-                        onclick: move |_| current_page.set(MenuPage::Courses),
-                        "Courses"
-                    }
+                SidebarButton {
+                    label: "Calculation",
+                    page: MenuPage::Calculation,
+                    current_page,
                 }
-                li {
-                    button {
-                        class: "block text-left text-gray-700 hover:text-[#C66741] w-full",
-                        onclick: move |_| current_page.set(MenuPage::Calculation),
-                        "Calculation"
-                    }
-                }
-            
             }
         }
     )
+}
+
+#[component]
+fn SidebarButton(label: String, page: MenuPage, current_page: Signal<MenuPage>) -> Element {
+    let is_active = current_page.read().eq(&page);
+    let base = "block text-left w-full px-4 py-2 rounded-lg transition-colors duration-200";
+    let active = "bg-[#D67229] text-white";
+    let inactive = "text-[#70513E] hover:text-[#C66741] hover:bg-[#F1E7D7]";
+
+    rsx! {
+        li {
+            button {
+                class: format_args!("{} {}", base, if is_active { active } else { inactive }),
+                onclick: move |_| current_page.set(page.clone()),
+                "{label}"
+            }
+        }
+    }
 }

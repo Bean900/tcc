@@ -6,11 +6,13 @@ use uuid::Uuid;
 use web_sys::console;
 
 use crate::side::details::address::{Address, AddressParam};
-use crate::side::{AddressSVG, InputPhoneNumber};
+use crate::side::{AddressSVG, Headline1, Headline2, InputPhoneNumber};
 use crate::storage::{AddressData, ContactData, LocalStorage, NoteData};
 
 use crate::{
-    side::{CloseButton, DeleteButton, GreenButton, Input, InputError, InputMultirow, InputNumber},
+    side::{
+        CloseButton, ConfirmButton, DeleteButton, Input, InputError, InputMultirow, InputNumber,
+    },
     storage::StorageW,
 };
 
@@ -90,7 +92,7 @@ pub(crate) fn Teams(props: &TeamsProps) -> Element {
     };
     rsx! {
         section {
-            h2 { class: "text-2xl font-bold mb-4", "Teams" }
+            Headline1 { headline: "Teams" }
 
             // Scrollable grid
             div { class: "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 p-6 max-h-[calc(100vh-16rem)] overflow-y-auto pr-2",
@@ -151,7 +153,7 @@ fn TeamCard(props: ContactData) -> Element {
     rsx! {
         div {
             // Name
-            h2 { class: "text-2xl font-semibold text-gray-800 mb-2", "{props.team_name}" }
+            Headline2 { headline: props.team_name.clone() }
             // Address
             div { class: "flex items-center space-x-2 mb-1",
                 AddressSVG {}
@@ -215,7 +217,7 @@ fn AddTeamDialog(team_dialog_signal: Signal<Element>, project_id: Uuid) -> Eleme
 
                 // Create team button
                 div { class: "flex justify-center mt-4",
-                    GreenButton {
+                    ConfirmButton {
                         text: "Create Team".to_string(),
                         onclick: move |_| {
                             if !check_all(
@@ -399,7 +401,7 @@ fn EditTeamDialog(
 
                     // Create team button
                     div { class: "flex justify-center mt-4",
-                        GreenButton {
+                        ConfirmButton {
                             text: "Update Team".to_string(),
                             error_signal: error_signal.clone(),
                             onclick: move |_| {
@@ -624,7 +626,7 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
 
                 InputError { error: create_note_description_error_signal.read() }
 
-                GreenButton {
+                ConfirmButton {
                     text: "Post Note".to_string(),
                     error_signal: create_note_error_signal,
                     onclick: move |_| {

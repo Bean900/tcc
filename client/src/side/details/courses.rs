@@ -9,7 +9,7 @@ use uuid::Uuid;
 use web_sys::console;
 
 use crate::{
-    side::{Input, InputError, InputTime, RedButton, SavingIcon},
+    side::{Headline1, Input, InputError, InputTime, SavingIcon, WarnButton},
     storage::{CourseData, LocalStorage, StorageW},
 };
 
@@ -187,7 +187,7 @@ impl CourseParam {
 pub fn Courses(param: CoursesParam) -> Element {
     rsx! {
         section {
-            h2 { class: "text-2xl font-bold mb-4", "Courses" }
+            Headline1 { headline: "Courses".to_string() }
 
             // Scrollable grid
             div { class: "grid grid-cols-1 gap-4 p-8 max-h-[calc(100vh-16rem)] overflow-y-auto pr-6",
@@ -258,7 +258,7 @@ pub fn Courses(param: CoursesParam) -> Element {
                                 div { class: "flex flex-wrap items-center gap-3",
                             
                             
-                                    RedButton {
+                                    WarnButton {
                                         text: "Delete",
                                         onclick: move |_| {
                                             param.del_course(&course_id);
