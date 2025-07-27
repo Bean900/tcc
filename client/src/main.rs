@@ -1,11 +1,15 @@
+mod address_connector;
+mod auth0;
+mod calculator;
+mod side;
+mod storage;
+
 use std::sync::Arc;
 use std::sync::Mutex;
 
 use dioxus::prelude::*;
-mod address_connector;
-mod calculator;
-mod side;
-mod storage;
+
+use auth0::Callback;
 use side::Dashboard;
 use side::ProjectCalculationPage;
 use side::ProjectCoursesPage;
@@ -18,7 +22,11 @@ use storage::LocalStorage;
 use uuid::Uuid;
 use web_sys::console;
 
+use crate::auth0::AuthService;
+use crate::storage::StorageR;
+
 const FAVICON: Asset = asset!("/assets/favicon.ico");
+const PROVILE: Asset = asset!("/assets/profile.png");
 const TAILWIND_CSS: Asset = asset!("/assets/output.css");
 const LOGO: Asset = asset!("/assets/logo.png");
 fn main() {
@@ -33,6 +41,8 @@ enum Route {
     #[nest("/cook-and-run")]
         #[route("/")]
         Dashboard {},
+        #[route("/callback?:code&:state&:error")]
+        Callback { code:  String, state: String, error: String },
         #[route("/:cook_and_run_id")]
         #[route("/:cook_and_run_id/overview")]
         ProjectOverviewPage { cook_and_run_id: Uuid },
@@ -101,7 +111,19 @@ fn App() -> Element {
 
     let storage = storage.expect("Expected storage");
     let storage = Arc::new(Mutex::new(storage));
-    use_context_provider(|| storage);
+    use_context_provider(|| storage.clone());
+
+    let mut profile_signal = use_signal(|| false);
+
+    let logged_in_signal = use_signal(|| {
+        let auth_data = storage
+            .lock()
+            .expect("Expected storage lock")
+            .select_auth_data()
+            .unwrap();
+        auth_data.session_data.is_some()
+    });
+
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: TAILWIND_CSS }
@@ -116,9 +138,61 @@ fn App() -> Element {
                         }
                         div { class: "flex items-center gap-4" }
                     }
+                    if true {
+                        div { class: "flex items-center gap-4",
+                            div { class: "relative",
+                                button {
+                                    class: "relative flex items-center gap-2 bg-gray-200 px-3 py-2 rounded-full hover:bg-gray-300 focus:outline-none",
+                                    onclick: move |_| {
+                                        let state = *profile_signal.read();
+                                        profile_signal.set(!state);
+                                    },
+                                    img {
+                                        src: PROVILE, // Replace with user avatar URL
+                                        alt: "User Avatar",
+                                        class: "h-8 w-8 rounded-full",
+                                    }
+                                }
+                                if *profile_signal.read() {
+                                    // Dropdown menu
+                                    div { class: "absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded shadow-lg",
+                                        ul { class: "py-1",
+                                            if *logged_in_signal.read() {
+                                                li {
+                                                    a {
+                                                        href: "/profile",
+                                                        class: "block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100",
+                                                        "Profile"
+                                                    }
+                                                }
+                                                li {
+                                                    button {
+                                                        class: "block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100",
+                                                        onclick: move |_| {
+                                                            AuthService::logout();
+                                                        },
+                                                        "Logout"
+                                                    }
+                                                }
+                                            } else {
+                                                li {
+                                                    button {
+                                                        class: "block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100",
+                                                        onclick: move |_| {
+                                                            AuthService::login();
+                                                        },
+                                                        "Login"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
-
             main { class: "flex h-full w-full", Router::<Route> {} }
         }
     }
@@ -143,7 +217,6 @@ fn error(headline: String, message: String) -> Element {
                 ul { class: "mt-1.5 list-disc list-insidemt-1.5 list-disc list-inside",
                     "{message}"
                 }
-            
             }
         }
     }

@@ -1,15 +1,19 @@
 use chrono::NaiveDate;
 use uuid::Uuid;
-use web_sys::console;
+use web_sys::{console, Storage};
+
+use crate::storage::AuthData;
 
 use super::{CookAndRunData, CookAndRunMinimalData, StorageR, StorageW};
 
 const DATA_KEY: &str = "tcc_data";
+const AUTH_KEY: &str = "auth_data";
 
 #[derive(PartialEq, Clone)]
 pub struct LocalStorage {
     storage: web_sys::Storage,
-    stored_data: Vec<CookAndRunData>,
+    cook_and_run_data: Vec<CookAndRunData>,
+    auth_data: AuthData,
 }
 
 impl LocalStorage {
@@ -39,6 +43,64 @@ impl LocalStorage {
         }
 
         let storage = storage.expect("Expected session storage");
+
+        let cook_and_run_data = Self::get_cook_and_run_data(storage.clone());
+        if cook_and_run_data.is_err() {
+            let error = cook_and_run_data.err().expect("Expected data error");
+            console::error_1(&format!("LocalStorage - Data error: {}", error).into());
+            return Err(format!("Data could not be loaded: {}", error));
+        }
+
+        let cook_and_run_data = cook_and_run_data.expect("Expected stored data");
+
+        let auth_data = Self::get_auth_data(storage.clone());
+        if auth_data.is_err() {
+            let error = auth_data.err().expect("Expected data error");
+            console::error_1(&format!("LocalStorage - Auth data error: {}", error).into());
+            return Err(format!("Auth data could not be loaded: {}", error));
+        }
+
+        let auth_data = auth_data.expect("Expected stored data");
+
+        console::log_1(&format!("LocalStorage - Existing storage connected!").into());
+        Ok(LocalStorage {
+            storage,
+            cook_and_run_data,
+            auth_data,
+        })
+    }
+
+    fn get_auth_data(storage: Storage) -> Result<AuthData, String> {
+        let data = storage.get_item(AUTH_KEY);
+        if data.is_err() {
+            let error = data
+                .err()
+                .expect("Expected auth data error")
+                .as_string()
+                .expect("Expected auth data error to be string");
+            console::error_1(&format!("LocalStorage - Auth data error: {}", error).into());
+            return Err(format!("Auth data could not be loaded: {}", error));
+        }
+        let data = data.expect("Expected no auth data error");
+        if data.is_none() {
+            return Ok(AuthData {
+                session_data: None,
+                process_data: None,
+            });
+        }
+        let data = data.expect("Expected auth data to be set");
+        let auth_data: Result<AuthData, serde_json::Error> = serde_json::from_str(&data);
+        if auth_data.is_err() {
+            let error = auth_data.err().expect("Expected serde error");
+            console::error_1(&format!("LocalStorage - Auth data parsing error: {}", error).into());
+            return Err(format!("Auth data could not parse json: {}", error));
+        }
+        let auth_data = auth_data.expect("Expected parsed auth data");
+        console::log_1(&format!("LocalStorage - Auth data parsed").into());
+        Ok(auth_data)
+    }
+
+    fn get_cook_and_run_data(storage: Storage) -> Result<Vec<CookAndRunData>, String> {
         let data = storage.get_item(DATA_KEY);
 
         if data.is_err() {
@@ -50,38 +112,37 @@ impl LocalStorage {
             console::error_1(&format!("LocalStorage - Data error: {}", error).into());
             return Err(format!("Data could not be loaded: {}", error));
         }
+
         let data = data.expect("Expected no data error");
         if data.is_none() {
-            console::log_1(&format!("LocalStorage - New storage created!").into());
-            return Ok(LocalStorage {
-                storage,
-                stored_data: vec![],
-            });
+            return Ok(vec![]);
         }
+
         let data = data.expect("Expected data to be set");
-        let stored_data: Result<Vec<CookAndRunData>, serde_json::Error> =
+        let cook_and_run_data: Result<Vec<CookAndRunData>, serde_json::Error> =
             serde_json::from_str(&data);
-        if stored_data.is_err() {
-            let error = stored_data.err().expect("Expected serde error");
-            console::error_1(&format!("LocalStorage - Parsing error: {}", error).into());
+        if cook_and_run_data.is_err() {
+            let error = cook_and_run_data.err().expect("Expected serde error");
+            console::error_1(&format!("LocalStorage - Data parsing error: {}", error).into());
             return Err(format!("Data could not parse json: {}", error));
         }
-        let stored_data = stored_data.expect("Expected parsed data");
-        console::log_1(&format!("LocalStorage - Existing storage connected!").into());
-        Ok(LocalStorage {
-            storage,
-            stored_data,
-        })
+        let cook_and_run_data = cook_and_run_data.expect("Expected parsed data");
+        console::log_1(&format!("LocalStorage - Data parsed").into());
+        return Ok(cook_and_run_data);
     }
 }
 
 impl StorageR for LocalStorage {
     fn select_all_cook_and_run_minimal(&self) -> Result<Vec<CookAndRunMinimalData>, String> {
         console::log_1(&format!("LocalStorage - Load cook and run minimal!").into());
-        Ok(self.stored_data.iter().map(|x| x.to_minimal()).collect())
+        Ok(self
+            .cook_and_run_data
+            .iter()
+            .map(|x| x.to_minimal())
+            .collect())
     }
     fn select_cook_and_run(&self, id: Uuid) -> Result<CookAndRunData, String> {
-        for data in &self.stored_data {
+        for data in &self.cook_and_run_data {
             if data.id == id {
                 return Ok(data.clone());
             }
@@ -91,7 +152,7 @@ impl StorageR for LocalStorage {
 
     fn select_cook_and_run_json(&self, id: Uuid) -> Result<String, String> {
         console::log_1(&format!("LocalStorage - Load cook and run JSON!").into());
-        for data in &self.stored_data {
+        for data in &self.cook_and_run_data {
             if data.id == id {
                 let json_string = serde_json::to_string(data);
                 if json_string.is_err() {
@@ -109,13 +170,18 @@ impl StorageR for LocalStorage {
         }
         Err(format!("Cook and run project with ID {} not found", id))
     }
+
+    fn select_auth_data(&self) -> Result<AuthData, String> {
+        console::log_1(&format!("LocalStorage - Load auth data!").into());
+        Ok(self.auth_data.clone())
+    }
 }
 
 impl StorageW for LocalStorage {
     fn create_cook_and_run(&mut self, uuid: Uuid, name: String) -> Result<(), String> {
         console::log_1(&format!("LocalStorage - Create cook and run \"{}\"!", name).into());
 
-        for data in &mut self.stored_data {
+        for data in &mut self.cook_and_run_data {
             if data.id == uuid {
                 console::error_1(
                     &format!(
@@ -132,13 +198,15 @@ impl StorageW for LocalStorage {
         }
 
         let cook_and_run = CookAndRunData::new(uuid, name);
-        self.stored_data.push(cook_and_run.clone());
+        self.cook_and_run_data.push(cook_and_run.clone());
 
-        let stored_data_string = serde_json::to_string(&self.stored_data);
+        let cook_and_run_data_string = serde_json::to_string(&self.cook_and_run_data);
 
-        if stored_data_string.is_err() {
-            self.stored_data.pop();
-            let error = stored_data_string.err().expect("Expected serde error");
+        if cook_and_run_data_string.is_err() {
+            self.cook_and_run_data.pop();
+            let error = cook_and_run_data_string
+                .err()
+                .expect("Expected serde error");
             console::error_1(
                 &format!(
                     "LocalStorage - Struct could not be parse into json: {}",
@@ -149,12 +217,12 @@ impl StorageW for LocalStorage {
             return Err(format!("Struct could not be parse into json: {}", error));
         }
 
-        let stored_data_string = stored_data_string.expect("Expected parsed data");
+        let cook_and_run_data_string = cook_and_run_data_string.expect("Expected parsed data");
 
-        let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+        let result = self.storage.set_item(DATA_KEY, &cook_and_run_data_string);
 
         if result.is_err() {
-            self.stored_data.pop();
+            self.cook_and_run_data.pop();
             let error = result
                 .err()
                 .expect("Expected storage error")
@@ -169,25 +237,27 @@ impl StorageW for LocalStorage {
     }
 
     fn delete_cook_and_run(&mut self, id: Uuid) -> Result<(), String> {
-        let index = self.stored_data.iter().position(|x| x.id == id);
+        let index = self.cook_and_run_data.iter().position(|x| x.id == id);
         if index.is_none() {
             return Ok(()); // Nothing to delete, return early
         }
         let index = index.expect("Expected index to be set");
-        self.stored_data.remove(index);
+        self.cook_and_run_data.remove(index);
 
-        let stored_data_string = serde_json::to_string(&self.stored_data);
+        let cook_and_run_data_string = serde_json::to_string(&self.cook_and_run_data);
 
-        if stored_data_string.is_err() {
+        if cook_and_run_data_string.is_err() {
             return Err(format!(
                 "Struct could not be parse into json: {}",
-                stored_data_string.err().expect("Expected serde error")
+                cook_and_run_data_string
+                    .err()
+                    .expect("Expected serde error")
             ));
         }
 
-        let stored_data_string = stored_data_string.expect("Expected parsed data");
+        let cook_and_run_data_string = cook_and_run_data_string.expect("Expected parsed data");
 
-        let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+        let result = self.storage.set_item(DATA_KEY, &cook_and_run_data_string);
 
         if result.is_err() {
             return Err(format!(
@@ -210,23 +280,26 @@ impl StorageW for LocalStorage {
         new_plan_text: Option<String>,
         occur: NaiveDate,
     ) -> Result<(), String> {
-        for data in &mut self.stored_data {
+        for data in &mut self.cook_and_run_data {
             if data.id == id {
                 data.name = new_name;
                 data.plan_text = new_plan_text;
                 data.occur = occur;
-                let stored_data_string = serde_json::to_string(&self.stored_data);
+                let cook_and_run_data_string = serde_json::to_string(&self.cook_and_run_data);
 
-                if stored_data_string.is_err() {
+                if cook_and_run_data_string.is_err() {
                     return Err(format!(
                         "Struct could not be parse into json: {}",
-                        stored_data_string.err().expect("Expected serde error")
+                        cook_and_run_data_string
+                            .err()
+                            .expect("Expected serde error")
                     ));
                 }
 
-                let stored_data_string = stored_data_string.expect("Expected parsed data");
+                let cook_and_run_data_string =
+                    cook_and_run_data_string.expect("Expected parsed data");
 
-                let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+                let result = self.storage.set_item(DATA_KEY, &cook_and_run_data_string);
 
                 if result.is_err() {
                     return Err(format!(
@@ -249,21 +322,24 @@ impl StorageW for LocalStorage {
         id: Uuid,
         team: super::ContactData,
     ) -> Result<(), String> {
-        for data in &mut self.stored_data {
+        for data in &mut self.cook_and_run_data {
             if data.id == id {
                 data.contact_list.push(team);
-                let stored_data_string = serde_json::to_string(&self.stored_data);
+                let cook_and_run_data_string = serde_json::to_string(&self.cook_and_run_data);
 
-                if stored_data_string.is_err() {
+                if cook_and_run_data_string.is_err() {
                     return Err(format!(
                         "Struct could not be parse into json: {}",
-                        stored_data_string.err().expect("Expected serde error")
+                        cook_and_run_data_string
+                            .err()
+                            .expect("Expected serde error")
                     ));
                 }
 
-                let stored_data_string = stored_data_string.expect("Expected parsed data");
+                let cook_and_run_data_string =
+                    cook_and_run_data_string.expect("Expected parsed data");
 
-                let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+                let result = self.storage.set_item(DATA_KEY, &cook_and_run_data_string);
 
                 if result.is_err() {
                     return Err(format!(
@@ -286,22 +362,25 @@ impl StorageW for LocalStorage {
         id: Uuid,
         team: super::ContactData,
     ) -> Result<(), String> {
-        for data in &mut self.stored_data {
+        for data in &mut self.cook_and_run_data {
             if data.id == id {
                 if let Some(index) = data.contact_list.iter().position(|x| x.id == team.id) {
                     data.contact_list[index] = team;
-                    let stored_data_string = serde_json::to_string(&self.stored_data);
+                    let cook_and_run_data_string = serde_json::to_string(&self.cook_and_run_data);
 
-                    if stored_data_string.is_err() {
+                    if cook_and_run_data_string.is_err() {
                         return Err(format!(
                             "Struct could not be parse into json: {}",
-                            stored_data_string.err().expect("Expected serde error")
+                            cook_and_run_data_string
+                                .err()
+                                .expect("Expected serde error")
                         ));
                     }
 
-                    let stored_data_string = stored_data_string.expect("Expected parsed data");
+                    let cook_and_run_data_string =
+                        cook_and_run_data_string.expect("Expected parsed data");
 
-                    let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+                    let result = self.storage.set_item(DATA_KEY, &cook_and_run_data_string);
 
                     if result.is_err() {
                         return Err(format!(
@@ -329,7 +408,7 @@ impl StorageW for LocalStorage {
         headline: String,
         description: String,
     ) -> Result<(), String> {
-        for data in &mut self.stored_data {
+        for data in &mut self.cook_and_run_data {
             if data.id == id {
                 if let Some(team) = data.contact_list.iter_mut().find(|x| x.id == team_id) {
                     let note = super::NoteData {
@@ -339,18 +418,21 @@ impl StorageW for LocalStorage {
                         created: chrono::Utc::now(),
                     };
                     team.notes.push(note);
-                    let stored_data_string = serde_json::to_string(&self.stored_data);
+                    let cook_and_run_data_string = serde_json::to_string(&self.cook_and_run_data);
 
-                    if stored_data_string.is_err() {
+                    if cook_and_run_data_string.is_err() {
                         return Err(format!(
                             "Struct could not be parse into json: {}",
-                            stored_data_string.err().expect("Expected serde error")
+                            cook_and_run_data_string
+                                .err()
+                                .expect("Expected serde error")
                         ));
                     }
 
-                    let stored_data_string = stored_data_string.expect("Expected parsed data");
+                    let cook_and_run_data_string =
+                        cook_and_run_data_string.expect("Expected parsed data");
 
-                    let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+                    let result = self.storage.set_item(DATA_KEY, &cook_and_run_data_string);
 
                     if result.is_err() {
                         return Err(format!(
@@ -377,22 +459,25 @@ impl StorageW for LocalStorage {
         team_id: Uuid,
         needs_check: bool,
     ) -> Result<(), String> {
-        for data in &mut self.stored_data {
+        for data in &mut self.cook_and_run_data {
             if data.id == id {
                 if let Some(team) = data.contact_list.iter_mut().find(|x| x.id == team_id) {
                     team.needs_check = needs_check;
-                    let stored_data_string = serde_json::to_string(&self.stored_data);
+                    let cook_and_run_data_string = serde_json::to_string(&self.cook_and_run_data);
 
-                    if stored_data_string.is_err() {
+                    if cook_and_run_data_string.is_err() {
                         return Err(format!(
                             "Struct could not be parse into json: {}",
-                            stored_data_string.err().expect("Expected serde error")
+                            cook_and_run_data_string
+                                .err()
+                                .expect("Expected serde error")
                         ));
                     }
 
-                    let stored_data_string = stored_data_string.expect("Expected parsed data");
+                    let cook_and_run_data_string =
+                        cook_and_run_data_string.expect("Expected parsed data");
 
-                    let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+                    let result = self.storage.set_item(DATA_KEY, &cook_and_run_data_string);
 
                     if result.is_err() {
                         return Err(format!(
@@ -414,22 +499,25 @@ impl StorageW for LocalStorage {
     }
 
     fn delete_team_in_cook_and_run(&mut self, id: Uuid, team_id: Uuid) -> Result<(), String> {
-        for data in &mut self.stored_data {
+        for data in &mut self.cook_and_run_data {
             if data.id == id {
                 if let Some(index) = data.contact_list.iter().position(|x| x.id == team_id) {
                     data.contact_list.remove(index);
-                    let stored_data_string = serde_json::to_string(&self.stored_data);
+                    let cook_and_run_data_string = serde_json::to_string(&self.cook_and_run_data);
 
-                    if stored_data_string.is_err() {
+                    if cook_and_run_data_string.is_err() {
                         return Err(format!(
                             "Struct could not be parse into json: {}",
-                            stored_data_string.err().expect("Expected serde error")
+                            cook_and_run_data_string
+                                .err()
+                                .expect("Expected serde error")
                         ));
                     }
 
-                    let stored_data_string = stored_data_string.expect("Expected parsed data");
+                    let cook_and_run_data_string =
+                        cook_and_run_data_string.expect("Expected parsed data");
 
-                    let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+                    let result = self.storage.set_item(DATA_KEY, &cook_and_run_data_string);
 
                     if result.is_err() {
                         return Err(format!(
@@ -455,21 +543,24 @@ impl StorageW for LocalStorage {
         id: Uuid,
         start_point: Option<super::MeetingPointData>,
     ) -> Result<(), String> {
-        for data in &mut self.stored_data {
+        for data in &mut self.cook_and_run_data {
             if data.id == id {
                 data.start_point = start_point;
-                let stored_data_string = serde_json::to_string(&self.stored_data);
+                let cook_and_run_data_string = serde_json::to_string(&self.cook_and_run_data);
 
-                if stored_data_string.is_err() {
+                if cook_and_run_data_string.is_err() {
                     return Err(format!(
                         "Struct could not be parse into json: {}",
-                        stored_data_string.err().expect("Expected serde error")
+                        cook_and_run_data_string
+                            .err()
+                            .expect("Expected serde error")
                     ));
                 }
 
-                let stored_data_string = stored_data_string.expect("Expected parsed data");
+                let cook_and_run_data_string =
+                    cook_and_run_data_string.expect("Expected parsed data");
 
-                let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+                let result = self.storage.set_item(DATA_KEY, &cook_and_run_data_string);
 
                 if result.is_err() {
                     return Err(format!(
@@ -492,21 +583,24 @@ impl StorageW for LocalStorage {
         id: Uuid,
         end_point: Option<super::MeetingPointData>,
     ) -> Result<(), String> {
-        for data in &mut self.stored_data {
+        for data in &mut self.cook_and_run_data {
             if data.id == id {
                 data.end_point = end_point;
-                let stored_data_string = serde_json::to_string(&self.stored_data);
+                let cook_and_run_data_string = serde_json::to_string(&self.cook_and_run_data);
 
-                if stored_data_string.is_err() {
+                if cook_and_run_data_string.is_err() {
                     return Err(format!(
                         "Struct could not be parse into json: {}",
-                        stored_data_string.err().expect("Expected serde error")
+                        cook_and_run_data_string
+                            .err()
+                            .expect("Expected serde error")
                     ));
                 }
 
-                let stored_data_string = stored_data_string.expect("Expected parsed data");
+                let cook_and_run_data_string =
+                    cook_and_run_data_string.expect("Expected parsed data");
 
-                let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+                let result = self.storage.set_item(DATA_KEY, &cook_and_run_data_string);
 
                 if result.is_err() {
                     return Err(format!(
@@ -529,21 +623,24 @@ impl StorageW for LocalStorage {
         id: Uuid,
         course_data: super::CourseData,
     ) -> Result<(), String> {
-        for data in &mut self.stored_data {
+        for data in &mut self.cook_and_run_data {
             if data.id == id {
                 data.course_list.push(course_data);
-                let stored_data_string = serde_json::to_string(&self.stored_data);
+                let cook_and_run_data_string = serde_json::to_string(&self.cook_and_run_data);
 
-                if stored_data_string.is_err() {
+                if cook_and_run_data_string.is_err() {
                     return Err(format!(
                         "Struct could not be parsed into json: {}",
-                        stored_data_string.err().expect("Expected serde error")
+                        cook_and_run_data_string
+                            .err()
+                            .expect("Expected serde error")
                     ));
                 }
 
-                let stored_data_string = stored_data_string.expect("Expected parsed data");
+                let cook_and_run_data_string =
+                    cook_and_run_data_string.expect("Expected parsed data");
 
-                let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+                let result = self.storage.set_item(DATA_KEY, &cook_and_run_data_string);
 
                 if result.is_err() {
                     return Err(format!(
@@ -566,22 +663,25 @@ impl StorageW for LocalStorage {
         id: Uuid,
         course_data: super::CourseData,
     ) -> Result<(), String> {
-        for data in &mut self.stored_data {
+        for data in &mut self.cook_and_run_data {
             if data.id == id {
                 if let Some(index) = data.course_list.iter().position(|x| x.id == course_data.id) {
                     data.course_list[index] = course_data;
-                    let stored_data_string = serde_json::to_string(&self.stored_data);
+                    let cook_and_run_data_string = serde_json::to_string(&self.cook_and_run_data);
 
-                    if stored_data_string.is_err() {
+                    if cook_and_run_data_string.is_err() {
                         return Err(format!(
                             "Struct could not be parsed into json: {}",
-                            stored_data_string.err().expect("Expected serde error")
+                            cook_and_run_data_string
+                                .err()
+                                .expect("Expected serde error")
                         ));
                     }
 
-                    let stored_data_string = stored_data_string.expect("Expected parsed data");
+                    let cook_and_run_data_string =
+                        cook_and_run_data_string.expect("Expected parsed data");
 
-                    let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+                    let result = self.storage.set_item(DATA_KEY, &cook_and_run_data_string);
 
                     if result.is_err() {
                         return Err(format!(
@@ -603,22 +703,25 @@ impl StorageW for LocalStorage {
     }
 
     fn delete_course_in_cook_and_run(&mut self, id: Uuid, course_id: Uuid) -> Result<(), String> {
-        for data in &mut self.stored_data {
+        for data in &mut self.cook_and_run_data {
             if data.id == id {
                 if let Some(index) = data.course_list.iter().position(|x| x.id == course_id) {
                     data.course_list.remove(index);
-                    let stored_data_string = serde_json::to_string(&self.stored_data);
+                    let cook_and_run_data_string = serde_json::to_string(&self.cook_and_run_data);
 
-                    if stored_data_string.is_err() {
+                    if cook_and_run_data_string.is_err() {
                         return Err(format!(
                             "Struct could not be parsed into json: {}",
-                            stored_data_string.err().expect("Expected serde error")
+                            cook_and_run_data_string
+                                .err()
+                                .expect("Expected serde error")
                         ));
                     }
 
-                    let stored_data_string = stored_data_string.expect("Expected parsed data");
+                    let cook_and_run_data_string =
+                        cook_and_run_data_string.expect("Expected parsed data");
 
-                    let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+                    let result = self.storage.set_item(DATA_KEY, &cook_and_run_data_string);
 
                     if result.is_err() {
                         return Err(format!(
@@ -644,7 +747,7 @@ impl StorageW for LocalStorage {
         id: Uuid,
         course_data_id: Uuid,
     ) -> Result<(), String> {
-        for data in &mut self.stored_data {
+        for data in &mut self.cook_and_run_data {
             if data.id == id {
                 if data
                     .course_list
@@ -653,18 +756,21 @@ impl StorageW for LocalStorage {
                     .is_some()
                 {
                     data.course_with_more_hosts = Some(course_data_id);
-                    let stored_data_string = serde_json::to_string(&self.stored_data);
+                    let cook_and_run_data_string = serde_json::to_string(&self.cook_and_run_data);
 
-                    if stored_data_string.is_err() {
+                    if cook_and_run_data_string.is_err() {
                         return Err(format!(
                             "Struct could not be parsed into json: {}",
-                            stored_data_string.err().expect("Expected serde error")
+                            cook_and_run_data_string
+                                .err()
+                                .expect("Expected serde error")
                         ));
                     }
 
-                    let stored_data_string = stored_data_string.expect("Expected parsed data");
+                    let cook_and_run_data_string =
+                        cook_and_run_data_string.expect("Expected parsed data");
 
-                    let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+                    let result = self.storage.set_item(DATA_KEY, &cook_and_run_data_string);
 
                     if result.is_err() {
                         return Err(format!(
@@ -690,21 +796,24 @@ impl StorageW for LocalStorage {
         id: Uuid,
         top_plan: Option<super::PlanData>,
     ) -> Result<(), String> {
-        for data in &mut self.stored_data {
+        for data in &mut self.cook_and_run_data {
             if data.id == id {
                 data.top_plan = top_plan;
-                let stored_data_string = serde_json::to_string(&self.stored_data);
+                let cook_and_run_data_string = serde_json::to_string(&self.cook_and_run_data);
 
-                if stored_data_string.is_err() {
+                if cook_and_run_data_string.is_err() {
                     return Err(format!(
                         "Struct could not be parsed into json: {}",
-                        stored_data_string.err().expect("Expected serde error")
+                        cook_and_run_data_string
+                            .err()
+                            .expect("Expected serde error")
                     ));
                 }
 
-                let stored_data_string = stored_data_string.expect("Expected parsed data");
+                let cook_and_run_data_string =
+                    cook_and_run_data_string.expect("Expected parsed data");
 
-                let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+                let result = self.storage.set_item(DATA_KEY, &cook_and_run_data_string);
 
                 if result.is_err() {
                     return Err(format!(
@@ -725,7 +834,7 @@ impl StorageW for LocalStorage {
     fn create_cook_and_run_json(&mut self, uuid: Uuid, json: String) -> Result<(), String> {
         console::log_1(&format!("LocalStorage - Create cook and run from JSON!").into());
 
-        for data in &mut self.stored_data {
+        for data in &mut self.cook_and_run_data {
             if data.id == uuid {
                 console::error_1(
                     &format!(
@@ -753,13 +862,15 @@ impl StorageW for LocalStorage {
         let mut cook_and_run = cook_and_run.expect("Expected parsed CookAndRunData");
         cook_and_run.id = uuid;
 
-        self.stored_data.push(cook_and_run.clone());
+        self.cook_and_run_data.push(cook_and_run.clone());
 
-        let stored_data_string = serde_json::to_string(&self.stored_data);
+        let cook_and_run_data_string = serde_json::to_string(&self.cook_and_run_data);
 
-        if stored_data_string.is_err() {
-            self.stored_data.pop();
-            let error = stored_data_string.err().expect("Expected serde error");
+        if cook_and_run_data_string.is_err() {
+            self.cook_and_run_data.pop();
+            let error = cook_and_run_data_string
+                .err()
+                .expect("Expected serde error");
             console::error_1(
                 &format!(
                     "LocalStorage - Struct could not be parse into json: {}",
@@ -770,12 +881,12 @@ impl StorageW for LocalStorage {
             return Err(format!("Struct could not be parse into json: {}", error));
         }
 
-        let stored_data_string = stored_data_string.expect("Expected parsed data");
+        let cook_and_run_data_string = cook_and_run_data_string.expect("Expected parsed data");
 
-        let result = self.storage.set_item(DATA_KEY, &stored_data_string);
+        let result = self.storage.set_item(DATA_KEY, &cook_and_run_data_string);
 
         if result.is_err() {
-            self.stored_data.pop();
+            self.cook_and_run_data.pop();
             let error = result
                 .err()
                 .expect("Expected storage error")
@@ -786,6 +897,46 @@ impl StorageW for LocalStorage {
         }
 
         console::log_1(&format!("LocalStorage - Created cook and run from JSON!").into());
+        Ok(())
+    }
+
+    fn insert_auth_data(&mut self, auth_data: AuthData) -> Result<(), String> {
+        console::log_1(&format!("LocalStorage - Insert auth data!").into());
+        self.auth_data = auth_data;
+        let auth_data_string = serde_json::to_string(&self.auth_data);
+
+        if auth_data_string.is_err() {
+            let error = auth_data_string.err().expect("Expected serde error");
+            console::error_1(
+                &format!(
+                    "LocalStorage - Auth data could not be parsed into JSON: {}",
+                    error
+                )
+                .into(),
+            );
+            return Err(format!(
+                "Auth data could not be parsed into JSON: {}",
+                error
+            ));
+        }
+
+        let auth_data_string = auth_data_string.expect("Expected parsed auth data");
+
+        let result = self.storage.set_item(AUTH_KEY, &auth_data_string);
+
+        if result.is_err() {
+            let error = result
+                .err()
+                .expect("Expected storage error")
+                .as_string()
+                .expect("Expected storage error to be string");
+            console::error_1(
+                &format!("LocalStorage - Auth data could not be stored: {}", error).into(),
+            );
+            return Err(format!("Auth data could not be stored: {}", error));
+        }
+
+        console::log_1(&format!("LocalStorage - Auth data inserted!").into());
         Ok(())
     }
 }

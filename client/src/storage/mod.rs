@@ -10,6 +10,8 @@ pub use local_storage::LocalStorage;
 use std::f64::consts::PI;
 
 pub trait StorageW {
+    fn insert_auth_data(&mut self, auth_data: AuthData) -> Result<(), String>;
+
     fn create_cook_and_run_json(&mut self, uuid: Uuid, json: String) -> Result<(), String>;
     fn create_cook_and_run(&mut self, uuid: Uuid, name: String) -> Result<(), String>;
     fn delete_cook_and_run(&mut self, id: Uuid) -> Result<(), String>;
@@ -76,9 +78,35 @@ pub trait StorageW {
 }
 
 pub trait StorageR {
+    fn select_auth_data(&self) -> Result<AuthData, String>;
+
     fn select_all_cook_and_run_minimal(&self) -> Result<Vec<CookAndRunMinimalData>, String>;
     fn select_cook_and_run(&self, id: Uuid) -> Result<CookAndRunData, String>;
     fn select_cook_and_run_json(&self, id: Uuid) -> Result<String, String>; // Returns JSON string of CookAndRunData
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct UserData {
+    pub sub: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AuthData {
+    pub session_data: Option<SessionData>,
+    pub process_data: Option<ProcessData>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SessionData {
+    pub access_token: String,
+    pub id_token: String,
+    pub user: UserData,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ProcessData {
+    pub code_verifier: String,
+    pub state: String,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
