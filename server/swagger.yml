@@ -1,0 +1,538 @@
+openapi: 3.0.0
+info:
+  version: 1.0.0
+  title: Traveling Cook Calculator API
+  description: API description of the Traveling Cook Calculator application.
+
+servers:
+  - url: http://localhost:3000
+    description: Local server
+
+security:
+  - bearerAuth: []
+
+paths:
+  /cook_and_run:
+    get:
+      security:
+        - bearerAuth: []
+      description: Returns all cook and run projects
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+
+      responses:
+        "200":
+          $ref: "#/components/responses/CookAndRunMetaListResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+      tags:
+        - Cook and Run
+
+  /cook_and_run/{cookAndRunId}:
+    post:
+      security:
+        - bearerAuth: []
+      description: Creates cook and run project
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        $ref: "#/components/requestBodies/CookAndRunCreateRequest"
+      responses:
+        "200":
+          description: Cook and Run already created
+        "201":
+          description: Cook and Run created successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+      tags:
+        - Cook and Run
+    get:
+      description: Returns cook and run project
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          $ref: "#/components/responses/CookAndRunResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+      tags:
+        - Cook and Run
+    delete:
+      description: Delete cook and run project
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Cook and Run deleted successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+      tags:
+        - Cook and Run
+
+  /cook_and_run/{cookAndRunId}/meta:
+    patch:
+      description: Edit cook and run project information
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Cook and Run created successfully
+      tags:
+        - Meta
+
+  /cook_and_run/{cookAndRunId}/start_point:
+    patch:
+      description: Update start point for cook and run project information
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Cook and Run created successfully
+      tags:
+        - Start and End points
+
+  /cook_and_run/{cookAndRunId}/end_point:
+    patch:
+      description: Update end point for cook and run project information
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Cook and Run created successfully
+      tags:
+        - Start and End points
+
+  /cook_and_run/{cookAndRunId}/course/{courseId}:
+    post:
+      description: Create course for cook and run project
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Cook and Run created successfully
+      tags:
+        - Course
+    patch:
+      description: Update course for cook and run project
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Cook and Run created successfully
+      tags:
+        - Course
+    delete:
+      description: Delete course for cook and run project
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Cook and Run created successfully
+      tags:
+        - Course
+  /cook_and_run/{cookAndRunId}/course/{courseId}/with_more_hosts:
+    patch:
+      description: Update course with more hosts for cook and run project
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Cook and Run created successfully
+      tags:
+        - Course
+
+  /cook_and_run/{cookAndRunId}/team/{teamId}:
+    post:
+      description: Create course for cook and run project
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Cook and Run created successfully
+      tags:
+        - Team
+    patch:
+      description: Update course for cook and run project
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Cook and Run created successfully
+      tags:
+        - Team
+    delete:
+      description: Delete course for cook and run project
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Cook and Run created successfully
+      tags:
+        - Team
+
+  /cook_and_run/{cookAndRunId}/team/{teamId}/note/{noteId}:
+    post:
+      description: Create note for team of cook and run project
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: noteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Cook and Run created successfully
+      tags:
+        - Team Note
+    delete:
+      description: Delete note for team of cook and run project
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: noteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Cook and Run created successfully
+      tags:
+        - Team Note
+
+components:
+  requestBodies:
+    CookAndRunCreateRequest:
+      description: Request body to create a Cook and Run project
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - name
+            properties:
+              name:
+                type: string
+                maxLength: 64
+  responses:
+    UnauthorizedError:
+      description: Access token is missing or invalid
+    CookAndRunMetaListResponse:
+      description: List of CookAndRunMeta objects
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CookAndRunMetaList"
+    CookAndRunResponse:
+      description: CookAndRun object
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CookAndRun"
+  schemas:
+    CookAndRunMetaList:
+      type: array
+      items:
+        $ref: "#/components/schemas/CookAndRunMeta"
+    CookAndRunMeta:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 64
+        created:
+          type: string
+          format: date-time
+        edited:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - created
+        - edited
+    CookAndRun:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 64
+        created:
+          type: string
+          format: date-time
+        edited:
+          type: string
+          format: date-time
+        occur:
+          type: string
+          format: date-time
+        team_list:
+          type: array
+          items:
+            $ref: "#/components/schemas/Team"
+        course_list:
+          type: array
+          items:
+            $ref: "#/components/schemas/Course"
+        course_with_more_hosts:
+          type: string
+          format: uuid
+        start_point:
+          type: object
+          $ref: "#/components/schemas/Address"
+        end_point:
+          type: object
+          $ref: "#/components/schemas/Address"
+      required:
+        - id
+        - name
+        - created
+        - edited
+        - occur
+        - team_list
+        - course_list
+    Course:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 64
+        time:
+          type: string
+          format: time
+      required:
+        - id
+        - name
+        - time
+    Team:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 64
+        created:
+          type: string
+          format: date-time
+        edited:
+          type: string
+          format: date-time
+        address:
+          type: object
+          $ref: "#/components/schemas/Address"
+        mail:
+          type: string
+          format: email
+        phone:
+          type: string
+          pattern: "^[0-9]{10,15}$"
+          maxLength: 15
+        members:
+          type: number
+          format: int32
+        diets:
+          type: string
+          maxLength: 64
+        needs_check:
+          type: boolean
+        note_list:
+          type: array
+          items:
+            $ref: "#/components/schemas/Note"
+      required:
+        - id
+        - name
+        - created
+        - edited
+        - address
+        - needs_check
+        - note_list
+    Note:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        headline:
+          type: string
+          maxLength: 64
+        content:
+          type: string
+          maxLength: 256
+        created:
+          type: string
+          format: date-time
+      required:
+        - id
+        - headline
+        - content
+        - created
+    Address:
+      type: object
+      properties:
+        address:
+          type: string
+          maxLength: 256
+        latitude:
+          type: number
+          format: float
+        longitude:
+          type: number
+          format: float
+      required:
+        - address
+        - latitude
+        - longitude
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
