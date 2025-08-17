@@ -23,7 +23,7 @@ paths:
           required: true
           schema:
             type: string
-            format: uuid
+            maxLength: 64
 
       responses:
         "200":
@@ -89,9 +89,9 @@ paths:
       tags:
         - Cook and Run
 
-  /cook_and_run/{cookAndRunId}/meta:
+  /cook_and_run/{cookAndRunId}/name:
     patch:
-      description: Edit cook and run project information
+      description: Edit Cook and Run name
       parameters:
         - name: cookAndRunId
           in: path
@@ -99,15 +99,19 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        $ref: "#/components/requestBodies/CookAndRunNameUpdateRequest"
       responses:
-        "201":
-          description: Cook and Run created successfully
+        "204":
+          description: Cook and Run name updated successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
       tags:
-        - Meta
+        - Cook and Run
 
   /cook_and_run/{cookAndRunId}/start_point:
     patch:
-      description: Update start point for cook and run project information
+      description: Update start point for cook and run project
       parameters:
         - name: cookAndRunId
           in: path
@@ -115,15 +119,19 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        $ref: "#/components/requestBodies/CookAndRunStartEndUpdateRequest"
       responses:
-        "201":
-          description: Cook and Run created successfully
+        "204":
+          description: Cook and Run start point updated successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
       tags:
         - Start and End points
 
   /cook_and_run/{cookAndRunId}/end_point:
     patch:
-      description: Update end point for cook and run project information
+      description: Update end point for cook and run project
       parameters:
         - name: cookAndRunId
           in: path
@@ -131,9 +139,13 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        $ref: "#/components/requestBodies/CookAndRunStartEndUpdateRequest"
       responses:
-        "201":
-          description: Cook and Run created successfully
+        "204":
+          description: Cook and Run end point updated successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
       tags:
         - Start and End points
 
@@ -153,9 +165,15 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        $ref: "#/components/requestBodies/CookAndRunCourseCreateRequest"
       responses:
+        "200":
+          description: Course for Cook and Run already created
         "201":
-          description: Cook and Run created successfully
+          description: Course for Cook and Run created successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
       tags:
         - Course
     patch:
@@ -173,9 +191,13 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        $ref: "#/components/requestBodies/CookAndRunCourseCreateRequest"
       responses:
-        "201":
-          description: Cook and Run created successfully
+        "204":
+          description: Course for Cook and Run updated successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
       tags:
         - Course
     delete:
@@ -194,8 +216,10 @@ paths:
             type: string
             format: uuid
       responses:
-        "201":
-          description: Cook and Run created successfully
+        "204":
+          description: Course of Cook and Run deleted successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
       tags:
         - Course
   /cook_and_run/{cookAndRunId}/course/{courseId}/with_more_hosts:
@@ -215,14 +239,16 @@ paths:
             type: string
             format: uuid
       responses:
-        "201":
-          description: Cook and Run created successfully
+        "204":
+          description: Course with more hosts in Cook and Run updated successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
       tags:
         - Course
 
   /cook_and_run/{cookAndRunId}/team/{teamId}:
     post:
-      description: Create course for cook and run project
+      description: Create team for Cook and Run project
       parameters:
         - name: cookAndRunId
           in: path
@@ -236,13 +262,19 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        $ref: "#/components/requestBodies/CookAndRunCreateTeamRequest"
       responses:
+        "200":
+          description: Team for Cook and Run already created
         "201":
-          description: Cook and Run created successfully
+          description: Team for Cook and Run created successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
       tags:
         - Team
     patch:
-      description: Update course for cook and run project
+      description: Update team for Cook and Run project
       parameters:
         - name: cookAndRunId
           in: path
@@ -256,9 +288,13 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        $ref: "#/components/requestBodies/CookAndRunUpdateTeamRequest"
       responses:
-        "201":
-          description: Cook and Run created successfully
+        "204":
+          description: Team for Cook and Run updated successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
       tags:
         - Team
     delete:
@@ -277,8 +313,72 @@ paths:
             type: string
             format: uuid
       responses:
+        "204":
+          description: Team of Cook and Run deleted successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+      tags:
+        - Team
+
+  /cook_and_run/{cookAndRunId}/team/{teamId}/plan:
+    get:
+      description: Get plan for team of cook and run project
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          $ref: "#/components/responses/CookAndRunPlanResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+      tags:
+        - Team
+
+  /cook_and_run/{cookAndRunId}/share_team_config:
+    post:
+      description: Create share config for Cook and Run teams
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        $ref: "#/components/requestBodies/CookAndRunTeamShareCreateRequest"
+      responses:
+        "200":
+          description: Share config for Cook and Run teams already created
         "201":
-          description: Cook and Run created successfully
+          description: Share config for Cook and Run teams created successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+      tags:
+        - Team
+    delete:
+      description: Delete share config for cook and run teams
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Share config for Cook and Run teams deleted successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
       tags:
         - Team
 
@@ -304,9 +404,13 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        $ref: "#/components/requestBodies/CookAndRunTeamNoteCreateRequest"
       responses:
-        "201":
-          description: Cook and Run created successfully
+        "204":
+          description: Team for Cook and Run updated successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
       tags:
         - Team Note
     delete:
@@ -331,10 +435,32 @@ paths:
             type: string
             format: uuid
       responses:
-        "201":
-          description: Cook and Run created successfully
+        "204":
+          description: Note of team in Cook and Run deleted successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
       tags:
         - Team Note
+
+  /cook_and_run/{cookAndRunId}/plan:
+    patch:
+      description: Update plan of cook and run project
+      parameters:
+        - name: cookAndRunId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        $ref: "#/components/requestBodies/CookAndRunPlanUpdateRequest"
+      responses:
+        "204":
+          description: Plan for Cook and Run updated successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+      tags:
+        - Cook and Run
 
 components:
   requestBodies:
@@ -347,10 +473,184 @@ components:
             type: object
             required:
               - name
+              - userId
             properties:
               name:
                 type: string
                 maxLength: 64
+              userId:
+                type: string
+                maxLength: 64
+    CookAndRunNameUpdateRequest:
+      description: Update cook and run name
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - name
+            properties:
+              name:
+                type: string
+                maxLength: 64
+    CookAndRunStartEndUpdateRequest:
+      description: Update cook and run start or end point
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - address
+              - latitude
+              - longitude
+            properties:
+              address:
+                type: string
+                maxLength: 256
+              latitude:
+                type: number
+                format: float
+              longitude:
+                type: number
+                format: float
+    CookAndRunCourseCreateRequest:
+      description: Request body to create oder update course for a Cook and Run project
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - name
+              - time
+            properties:
+              name:
+                type: string
+                maxLength: 64
+              time:
+                type: string
+                format: time
+    CookAndRunCreateTeamRequest:
+      description: Request body to create or update team for a Cook and Run project
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - name
+              - userId
+              - address
+              - needs_check
+            properties:
+              name:
+                type: string
+                maxLength: 64
+              userId:
+                type: string
+                maxLength: 64
+              address:
+                type: object
+                $ref: "#/components/schemas/Address"
+              mail:
+                type: string
+                format: email
+              phone:
+                type: string
+                pattern: "^[0-9]{10,15}$"
+                maxLength: 15
+              members:
+                type: number
+                format: int32
+              diets:
+                type: string
+                maxLength: 64
+              needs_check:
+                type: boolean
+    CookAndRunUpdateTeamRequest:
+      description: Request body to create or update team for a Cook and Run project
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - name
+              - address
+              - needs_check
+            properties:
+              name:
+                type: string
+                maxLength: 64
+              address:
+                type: object
+                $ref: "#/components/schemas/Address"
+              mail:
+                type: string
+                format: email
+              phone:
+                type: string
+                pattern: "^[0-9]{10,15}$"
+                maxLength: 15
+              members:
+                type: number
+                format: int32
+              diets:
+                type: string
+                maxLength: 64
+              needs_check:
+                type: boolean
+    CookAndRunTeamNoteCreateRequest:
+      description: Request body to create a note for a team in a Cook and Run project
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - headline
+              - content
+            properties:
+              headline:
+                type: string
+                maxLength: 64
+              content:
+                type: string
+                maxLength: 256
+    CookAndRunTeamShareCreateRequest:
+      description: Request body to create a note for a team in a Cook and Run project
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - invite_text
+              - needs_login
+              - default_needs_check
+              - required_filds
+            properties:
+              invite_text:
+                type: string
+                maxLength: 256
+              needs_login:
+                type: boolean
+              default_needs_check:
+                type: boolean
+              required_filds:
+                type: array
+                items:
+                  type: string
+                  enum: [mail, phone, members, diets]
+    CookAndRunPlanUpdateRequest:
+      description: Request body to create a note for a team in a Cook and Run project
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Plan"
   responses:
     UnauthorizedError:
       description: Access token is missing or invalid
@@ -361,11 +661,83 @@ components:
           schema:
             $ref: "#/components/schemas/CookAndRunMetaList"
     CookAndRunResponse:
-      description: CookAndRun object
+      description: Cook and Run object
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/CookAndRun"
+    CookAndRunPlanResponse:
+      description: Plan object
+      content:
+        application/json:
+          schema:
+            properties:
+              current_team:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                    maxLength: 64
+                  address:
+                    type: object
+                    $ref: "#/components/schemas/Address"
+                  mail:
+                    type: string
+                    format: email
+                  phone:
+                    type: string
+                    pattern: "^[0-9]{10,15}$"
+                    maxLength: 15
+                  members:
+                    type: number
+                    format: int32
+                  diets:
+                    type: string
+                    maxLength: 64
+                required:
+                  - id
+                  - name
+                  - address
+              walking_path:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    course:
+                      type: object
+                      $ref: "#/components/schemas/Course"
+                    team:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        name:
+                          type: string
+                          maxLength: 64
+                        address:
+                          type: object
+                          $ref: "#/components/schemas/Address"
+                        mail:
+                          type: string
+                          format: email
+                        phone:
+                          type: string
+                          pattern: "^[0-9]{10,15}$"
+                          maxLength: 15
+                        members:
+                          type: number
+                          format: int32
+                        diets:
+                          type: string
+                          maxLength: 64
+                      required:
+                        - id
+                        - name
+                        - address
   schemas:
     CookAndRunMetaList:
       type: array
@@ -426,6 +798,12 @@ components:
         end_point:
           type: object
           $ref: "#/components/schemas/Address"
+        share_team_config:
+          type: object
+          $ref: "#/components/schemas/ShareTeamConfig"
+        plan:
+          type: object
+          $ref: "#/components/schemas/Plan"
       required:
         - id
         - name
@@ -456,6 +834,9 @@ components:
         id:
           type: string
           format: uuid
+        created_by_user:
+          type: string
+          maxLength: 64
         name:
           type: string
           maxLength: 64
@@ -489,6 +870,7 @@ components:
             $ref: "#/components/schemas/Note"
       required:
         - id
+        - created_by_user
         - name
         - created
         - edited
@@ -531,6 +913,73 @@ components:
         - address
         - latitude
         - longitude
+    ShareTeamConfig:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        invite_text:
+          type: string
+          maxLength: 256
+        needs_login:
+          type: boolean
+        default_needs_check:
+          type: boolean
+        required_filds:
+          type: array
+          items:
+            type: string
+            enum: [mail, phone, members, diets]
+      required:
+        - id
+        - invite_text
+        - needs_login
+        - default_needs_check
+        - required_filds
+    Plan:
+      type: object
+      properties:
+        access:
+          type: array
+          items:
+            type: string
+            enum: [link, account]
+        introduction:
+          type: string
+          maxLength: 256
+        hosting_list:
+          type: object
+          $ref: "#/components/schemas/Hosting"
+        walking_path:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+              format: uuid
+    Hosting:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        courseId:
+          type: string
+          format: uuid
+        teamId:
+          type: string
+          format: uuid
+        guestId_list:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+        - id
+        - courseId
+        - teamId
+        - guestId_list
   securitySchemes:
     bearerAuth:
       type: http
