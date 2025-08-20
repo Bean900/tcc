@@ -6,10 +6,11 @@ use crate::db::models::CookAndRun;
 use crate::db::{models::CookAndRunCreate, Database};
 impl Database {
     pub fn create_cook_and_run(&mut self, data: &CookAndRunCreate) -> Result<(), String> {
+        let conn = &mut self.get_connection()?;
         use crate::db::schema::cook_and_run::dsl::*;
         insert_into(cook_and_run)
             .values(data)
-            .execute(&mut self.pool)
+            .execute(conn)
             .map_err(|e| format!("Cook an Run could not be inserted in Database: {}", e))?;
         Ok(())
     }
@@ -18,11 +19,12 @@ impl Database {
         &mut self,
         user_id_filter: &str,
     ) -> Result<Vec<CookAndRun>, String> {
+        let conn = &mut self.get_connection()?;
         use crate::db::schema::cook_and_run::dsl::*;
         cook_and_run
             .filter(user_id.eq(user_id_filter))
             .select(CookAndRun::as_select())
-            .load(&mut self.pool)
+            .load(conn)
             .map_err(|e| {
                 format!(
                     "Cook an Run of user {} could not be selected from Database: {}",
@@ -32,11 +34,12 @@ impl Database {
     }
 
     pub fn select_cook_and_run(&mut self, id_filter: &Uuid) -> Result<CookAndRun, String> {
+        let conn = &mut self.get_connection()?;
         use crate::db::schema::cook_and_run::dsl::*;
         cook_and_run
             .find(id_filter)
             .select(CookAndRun::as_select())
-            .first(&mut self.pool)
+            .first(conn)
             .map_err(|e| {
                 format!(
                     "Cook an Run with id {} could not be selected from Database: {}",
@@ -46,9 +49,10 @@ impl Database {
     }
 
     pub fn delete_cook_and_run(&mut self, id_filter: &Uuid) -> Result<(), String> {
+        let conn = &mut self.get_connection()?;
         use crate::db::schema::cook_and_run::dsl::*;
         delete(cook_and_run.find(id_filter))
-            .execute(&mut self.pool)
+            .execute(conn)
             .map_err(|e| {
                 format!(
                     "Cook an Run with id {} could not be deleted from Database: {}",
