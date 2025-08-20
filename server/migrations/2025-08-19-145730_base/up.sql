@@ -1,9 +1,9 @@
 -- ========================================
 -- Address
 -- ========================================
-CREATE TABLE "Address" (
+CREATE TABLE "address" (
     "id" UUID PRIMARY KEY,
-    "address" TEXT NOT NULL,
+    "address_text" TEXT NOT NULL,
     "latitude" DOUBLE PRECISION NOT NULL,
     "longitude" DOUBLE PRECISION NOT NULL
 );
@@ -11,7 +11,7 @@ CREATE TABLE "Address" (
 -- ========================================
 -- Plan
 -- ========================================
-CREATE TABLE "Plan" (
+CREATE TABLE "plan" (
     "id" UUID PRIMARY KEY,
     "access" JSONB NOT NULL,
     "introduction" TEXT NULL,
@@ -25,7 +25,7 @@ CREATE TYPE team_fields as enum(
     'mail','phone','members','diets'
 );
 
-CREATE TABLE "Share" (
+CREATE TABLE "share" (
     "id" UUID PRIMARY KEY,
     "created" TIMESTAMPTZ NOT NULL,
     "invite_text" TEXT NOT NULL,
@@ -39,7 +39,7 @@ CREATE TABLE "Share" (
 -- ========================================
 -- CookAndRun
 -- ========================================
-CREATE TABLE "CookAndRun" (
+CREATE TABLE "cook_and_run" (
     "id" UUID PRIMARY KEY,
     "user_id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -52,21 +52,21 @@ CREATE TABLE "CookAndRun" (
     "share_team_config" UUID NULL,
     "plan" UUID NULL,
     CONSTRAINT fk_cookandrun_plan FOREIGN KEY ("plan") 
-        REFERENCES "Plan" ("id") ON DELETE CASCADE,
+        REFERENCES "plan" ("id") ON DELETE CASCADE,
     CONSTRAINT fk_cookandrun_course_sp FOREIGN KEY ("start_point") 
-        REFERENCES "Address" ("id") ON DELETE CASCADE,
+        REFERENCES "address" ("id") ON DELETE CASCADE,
     CONSTRAINT fk_cookandrun_course_ep FOREIGN KEY ("end_point") 
-        REFERENCES "Address" ("id") ON DELETE CASCADE,
+        REFERENCES "address" ("id") ON DELETE CASCADE,
     CONSTRAINT fk_cookandrun_course_share FOREIGN KEY ("share_team_config") 
-        REFERENCES "Share" ("id") ON DELETE CASCADE
+        REFERENCES "share" ("id") ON DELETE CASCADE
 );
 
-CREATE INDEX idx_cookandrun_user_id ON "CookAndRun" ("user_id");
+CREATE INDEX idx_cookandrun_user_id ON "cook_and_run" ("user_id");
 
 -- ========================================
 -- Team
 -- ========================================
-CREATE TABLE "Team" (
+CREATE TABLE "team" (
     "id" UUID PRIMARY KEY,
     "cook_and_run_id" UUID NOT NULL,
     "created_by_user" TEXT NULL,
@@ -79,59 +79,59 @@ CREATE TABLE "Team" (
     "members" INTEGER NULL,
     "diets" TEXT NULL,
     "needs_check" BOOLEAN NOT NULL,
-    FOREIGN KEY ("cook_and_run_id") REFERENCES "CookAndRun" ("id"),
-    FOREIGN KEY ("address") REFERENCES "Address" ("id") ON DELETE CASCADE
+    FOREIGN KEY ("cook_and_run_id") REFERENCES "cook_and_run" ("id"),
+    FOREIGN KEY ("address") REFERENCES "address" ("id") ON DELETE CASCADE
 );
 
-CREATE INDEX idx_team_cook_and_run ON "Team" ("cook_and_run_id");
-CREATE INDEX idx_team_user ON "Team" ("created_by_user");
+CREATE INDEX idx_team_cook_and_run ON "team" ("cook_and_run_id");
+CREATE INDEX idx_team_user ON "team" ("created_by_user");
 
 -- ========================================
 -- Note
 -- ========================================
-CREATE TABLE "Note" (
+CREATE TABLE "note" (
     "id" UUID PRIMARY KEY,
     "team_id" UUID NOT NULL,
     "headline" TEXT NOT NULL,
     "content" TEXT NOT NULL,
     "created" TIMESTAMPTZ NOT NULL,
-    FOREIGN KEY ("team_id") REFERENCES "Team"("id") ON DELETE CASCADE
+    FOREIGN KEY ("team_id") REFERENCES "team"("id") ON DELETE CASCADE
 );
 
-CREATE INDEX idx_note_team_id ON "Note" ("team_id");
+CREATE INDEX idx_note_team_id ON "note" ("team_id");
 
 -- ========================================
 -- Course
 -- ========================================
-CREATE TABLE "Course" (
+CREATE TABLE "course" (
     "id" UUID PRIMARY KEY,
     "cook_and_run_id" UUID NOT NULL,
     "name" TEXT NOT NULL,
     "time" TEXT NOT NULL,
-    FOREIGN KEY ("cook_and_run_id") REFERENCES "CookAndRun" ("id")
+    FOREIGN KEY ("cook_and_run_id") REFERENCES "cook_and_run" ("id")
 );
 
-CREATE INDEX idx_course_cook_and_run ON "Course" ("cook_and_run_id");
+CREATE INDEX idx_course_cook_and_run ON "course" ("cook_and_run_id");
 
-ALTER TABLE "CookAndRun" ADD CONSTRAINT fk_cookandrun_course_wmh FOREIGN KEY ("course_with_multiple_hosts") REFERENCES "Course" ("id") ON DELETE CASCADE;
+ALTER TABLE "cook_and_run" ADD CONSTRAINT fk_cookandrun_course_wmh FOREIGN KEY ("course_with_multiple_hosts") REFERENCES "course" ("id") ON DELETE CASCADE;
 
 -- ========================================
 -- Hosting
 -- ========================================
-CREATE TABLE "Hosting" (
+CREATE TABLE "hosting" (
     "id" UUID PRIMARY KEY,
     "plan_id" UUID NOT NULL,
     "course_id" UUID NOT NULL,
     "team_id" UUID NOT NULL,
     "guest_team_ids" JSONB NOT NULL,
     CONSTRAINT fk_hosting_plan FOREIGN KEY ("plan_id") 
-        REFERENCES "Plan" ("id") ON DELETE CASCADE,
+        REFERENCES "plan" ("id") ON DELETE CASCADE,
     CONSTRAINT fk_hosting_course FOREIGN KEY ("course_id") 
-        REFERENCES "Course" ("id") ON DELETE CASCADE,
+        REFERENCES "course" ("id") ON DELETE CASCADE,
     CONSTRAINT fk_hosting_team FOREIGN KEY ("team_id") 
-        REFERENCES "Team" ("id") ON DELETE CASCADE
+        REFERENCES "team" ("id") ON DELETE CASCADE
 );
 
-CREATE INDEX idx_hosting_course_id ON "Hosting" ("course_id");
-CREATE INDEX idx_hosting_team_id ON "Hosting" ("team_id");
-CREATE INDEX idx_hosting_plan_id ON "Hosting" ("plan_id");
+CREATE INDEX idx_hosting_course_id ON "hosting" ("course_id");
+CREATE INDEX idx_hosting_team_id ON "hosting" ("team_id");
+CREATE INDEX idx_hosting_plan_id ON "hosting" ("plan_id");
