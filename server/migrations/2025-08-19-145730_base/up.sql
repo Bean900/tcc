@@ -11,9 +11,13 @@ CREATE TABLE "address" (
 -- ========================================
 -- Plan
 -- ========================================
+CREATE TYPE access as enum(
+    'link','account' 
+);
+
 CREATE TABLE "plan" (
     "id" UUID PRIMARY KEY,
-    "access" JSONB NOT NULL,
+    "access" access[] NULL,
     "introduction" TEXT NULL,
     "walking_paths" JSONB NOT NULL
 );

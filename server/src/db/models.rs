@@ -9,7 +9,7 @@ use uuid::Uuid;
 // ========================================
 // Address
 // ========================================
-#[derive(Queryable, Selectable, Insertable, Debug, Clone)]
+#[derive(Queryable, Selectable, Insertable)]
 #[diesel(table_name = crate::db::schema::address)]
 pub struct Address {
     pub id: Uuid,
@@ -147,12 +147,58 @@ pub struct Share {
 // ========================================
 // Plan
 // ========================================
+#[derive(Debug, Clone, Copy, AsExpression, FromSqlRow)]
+#[diesel(sql_type = crate::db::schema::sql_types::Access)]
+#[diesel(postgres_type(name = "access"))]
+pub enum Access {
+    Link,
+    Account,
+}
+
+impl<DB> diesel::deserialize::FromSql<crate::db::schema::sql_types::Access, DB> for Access
+where
+    DB: diesel::backend::Backend,
+    String: diesel::deserialize::FromSql<diesel::sql_types::Text, DB>,
+{
+    fn from_sql(bytes: DB::RawValue<'_>) -> diesel::deserialize::Result<Self> {
+        let s = String::from_sql(bytes)?;
+        match s.as_str() {
+            "Link" => Ok(Access::Link),
+            "Account" => Ok(Access::Account),
+            _ => Err(format!("Unknown variant: {}", s).into()),
+        }
+    }
+}
+
+impl<DB> diesel::serialize::ToSql<crate::db::schema::sql_types::Access, DB> for Access
+where
+    DB: diesel::backend::Backend,
+    str: diesel::serialize::ToSql<diesel::sql_types::Text, DB>,
+{
+    fn to_sql<'b>(
+        &'b self,
+        out: &mut diesel::serialize::Output<'b, '_, DB>,
+    ) -> diesel::serialize::Result {
+        let s = match self {
+            Access::Link => "Link",
+            Access::Account => "Account",
+        };
+        s.to_sql(out)
+    }
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct WalkingPathStep {
+    pub course_id: Uuid,
+    pub host_team_id: Uuid,
+}
+
 #[derive(Queryable, Selectable, Insertable)]
 #[diesel(belongs_to(CookAndRun))]
 #[diesel(table_name = crate::db::schema::plan)]
 pub struct Plan {
     pub id: Uuid,
-    pub access: serde_json::Value,
+    pub access: Option<Vec<Option<Access>>>,
     pub introduction: Option<String>,
     pub walking_paths: serde_json::Value,
 }

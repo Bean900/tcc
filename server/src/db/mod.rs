@@ -1,6 +1,7 @@
+mod address;
 mod cook_and_run;
 mod course;
-mod models;
+pub mod models;
 mod note;
 mod plan;
 mod schema;

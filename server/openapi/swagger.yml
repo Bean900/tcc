@@ -1642,6 +1642,7 @@ components:
         - name
         - created
         - edited
+        - occur
 
     CookAndRunCreateData:
       type: object
