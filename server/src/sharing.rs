@@ -1,7 +1,11 @@
 use chrono::NaiveDateTime;
+use tracing::event;
 use uuid::Uuid;
 
-use crate::db::{self, Database};
+use crate::{
+    db::{self, Database},
+    error::RestError,
+};
 
 #[derive(Debug, Clone)]
 pub struct ShareTeamConfig {
@@ -59,8 +63,18 @@ impl ShareTeamConfig {
     }
 }
 
-pub fn get_by_id(db: &mut Database, config_id: &Uuid) -> Result<ShareTeamConfig, String> {
-    let config = db.select_share(config_id)?;
+pub fn get_by_id(db: &mut Database, config_id: &Uuid) -> Result<ShareTeamConfig, RestError> {
+    let config = db.select_share(config_id).map_err(|e| {
+        event!(
+            tracing::Level::ERROR,
+            "Database error while selecting share config for id {}: {}",
+            config_id,
+            e
+        );
+        RestError::InternalServer {
+            message: "Database error while selecting share config".to_string(),
+        }
+    })?;
 
     Ok(ShareTeamConfig::from(config))
 }

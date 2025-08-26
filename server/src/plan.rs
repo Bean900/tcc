@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
+use tracing::event;
 use uuid::Uuid;
 
-use crate::db;
+use crate::{db, error::RestError};
 
 #[derive(Debug, Clone)]
 pub enum Access {
@@ -102,11 +103,32 @@ impl WalkingPathStep {
     }
 }
 
-pub fn get_by_id(db: &mut crate::db::Database, plan_id: &Uuid) -> Result<Plan, String> {
-    let db_plan = db.select_plan(plan_id)?;
+pub fn get_by_id(db: &mut crate::db::Database, plan_id: &Uuid) -> Result<Plan, RestError> {
+    let db_plan = db.select_plan(plan_id).map_err(|e| {
+        event!(
+            tracing::Level::ERROR,
+            "Database error while selecting plan for id {}: {}",
+            plan_id,
+            e
+        );
+        RestError::InternalServer {
+            message: "Database error while selecting plan!".to_string(),
+        }
+    })?;
 
     let hosting_assignments = db
-        .select_all_hosting(plan_id)?
+        .select_all_hosting(plan_id)
+        .map_err(|e| {
+            event!(
+                tracing::Level::ERROR,
+                "Database error while selecting hosting assignments for plan id {}: {}",
+                plan_id,
+                e
+            );
+            RestError::InternalServer {
+                message: "Database error while selecting hosting assignments!".to_string(),
+            }
+        })?
         .into_iter()
         .map(Hosting::from)
         .collect();

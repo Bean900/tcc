@@ -1,9 +1,11 @@
 use chrono::NaiveDateTime;
+use tracing::event;
 use uuid::Uuid;
 
 use crate::{
     address::{self, Address},
     db::{self, Database},
+    error::RestError,
     note::{self, Note},
 };
 
@@ -42,8 +44,18 @@ impl Team {
     }
 }
 
-pub fn get_list(db: &mut Database, cook_and_run_id: &Uuid) -> Result<Vec<Team>, String> {
-    let team_vec = db.select_all_team(cook_and_run_id)?;
+pub fn get_list(db: &mut Database, cook_and_run_id: &Uuid) -> Result<Vec<Team>, RestError> {
+    let team_vec = db.select_all_team(cook_and_run_id).map_err(|e| {
+        event!(
+            tracing::Level::ERROR,
+            "Database error while selecting team list for cook and run id {}: {}",
+            cook_and_run_id,
+            e
+        );
+        RestError::InternalServer {
+            message: "Database error while selecting team list!".to_string(),
+        }
+    })?;
 
     let mut result = Vec::new();
     for team in team_vec {
