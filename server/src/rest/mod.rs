@@ -1,0 +1,19 @@
+use axum::Router;
+
+use crate::AppState;
+
+pub mod auth;
+mod cook_and_run;
+mod models;
+
+pub struct Rest {}
+
+impl Rest {
+    pub fn new() -> Result<Self, String> {
+        Ok(Rest {})
+    }
+}
+
+pub fn get_routes(app_state: AppState) -> Router<AppState> {
+    axum::Router::new().merge(cook_and_run::routes(app_state))
+}

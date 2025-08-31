@@ -21,7 +21,7 @@ info:
     All error responses follow the same structure with error codes, messages, and optional details.
 
 servers:
-  - url: http://0.0.0.0:3000/
+  - url: http://localhost:3000/v1
     description: Local development server
 
 security:
@@ -1642,7 +1642,6 @@ components:
         - name
         - created
         - edited
-        - occur
 
     CookAndRunCreateData:
       type: object

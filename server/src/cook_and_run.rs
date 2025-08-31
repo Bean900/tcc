@@ -1,6 +1,6 @@
 use chrono::NaiveDateTime;
 use diesel::result::DatabaseErrorKind;
-use tracing::{event, Level};
+use tracing::error;
 use uuid::Uuid;
 
 use crate::{
@@ -111,8 +111,7 @@ pub fn get_list_of_cook_and_run_meta(
     db.select_all_cook_and_run(user_id)
         .map(|list| list.into_iter().map(CookAndRunMeta::from).collect())
         .map_err(|e| {
-            event!(
-                Level::ERROR,
+            error!(
                 "Could not get list of cook and run projects from database: {}",
                 e
             );
@@ -127,11 +126,9 @@ pub fn get_cook_and_run(
     cook_and_run_id: &Uuid,
 ) -> Result<CookAndRun, RestError> {
     let cook_and_run = db.select_cook_and_run(cook_and_run_id).map_err(|e| {
-        event!(
-            Level::ERROR,
+        error!(
             "Could not get cook and run project with id {} from database: {}",
-            cook_and_run_id,
-            e
+            cook_and_run_id, e
         );
         RestError::InternalServer {
             message: format!(
@@ -181,21 +178,29 @@ pub fn create_cook_and_run(
     match db.create_cook_and_run(&cook_and_run.to()) {
         Ok(_) => (),
         Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _)) => {
-            event!(
-                Level::ERROR,
-                "Could not create cook and run project in database due to unique violation"
-            );
+            error!("Could not create cook and run project in database due to unique violation");
         }
         Err(e) => {
-            event!(
-                Level::ERROR,
-                "Could not create cook and run project in database: {}",
-                e
-            );
+            error!("Could not create cook and run project in database: {}", e);
             return Err(RestError::InternalServer {
                 message: "Could not create cook and run project in database".to_string(),
             });
         }
     }
     get_cook_and_run(db, cook_and_run.id)
+}
+
+pub fn delete_cook_and_run(db: &mut Database, cook_and_run_id: &Uuid) -> Result<(), RestError> {
+    db.delete_cook_and_run(cook_and_run_id).map_err(|e| {
+        error!(
+            "Could not delete cook and run project with id {} from database: {}",
+            cook_and_run_id, e
+        );
+        RestError::InternalServer {
+            message: format!(
+                "Could not delete cook and run project with id {} from database",
+                cook_and_run_id
+            ),
+        }
+    })
 }

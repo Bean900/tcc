@@ -8,6 +8,7 @@ use serde::Serialize;
 
 #[derive(Debug)]
 pub enum RestError {
+    Unauthorized { message: String },
     BadRequest { message: String },
     InternalServer { message: String },
     Conflict { message: String },
@@ -48,6 +49,7 @@ impl ErrorBody {
             RestError::BadRequest { message } => (StatusCode::BAD_REQUEST, message),
             RestError::InternalServer { message } => (StatusCode::INTERNAL_SERVER_ERROR, message),
             RestError::Conflict { message } => (StatusCode::CONFLICT, message),
+            RestError::Unauthorized { message } => (StatusCode::UNAUTHORIZED, message),
         };
         ErrorBody {
             status: status,
