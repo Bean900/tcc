@@ -1,12 +1,20 @@
 use chrono::NaiveDateTime;
-use diesel::result::{self, DatabaseErrorKind};
+use diesel::{
+    result::{self, DatabaseErrorKind},
+    Connection,
+};
 use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
     address::{self, Address},
     course::{self, Course},
-    db::{self, Database},
+    db::{
+        self, address::create_address,
+        cook_and_run::update_cook_and_run_end_point as db_update_cook_and_run_end_point,
+        cook_and_run::update_cook_and_run_start_point as db_update_cook_and_run_start_point,
+        Database,
+    },
     error::RestError,
     plan::{self, Plan},
     sharing::{self, ShareTeamConfig},
@@ -185,11 +193,12 @@ pub fn get_cook_and_run(
 pub fn create_cook_and_run(
     db: &mut Database,
     cook_and_run: CookAndRunCreate,
-) -> Result<CookAndRun, RestError> {
+) -> Result<(), RestError> {
     match db.create_cook_and_run(&cook_and_run.to()) {
-        Ok(_) => (),
+        Ok(_) => Ok(()),
         Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _)) => {
             warn!("Could not create cook and run project in database due to unique violation");
+            return Ok(());
         }
         Err(e) => {
             error!("Could not create cook and run project in database: {}", e);
@@ -198,7 +207,6 @@ pub fn create_cook_and_run(
             });
         }
     }
-    get_cook_and_run(db, cook_and_run.id, cook_and_run.user_id)
 }
 
 pub fn delete_cook_and_run(
@@ -278,4 +286,120 @@ pub fn update_cook_and_run_name(
         });
     }
     Ok(())
+}
+
+pub fn update_cook_and_run_start_point(
+    db: &mut Database,
+    cook_and_run_id: &Uuid,
+    user_id: &str,
+    address: &Address,
+) -> Result<(), RestError> {
+    db.get_connection()
+        .map_err(|e| {
+            error!(
+                "Could not get database connection to update cook and run project with id {}: {}",
+                cook_and_run_id, e
+            );
+            RestError::InternalServer {
+                message: format!(
+                    "Could not get database connection to update cook and run project with id {}",
+                    cook_and_run_id
+                ),
+            }
+        })?
+        .transaction(|t| {
+            let addr = address.to_db();
+            create_address(t, &addr).map_err(|e| {
+                error!("Could not create address in database: {}", e);
+                result::Error::RollbackTransaction
+            })?;
+
+            let usize = db_update_cook_and_run_start_point(t, cook_and_run_id, user_id, &addr.id)
+                .map_err(|e| {
+                error!(
+                    "Could not update cook and run project with id {} in database: {}",
+                    cook_and_run_id, e
+                );
+                result::Error::RollbackTransaction
+            })?;
+
+            if usize == 0 {
+                warn!(
+                    "Cook and run project with id {} not found in database",
+                    cook_and_run_id
+                );
+                return Err(result::Error::RollbackTransaction);
+            }
+            diesel::result::QueryResult::Ok(())
+        })
+        .map_err(|e| {
+            error!(
+                "Error while setting start point in cook and run {}: {}",
+                cook_and_run_id, e
+            );
+            RestError::InternalServer {
+                message: format!(
+                    "Error while setting start point in cook and run project with id {}",
+                    cook_and_run_id
+                ),
+            }
+        })
+}
+
+pub fn update_cook_and_run_end_point(
+    db: &mut Database,
+    cook_and_run_id: &Uuid,
+    user_id: &str,
+    address: &Address,
+) -> Result<(), RestError> {
+    db.get_connection()
+        .map_err(|e| {
+            error!(
+                "Could not get database connection to update cook and run project with id {}: {}",
+                cook_and_run_id, e
+            );
+            RestError::InternalServer {
+                message: format!(
+                    "Could not get database connection to update cook and run project with id {}",
+                    cook_and_run_id
+                ),
+            }
+        })?
+        .transaction(|t| {
+            let addr = address.to_db();
+            create_address(t, &addr).map_err(|e| {
+                error!("Could not create address in database: {}", e);
+                result::Error::RollbackTransaction
+            })?;
+
+            let usize = db_update_cook_and_run_end_point(t, cook_and_run_id, user_id, &addr.id)
+                .map_err(|e| {
+                    error!(
+                        "Could not update cook and run project with id {} in database: {}",
+                        cook_and_run_id, e
+                    );
+                    result::Error::RollbackTransaction
+                })?;
+
+            if usize == 0 {
+                warn!(
+                    "Cook and run project with id {} not found in database",
+                    cook_and_run_id
+                );
+                return Err(result::Error::RollbackTransaction);
+            }
+            diesel::result::QueryResult::Ok(())
+        })
+        .map_err(|e| {
+            error!(
+                "Error while setting end point in cook and run {}: {}",
+                cook_and_run_id, e
+            );
+            RestError::InternalServer {
+                message: format!(
+                    "Error while setting end point in cook and run project with id {}",
+                    cook_and_run_id
+                ),
+            }
+        })
 }

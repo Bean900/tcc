@@ -1,5 +1,6 @@
 use diesel::dsl::{delete, insert_into, update};
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
+use diesel::r2d2::{ConnectionManager, PooledConnection};
+use diesel::{ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper};
 use uuid::Uuid;
 
 use crate::db::models::CookAndRun;
@@ -66,4 +67,30 @@ impl Database {
             .filter(user_id.eq(user_id_filter))
             .execute(conn)
     }
+}
+
+pub fn update_cook_and_run_start_point(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    id_filter: &Uuid,
+    user_id_filter: &str,
+    address_id: &Uuid,
+) -> Result<usize, diesel::result::Error> {
+    use crate::db::schema::cook_and_run::dsl::*;
+    update(cook_and_run.find(id_filter))
+        .filter(user_id.eq(user_id_filter))
+        .set(start_point.eq(address_id))
+        .execute(conn)
+}
+
+pub fn update_cook_and_run_end_point(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    id_filter: &Uuid,
+    user_id_filter: &str,
+    address_id: &Uuid,
+) -> Result<usize, diesel::result::Error> {
+    use crate::db::schema::cook_and_run::dsl::*;
+    update(cook_and_run.find(id_filter))
+        .filter(user_id.eq(user_id_filter))
+        .set(end_point.eq(address_id))
+        .execute(conn)
 }

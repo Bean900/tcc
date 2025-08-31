@@ -1,5 +1,5 @@
-mod address;
-mod cook_and_run;
+pub mod address;
+pub mod cook_and_run;
 mod course;
 pub mod models;
 mod note;
@@ -11,7 +11,7 @@ mod team;
 use diesel::{
     r2d2::{ConnectionManager, Pool, PooledConnection},
     result::{DatabaseErrorInformation, DatabaseErrorKind},
-    PgConnection,
+    Connection, PgConnection,
 };
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use tracing::{event, Level};

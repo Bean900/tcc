@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::{
     cook_and_run::{
         create_cook_and_run, delete_cook_and_run, get_cook_and_run, get_list_of_cook_and_run_meta,
-        update_cook_and_run_name,
+        update_cook_and_run_end_point, update_cook_and_run_name, update_cook_and_run_start_point,
     },
     error::RestError,
     rest::{
@@ -114,11 +114,17 @@ pub fn routes(app_state: AppState) -> Router<AppState> {
         )
         .route(
             "/cook_and_run/:cook_and_run_id/start_point",
-            patch(update_start_point),
+            patch(patch_start_point).layer(from_fn_with_state(
+                app_state.clone(),
+                require_permission(UPDATE_PERMISSION),
+            )),
         )
         .route(
             "/cook_and_run/:cook_and_run_id/end_point",
-            patch(update_end_point),
+            patch(patch_end_point).layer(from_fn_with_state(
+                app_state.clone(),
+                require_permission(UPDATE_PERMISSION),
+            )),
         )
 }
 
@@ -159,17 +165,15 @@ async fn create_cook_and_run_project(
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
     Json(payload): Json<CookAndRunCreateData>,
-) -> Result<CookAndRun, RestError> {
+) -> Result<(), RestError> {
     is_user_authenticated(&payload, &claims)?;
 
     let time = chrono::Utc::now().naive_utc();
 
-    let result = create_cook_and_run(
+    create_cook_and_run(
         &mut state.db,
         payload.to_cook_and_run_create(&cook_and_run_id, &time),
-    )?;
-
-    Ok(CookAndRun::from(result))
+    )
 }
 
 /// Get cook and run project details
@@ -207,21 +211,23 @@ async fn patch_cook_and_run_name(
 }
 
 /// Update start point
-async fn update_start_point(
+async fn patch_start_point(
     Extension(claims): Extension<Claims>,
-    State(state): State<AppState>,
+    State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
     Json(payload): Json<Address>,
-) -> Result<CookAndRunListResponse, RestError> {
-    todo!();
+) -> Result<(), RestError> {
+    let addr = payload.to();
+    update_cook_and_run_start_point(&mut state.db, &cook_and_run_id, &claims.sub, &addr)
 }
 
 /// Update end point
-async fn update_end_point(
+async fn patch_end_point(
     Extension(claims): Extension<Claims>,
-    State(state): State<AppState>,
+    State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
     Json(payload): Json<Address>,
-) -> Result<CookAndRunListResponse, RestError> {
-    todo!();
+) -> Result<(), RestError> {
+    let addr = payload.to();
+    update_cook_and_run_end_point(&mut state.db, &cook_and_run_id, &claims.sub, &addr)
 }

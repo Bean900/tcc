@@ -21,6 +21,15 @@ impl Address {
             longitude: address.longitude,
         }
     }
+
+    pub fn to_db(&self) -> db::models::Address {
+        db::models::Address {
+            id: Uuid::new_v4(),
+            address_text: self.address.clone(),
+            latitude: self.latitude,
+            longitude: self.longitude,
+        }
+    }
 }
 
 pub fn get_by_id(db: &mut Database, address_id: &Uuid) -> Result<Address, RestError> {

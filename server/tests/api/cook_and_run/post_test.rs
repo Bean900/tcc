@@ -4,7 +4,6 @@ use uuid::Uuid;
 
 use crate::{
     auth::{get_auth0_1, get_auth0_2},
-    cook_and_run::assert_cook_and_run_json,
     get_client,
 };
 
@@ -64,7 +63,6 @@ fn execute_create(
 pub fn create_cook_and_run(cook_and_run_id: &Uuid, payload: serde_json::Value, token: &str) {
     let res = execute_create(cook_and_run_id, payload, token);
     assert!(res.status().is_success(), "Response: {:#?}", res);
-    assert_cook_and_run_json(res.json().expect("Failed to parse JSON"), cook_and_run_id);
 }
 
 pub fn get_cook_and_run_create_json(user_id: &str) -> (Uuid, serde_json::Value) {

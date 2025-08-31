@@ -37,6 +37,14 @@ impl Address {
             longitude: address.longitude,
         }
     }
+
+    pub fn to(&self) -> crate::address::Address {
+        crate::address::Address {
+            address: self.address.clone(),
+            latitude: self.latitude,
+            longitude: self.longitude,
+        }
+    }
 }
 
 // Cook and Run models
