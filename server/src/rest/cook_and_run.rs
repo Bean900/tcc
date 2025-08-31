@@ -12,12 +12,13 @@ use uuid::Uuid;
 use crate::{
     cook_and_run::{
         create_cook_and_run, delete_cook_and_run, get_cook_and_run, get_list_of_cook_and_run_meta,
+        update_cook_and_run_name,
     },
     error::RestError,
     rest::{
         auth::{
             is_user_authenticated, require_permission, AuthUser, AuthenticatedUser, Claims,
-            CREATE_PERMISSION, DELETE_PERMISSION, READ_PERMISSION,
+            CREATE_PERMISSION, DELETE_PERMISSION, READ_PERMISSION, UPDATE_PERMISSION,
         },
         models::{Address, CookAndRun, CookAndRunCreateData, CookAndRunMeta, PaginationInfo},
     },
@@ -106,7 +107,10 @@ pub fn routes(app_state: AppState) -> Router<AppState> {
         )
         .route(
             "/cook_and_run/:cook_and_run_id/name",
-            patch(update_cook_and_run_name),
+            patch(patch_cook_and_run_name).layer(from_fn_with_state(
+                app_state.clone(),
+                require_permission(UPDATE_PERMISSION),
+            )),
         )
         .route(
             "/cook_and_run/:cook_and_run_id/start_point",
@@ -174,10 +178,8 @@ async fn get_cook_and_run_project(
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
 ) -> Result<CookAndRun, RestError> {
-    let result = get_cook_and_run(&mut state.db, &cook_and_run_id)?;
-    let result = CookAndRun::from(result);
-    is_user_authenticated(&result, &claims)?;
-    Ok(result)
+    let result = get_cook_and_run(&mut state.db, &cook_and_run_id, &claims.sub)?;
+    Ok(CookAndRun::from(result))
 }
 
 /// Delete cook and run project
@@ -186,17 +188,22 @@ async fn delete_cook_and_run_project(
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
 ) -> Result<(), RestError> {
-    delete_cook_and_run(&mut state.db, &cook_and_run_id)
+    delete_cook_and_run(&mut state.db, &cook_and_run_id, &claims.sub)
 }
 
 /// Update cook and run project name
-async fn update_cook_and_run_name(
+async fn patch_cook_and_run_name(
     Extension(claims): Extension<Claims>,
-    State(state): State<AppState>,
+    State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
     Json(payload): Json<UpdateNameRequest>,
-) -> Result<CookAndRunListResponse, RestError> {
-    todo!();
+) -> Result<(), RestError> {
+    update_cook_and_run_name(
+        &mut state.db,
+        &cook_and_run_id,
+        &claims.sub,
+        payload.name.as_str(),
+    )
 }
 
 /// Update start point

@@ -16,6 +16,14 @@ fn test_create_cook_and_run() {
 }
 
 #[test]
+fn test_create_created_cook_and_run() {
+    let (token, user_id) = get_auth0_1();
+    let (cook_and_run_id, payload) = get_cook_and_run_create_json(&user_id);
+    create_cook_and_run(&cook_and_run_id, payload.clone(), &token);
+    create_cook_and_run(&cook_and_run_id, payload, &token);
+}
+
+#[test]
 fn test_create_cook_and_run_wrong_user() {
     let (token, _) = get_auth0_1();
     let (_, user_id) = get_auth0_2();

@@ -65,6 +65,14 @@ fn test_get_cook_and_run() {
 }
 
 #[test]
+fn test_get_cook_and_run_not_found() {
+    let (token, _) = get_auth0_1();
+    let cook_and_run_id = Uuid::new_v4();
+    let res = execute_get(&cook_and_run_id, &token);
+    assert_eq!(res.status(), StatusCode::NOT_FOUND, "Response: {:#?}", res);
+}
+
+#[test]
 fn test_get_cook_and_run_meta() {
     let test_data = setup();
     let (token, user_id) = (test_data.creater_user)();
@@ -78,12 +86,7 @@ fn test_get_cook_and_run_wrong_user() {
 
     for cook_and_run_id in &test_data.cook_and_run_id_list {
         let res = execute_get(cook_and_run_id, &token);
-        assert_eq!(
-            res.status(),
-            StatusCode::UNAUTHORIZED,
-            "Response: {:#?}",
-            res
-        );
+        assert_eq!(res.status(), StatusCode::NOT_FOUND, "Response: {:#?}", res);
     }
 }
 
@@ -102,7 +105,7 @@ fn test_get_cook_and_run_meta_wrong_user() {
     );
 }
 
-fn execute_get(cook_and_run_id: &Uuid, token: &str) -> reqwest::blocking::Response {
+pub fn execute_get(cook_and_run_id: &Uuid, token: &str) -> reqwest::blocking::Response {
     let (client, base_url) = get_client();
     client
         .get(&format!("{}/cook_and_run/{}", base_url, cook_and_run_id))

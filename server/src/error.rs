@@ -11,6 +11,7 @@ pub enum RestError {
     Unauthorized { message: String },
     BadRequest { message: String },
     InternalServer { message: String },
+    NotFound { message: String },
     Conflict { message: String },
 }
 
@@ -50,6 +51,7 @@ impl ErrorBody {
             RestError::InternalServer { message } => (StatusCode::INTERNAL_SERVER_ERROR, message),
             RestError::Conflict { message } => (StatusCode::CONFLICT, message),
             RestError::Unauthorized { message } => (StatusCode::UNAUTHORIZED, message),
+            RestError::NotFound { message } => (StatusCode::NOT_FOUND, message),
         };
         ErrorBody {
             status: status,

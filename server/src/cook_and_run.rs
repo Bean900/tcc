@@ -1,6 +1,6 @@
 use chrono::NaiveDateTime;
-use diesel::result::DatabaseErrorKind;
-use tracing::error;
+use diesel::result::{self, DatabaseErrorKind};
+use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -124,19 +124,30 @@ pub fn get_list_of_cook_and_run_meta(
 pub fn get_cook_and_run(
     db: &mut Database,
     cook_and_run_id: &Uuid,
+    user_id: &str,
 ) -> Result<CookAndRun, RestError> {
-    let cook_and_run = db.select_cook_and_run(cook_and_run_id).map_err(|e| {
-        error!(
-            "Could not get cook and run project with id {} from database: {}",
-            cook_and_run_id, e
-        );
-        RestError::InternalServer {
-            message: format!(
-                "Could not get cook and run project with id {} from database",
-                cook_and_run_id
-            ),
-        }
-    })?;
+    let cook_and_run = db
+        .select_cook_and_run(cook_and_run_id, user_id)
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => RestError::NotFound {
+                message: format!(
+                    "Cook and run project with id {} not found in database",
+                    cook_and_run_id
+                ),
+            },
+            _ => {
+                error!(
+                    "Could not get cook and run project with id {} from database: {}",
+                    cook_and_run_id, e
+                );
+                RestError::InternalServer {
+                    message: format!(
+                        "Could not get cook and run project with id {} from database",
+                        cook_and_run_id
+                    ),
+                }
+            }
+        })?;
     let team = team::get_list(db, cook_and_run_id)?;
     let course = course::get_list(db, cook_and_run_id)?;
 
@@ -178,7 +189,7 @@ pub fn create_cook_and_run(
     match db.create_cook_and_run(&cook_and_run.to()) {
         Ok(_) => (),
         Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _)) => {
-            error!("Could not create cook and run project in database due to unique violation");
+            warn!("Could not create cook and run project in database due to unique violation");
         }
         Err(e) => {
             error!("Could not create cook and run project in database: {}", e);
@@ -187,20 +198,84 @@ pub fn create_cook_and_run(
             });
         }
     }
-    get_cook_and_run(db, cook_and_run.id)
+    get_cook_and_run(db, cook_and_run.id, cook_and_run.user_id)
 }
 
-pub fn delete_cook_and_run(db: &mut Database, cook_and_run_id: &Uuid) -> Result<(), RestError> {
-    db.delete_cook_and_run(cook_and_run_id).map_err(|e| {
-        error!(
-            "Could not delete cook and run project with id {} from database: {}",
-            cook_and_run_id, e
+pub fn delete_cook_and_run(
+    db: &mut Database,
+    cook_and_run_id: &Uuid,
+    user_id: &str,
+) -> Result<(), RestError> {
+    let result = db
+        .delete_cook_and_run(cook_and_run_id, user_id)
+        .map_err(|e| {
+            error!(
+                "Could not delete cook and run project with id {} from database: {}",
+                cook_and_run_id, e
+            );
+            RestError::InternalServer {
+                message: format!(
+                    "Could not delete cook and run project with id {} from database",
+                    cook_and_run_id
+                ),
+            }
+        })?;
+
+    if result == 0 {
+        warn!(
+            "Cook and run project with id {} not found in database",
+            cook_and_run_id
         );
-        RestError::InternalServer {
+        return Err(RestError::NotFound {
             message: format!(
-                "Could not delete cook and run project with id {} from database",
+                "Cook and run project with id {} not found in database",
                 cook_and_run_id
             ),
-        }
-    })
+        });
+    }
+    Ok(())
+}
+
+pub fn update_cook_and_run_name(
+    db: &mut Database,
+    cook_and_run_id: &Uuid,
+    user_id: &str,
+    new_name: &str,
+) -> Result<(), RestError> {
+    let result = db
+        .update_cook_and_run_name(cook_and_run_id, user_id, new_name)
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => RestError::NotFound {
+                message: format!(
+                    "Cook and run project with id {} not found in database",
+                    cook_and_run_id
+                ),
+            },
+            _ => {
+                error!(
+                    "Could not update cook and run project with id {} in database: {}",
+                    cook_and_run_id, e
+                );
+                RestError::InternalServer {
+                    message: format!(
+                        "Could not update cook and run project with id {} in database",
+                        cook_and_run_id
+                    ),
+                }
+            }
+        })?;
+
+    if result == 0 {
+        warn!(
+            "Cook and run project with id {} not found in database",
+            cook_and_run_id
+        );
+        return Err(RestError::NotFound {
+            message: format!(
+                "Cook and run project with id {} not found in database",
+                cook_and_run_id
+            ),
+        });
+    }
+    Ok(())
 }

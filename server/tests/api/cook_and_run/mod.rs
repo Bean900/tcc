@@ -1,6 +1,8 @@
 use uuid::Uuid;
 
+mod delete_test;
 mod get_test;
+mod patch_name_test;
 mod post_test;
 
 fn assert_cook_and_run_json(json: serde_json::Value, cook_and_run_id: &Uuid) {
