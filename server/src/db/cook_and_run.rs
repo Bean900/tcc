@@ -1,9 +1,9 @@
 use diesel::dsl::{delete, insert_into, update};
-use diesel::r2d2::{ConnectionManager, PooledConnection};
-use diesel::{ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper};
+use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
 use uuid::Uuid;
 
-use crate::db::models::CookAndRun;
+use crate::db::address::create_address;
+use crate::db::models::{Address, CookAndRun};
 use crate::db::{models::CookAndRunCreate, Database};
 impl Database {
     pub fn create_cook_and_run(
@@ -21,13 +21,18 @@ impl Database {
         id_filter: &Uuid,
         user_id_filter: &str,
         new_name: &str,
-    ) -> Result<usize, diesel::result::Error> {
+    ) -> Result<(), diesel::result::Error> {
         let conn = &mut self.get_connection()?;
         use crate::db::schema::cook_and_run::dsl::*;
-        update(cook_and_run.find(id_filter))
+        let affected = update(cook_and_run.find(id_filter))
             .filter(user_id.eq(user_id_filter))
             .set(name.eq(new_name))
-            .execute(conn)
+            .execute(conn)?;
+
+        if affected == 0 {
+            return Err(diesel::result::Error::NotFound);
+        }
+        Ok(())
     }
 
     pub fn select_all_cook_and_run(
@@ -60,37 +65,61 @@ impl Database {
         &mut self,
         id_filter: &Uuid,
         user_id_filter: &str,
-    ) -> Result<usize, diesel::result::Error> {
+    ) -> Result<(), diesel::result::Error> {
         let conn = &mut self.get_connection()?;
         use crate::db::schema::cook_and_run::dsl::*;
-        delete(cook_and_run.find(id_filter))
+        let affected = delete(cook_and_run.find(id_filter))
             .filter(user_id.eq(user_id_filter))
-            .execute(conn)
+            .execute(conn)?;
+        if affected == 0 {
+            return Err(diesel::result::Error::NotFound);
+        }
+        Ok(())
     }
-}
 
-pub fn update_cook_and_run_start_point(
-    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    id_filter: &Uuid,
-    user_id_filter: &str,
-    address_id: &Uuid,
-) -> Result<usize, diesel::result::Error> {
-    use crate::db::schema::cook_and_run::dsl::*;
-    update(cook_and_run.find(id_filter))
-        .filter(user_id.eq(user_id_filter))
-        .set(start_point.eq(address_id))
-        .execute(conn)
-}
+    pub fn set_cook_and_run_start_point(
+        &mut self,
+        id_filter: &Uuid,
+        user_id_filter: &str,
+        address: &Address,
+    ) -> Result<(), diesel::result::Error> {
+        self.get_connection()?.transaction(|t| {
+            create_address(t, &address).map_err(|_| diesel::result::Error::RollbackTransaction)?;
 
-pub fn update_cook_and_run_end_point(
-    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
-    id_filter: &Uuid,
-    user_id_filter: &str,
-    address_id: &Uuid,
-) -> Result<usize, diesel::result::Error> {
-    use crate::db::schema::cook_and_run::dsl::*;
-    update(cook_and_run.find(id_filter))
-        .filter(user_id.eq(user_id_filter))
-        .set(end_point.eq(address_id))
-        .execute(conn)
+            use crate::db::schema::cook_and_run::dsl::*;
+            let affected = update(cook_and_run.find(id_filter))
+                .filter(user_id.eq(user_id_filter))
+                .set(start_point.eq(address.id))
+                .execute(t)?;
+
+            if affected == 0 {
+                return Err(diesel::result::Error::NotFound);
+            }
+
+            Ok(())
+        })
+    }
+
+    pub fn set_cook_and_run_end_point(
+        &mut self,
+        id_filter: &Uuid,
+        user_id_filter: &str,
+        address: &Address,
+    ) -> Result<(), diesel::result::Error> {
+        self.get_connection()?.transaction(|t| {
+            create_address(t, &address).map_err(|_| diesel::result::Error::RollbackTransaction)?;
+
+            use crate::db::schema::cook_and_run::dsl::*;
+            let affected = update(cook_and_run.find(id_filter))
+                .filter(user_id.eq(user_id_filter))
+                .set(end_point.eq(address.id))
+                .execute(t)?;
+
+            if affected == 0 {
+                return Err(diesel::result::Error::NotFound);
+            }
+
+            Ok(())
+        })
+    }
 }

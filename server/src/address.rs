@@ -8,6 +8,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct Address {
+    pub id: Uuid,
     pub address: String,
     pub latitude: f64,
     pub longitude: f64,
@@ -16,6 +17,7 @@ pub struct Address {
 impl Address {
     pub fn from(address: db::models::Address) -> Self {
         Address {
+            id: address.id,
             address: address.address_text,
             latitude: address.latitude,
             longitude: address.longitude,
@@ -24,7 +26,7 @@ impl Address {
 
     pub fn to_db(&self) -> db::models::Address {
         db::models::Address {
-            id: Uuid::new_v4(),
+            id: self.id,
             address_text: self.address.clone(),
             latitude: self.latitude,
             longitude: self.longitude,

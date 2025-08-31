@@ -69,12 +69,7 @@ fn test_patch_start_point_wrong_user() {
 
     let (_, payload) = get_address_create_json();
     let res = execute_patch_start_point(&cook_and_run_id, &token_2, &payload);
-    assert_eq!(
-        res.status(),
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "Response: {:#?}",
-        res
-    );
+    assert_eq!(res.status(), StatusCode::NOT_FOUND, "Response: {:#?}", res);
 
     get_cook_and_run(&cook_and_run_id, &token_1);
 }
@@ -89,12 +84,7 @@ fn test_patch_end_point_wrong_user() {
 
     let (_, payload) = get_address_create_json();
     let res = execute_patch_end_point(&cook_and_run_id, &token_2, &payload);
-    assert_eq!(
-        res.status(),
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "Response: {:#?}",
-        res
-    );
+    assert_eq!(res.status(), StatusCode::NOT_FOUND, "Response: {:#?}", res);
 
     get_cook_and_run(&cook_and_run_id, &token_1);
 }
@@ -133,7 +123,7 @@ fn execute_patch_end_point(
         .expect("Failed to send request")
 }
 
-pub fn patch_start_point_cook_and_run(cook_and_run_id: &Uuid, token: &str) {
+pub fn patch_start_point_cook_and_run(cook_and_run_id: &Uuid, token: &str) -> String {
     let (addr, payload) = get_address_create_json();
     let res = execute_patch_start_point(cook_and_run_id, token, &payload);
     assert!(res.status().is_success(), "Response: {:#?}", res);
@@ -145,9 +135,10 @@ pub fn patch_start_point_cook_and_run(cook_and_run_id: &Uuid, token: &str) {
         Some(&addr),
         None,
     );
+    addr
 }
 
-pub fn patch_end_point_cook_and_run(cook_and_run_id: &Uuid, token: &str) {
+pub fn patch_end_point_cook_and_run(cook_and_run_id: &Uuid, token: &str) -> String {
     let (addr, payload) = get_address_create_json();
     let res = execute_patch_end_point(cook_and_run_id, token, &payload);
     assert!(res.status().is_success(), "Response: {:#?}", res);
@@ -159,9 +150,10 @@ pub fn patch_end_point_cook_and_run(cook_and_run_id: &Uuid, token: &str) {
         None,
         Some(&addr),
     );
+    addr
 }
 
-fn assert_cook_and_run_json(
+pub fn assert_cook_and_run_json(
     json: serde_json::Value,
     cook_and_run_id: &Uuid,
     expected_start_point: Option<&str>,

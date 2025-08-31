@@ -51,18 +51,10 @@ CREATE TABLE "cook_and_run" (
     "edited" TIMESTAMPTZ NOT NULL,
     "occur" TIMESTAMPTZ NOT NULL,
     "course_with_multiple_hosts" UUID NULL,
-    "start_point" UUID NULL,
-    "end_point" UUID NULL,
-    "share_team_config" UUID NULL,
-    "plan" UUID NULL,
-    CONSTRAINT fk_cookandrun_plan FOREIGN KEY ("plan") 
-        REFERENCES "plan" ("id") ON DELETE CASCADE,
-    CONSTRAINT fk_cookandrun_course_sp FOREIGN KEY ("start_point") 
-        REFERENCES "address" ("id") ON DELETE CASCADE,
-    CONSTRAINT fk_cookandrun_course_ep FOREIGN KEY ("end_point") 
-        REFERENCES "address" ("id") ON DELETE CASCADE,
-    CONSTRAINT fk_cookandrun_course_share FOREIGN KEY ("share_team_config") 
-        REFERENCES "share" ("id") ON DELETE CASCADE
+    "start_point" UUID NULL REFERENCES "address" ("id") ON DELETE SET NULL,
+    "end_point" UUID NULL REFERENCES "address" ("id") ON DELETE SET NULL,
+    "share_team_config" UUID NULL REFERENCES "share" ("id") ON DELETE SET NULL,
+    "plan" UUID NULL REFERENCES "plan" ("id") ON DELETE SET NULL        
 );
 
 CREATE INDEX idx_cookandrun_user_id ON "cook_and_run" ("user_id");

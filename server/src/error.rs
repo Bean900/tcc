@@ -5,6 +5,8 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use tracing::warn;
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub enum RestError {
@@ -69,5 +71,22 @@ impl IntoResponse for RestError {
     fn into_response(self) -> Response {
         let error_body = ErrorBody::from_rest_error(&self);
         (error_body.status, Json(error_body)).into_response()
+    }
+}
+
+pub fn map_not_found_cook_and_run(
+    cook_and_run_id: &Uuid,
+    needed_for: &str,
+    e: diesel::result::Error,
+) -> RestError {
+    warn!(
+        "Could not find cook and run project with id {} for {}: {}",
+        cook_and_run_id, needed_for, e
+    );
+    RestError::NotFound {
+        message: format!(
+            "Cook and run project with id {} not found in database",
+            cook_and_run_id
+        ),
     }
 }

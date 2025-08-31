@@ -40,6 +40,7 @@ impl Address {
 
     pub fn to(&self) -> crate::address::Address {
         crate::address::Address {
+            id: Uuid::new_v4(),
             address: self.address.clone(),
             latitude: self.latitude,
             longitude: self.longitude,

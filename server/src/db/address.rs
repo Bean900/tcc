@@ -1,5 +1,5 @@
 use diesel::{
-    dsl::insert_into,
+    dsl::{delete, insert_into},
     r2d2::{ConnectionManager, PooledConnection},
     PgConnection, QueryDsl, RunQueryDsl, SelectableHelper,
 };
@@ -15,6 +15,19 @@ impl Database {
             .find(id_filter)
             .select(Address::as_select())
             .first(conn)
+    }
+
+    pub fn delete_address(
+        &mut self,
+        to_delete_address_id: &Uuid,
+    ) -> Result<(), diesel::result::Error> {
+        let conn = &mut self.get_connection()?;
+        use crate::db::schema::address::dsl::*;
+        let affected = delete(address.find(to_delete_address_id)).execute(conn)?;
+        if affected == 0 {
+            return Err(diesel::result::Error::NotFound);
+        }
+        Ok(())
     }
 }
 

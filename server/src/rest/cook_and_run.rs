@@ -11,8 +11,9 @@ use uuid::Uuid;
 
 use crate::{
     cook_and_run::{
-        create_cook_and_run, delete_cook_and_run, get_cook_and_run, get_list_of_cook_and_run_meta,
-        update_cook_and_run_end_point, update_cook_and_run_name, update_cook_and_run_start_point,
+        create_cook_and_run, delete_cook_and_run, delete_cook_and_run_end_point,
+        delete_cook_and_run_start_point, get_cook_and_run, get_list_of_cook_and_run_meta,
+        set_cook_and_run_end_point, set_cook_and_run_start_point, update_cook_and_run_name,
     },
     error::RestError,
     rest::{
@@ -120,10 +121,24 @@ pub fn routes(app_state: AppState) -> Router<AppState> {
             )),
         )
         .route(
+            "/cook_and_run/:cook_and_run_id/start_point",
+            delete(delete_start_point).layer(from_fn_with_state(
+                app_state.clone(),
+                require_permission(DELETE_PERMISSION),
+            )),
+        )
+        .route(
             "/cook_and_run/:cook_and_run_id/end_point",
             patch(patch_end_point).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
+            )),
+        )
+        .route(
+            "/cook_and_run/:cook_and_run_id/end_point",
+            delete(delete_end_point).layer(from_fn_with_state(
+                app_state.clone(),
+                require_permission(DELETE_PERMISSION),
             )),
         )
 }
@@ -218,7 +233,7 @@ async fn patch_start_point(
     Json(payload): Json<Address>,
 ) -> Result<(), RestError> {
     let addr = payload.to();
-    update_cook_and_run_start_point(&mut state.db, &cook_and_run_id, &claims.sub, &addr)
+    set_cook_and_run_start_point(&mut state.db, &cook_and_run_id, &claims.sub, &addr)
 }
 
 /// Update end point
@@ -229,5 +244,23 @@ async fn patch_end_point(
     Json(payload): Json<Address>,
 ) -> Result<(), RestError> {
     let addr = payload.to();
-    update_cook_and_run_end_point(&mut state.db, &cook_and_run_id, &claims.sub, &addr)
+    set_cook_and_run_end_point(&mut state.db, &cook_and_run_id, &claims.sub, &addr)
+}
+
+// Delete start point
+async fn delete_start_point(
+    Extension(claims): Extension<Claims>,
+    State(mut state): State<AppState>,
+    Path(cook_and_run_id): Path<Uuid>,
+) -> Result<(), RestError> {
+    delete_cook_and_run_start_point(&mut state.db, &cook_and_run_id, &claims.sub)
+}
+
+// Delete end point
+async fn delete_end_point(
+    Extension(claims): Extension<Claims>,
+    State(mut state): State<AppState>,
+    Path(cook_and_run_id): Path<Uuid>,
+) -> Result<(), RestError> {
+    delete_cook_and_run_end_point(&mut state.db, &cook_and_run_id, &claims.sub)
 }

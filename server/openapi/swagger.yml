@@ -252,6 +252,22 @@ paths:
           $ref: "#/components/responses/InternalServerError"
       tags:
         - Locations
+    delete:
+      summary: Delete start point
+      description: Removes the start point location from the cook and run project
+      parameters:
+        - $ref: "#/components/parameters/CookAndRunId"
+      responses:
+        "204":
+          description: Start point deleted successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      tags:
+        - Locations
 
   /cook_and_run/{cookAndRunId}/end_point:
     patch:
@@ -276,6 +292,22 @@ paths:
           $ref: "#/components/responses/NotFoundError"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      tags:
+        - Locations
+    delete:
+      summary: Delete end point
+      description: Removes the end point location from the cook and run project
+      parameters:
+        - $ref: "#/components/parameters/CookAndRunId"
+      responses:
+        "204":
+          description: End point deleted successfully
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
         "500":
           $ref: "#/components/responses/InternalServerError"
       tags:

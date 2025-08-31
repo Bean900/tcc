@@ -1,21 +1,13 @@
 use chrono::NaiveDateTime;
-use diesel::{
-    result::{self, DatabaseErrorKind},
-    Connection,
-};
+use diesel::result::DatabaseErrorKind;
 use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
     address::{self, Address},
     course::{self, Course},
-    db::{
-        self, address::create_address,
-        cook_and_run::update_cook_and_run_end_point as db_update_cook_and_run_end_point,
-        cook_and_run::update_cook_and_run_start_point as db_update_cook_and_run_start_point,
-        Database,
-    },
-    error::RestError,
+    db::{self, Database},
+    error::{map_not_found_cook_and_run, RestError},
     plan::{self, Plan},
     sharing::{self, ShareTeamConfig},
     team::{self, Team},
@@ -137,12 +129,9 @@ pub fn get_cook_and_run(
     let cook_and_run = db
         .select_cook_and_run(cook_and_run_id, user_id)
         .map_err(|e| match e {
-            diesel::result::Error::NotFound => RestError::NotFound {
-                message: format!(
-                    "Cook and run project with id {} not found in database",
-                    cook_and_run_id
-                ),
-            },
+            diesel::result::Error::NotFound => {
+                map_not_found_cook_and_run(cook_and_run_id, "loading cook and run", e)
+            }
             _ => {
                 error!(
                     "Could not get cook and run project with id {} from database: {}",
@@ -214,34 +203,24 @@ pub fn delete_cook_and_run(
     cook_and_run_id: &Uuid,
     user_id: &str,
 ) -> Result<(), RestError> {
-    let result = db
-        .delete_cook_and_run(cook_and_run_id, user_id)
-        .map_err(|e| {
-            error!(
-                "Could not delete cook and run project with id {} from database: {}",
-                cook_and_run_id, e
-            );
-            RestError::InternalServer {
-                message: format!(
-                    "Could not delete cook and run project with id {} from database",
-                    cook_and_run_id
-                ),
+    db.delete_cook_and_run(cook_and_run_id, user_id)
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => {
+                map_not_found_cook_and_run(cook_and_run_id, "deleting cook and run", e)
             }
-        })?;
-
-    if result == 0 {
-        warn!(
-            "Cook and run project with id {} not found in database",
-            cook_and_run_id
-        );
-        return Err(RestError::NotFound {
-            message: format!(
-                "Cook and run project with id {} not found in database",
-                cook_and_run_id
-            ),
-        });
-    }
-    Ok(())
+            _ => {
+                error!(
+                    "Could not delete cook and run project with id {} from database: {}",
+                    cook_and_run_id, e
+                );
+                RestError::InternalServer {
+                    message: format!(
+                        "Could not delete cook and run project with id {} from database",
+                        cook_and_run_id
+                    ),
+                }
+            }
+        })
 }
 
 pub fn update_cook_and_run_name(
@@ -250,15 +229,11 @@ pub fn update_cook_and_run_name(
     user_id: &str,
     new_name: &str,
 ) -> Result<(), RestError> {
-    let result = db
-        .update_cook_and_run_name(cook_and_run_id, user_id, new_name)
+    db.update_cook_and_run_name(cook_and_run_id, user_id, new_name)
         .map_err(|e| match e {
-            diesel::result::Error::NotFound => RestError::NotFound {
-                message: format!(
-                    "Cook and run project with id {} not found in database",
-                    cook_and_run_id
-                ),
-            },
+            diesel::result::Error::NotFound => {
+                map_not_found_cook_and_run(cook_and_run_id, "updating cook and run", e)
+            }
             _ => {
                 error!(
                     "Could not update cook and run project with id {} in database: {}",
@@ -271,135 +246,123 @@ pub fn update_cook_and_run_name(
                     ),
                 }
             }
-        })?;
-
-    if result == 0 {
-        warn!(
-            "Cook and run project with id {} not found in database",
-            cook_and_run_id
-        );
-        return Err(RestError::NotFound {
-            message: format!(
-                "Cook and run project with id {} not found in database",
-                cook_and_run_id
-            ),
-        });
-    }
-    Ok(())
+        })
 }
 
-pub fn update_cook_and_run_start_point(
+pub fn set_cook_and_run_start_point(
     db: &mut Database,
     cook_and_run_id: &Uuid,
     user_id: &str,
     address: &Address,
 ) -> Result<(), RestError> {
-    db.get_connection()
-        .map_err(|e| {
-            error!(
-                "Could not get database connection to update cook and run project with id {}: {}",
-                cook_and_run_id, e
-            );
-            RestError::InternalServer {
-                message: format!(
-                    "Could not get database connection to update cook and run project with id {}",
-                    cook_and_run_id
-                ),
+    db.set_cook_and_run_start_point(cook_and_run_id, user_id, &address.to_db())
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => {
+                map_not_found_cook_and_run(cook_and_run_id, "set cook and run start point", e)
             }
-        })?
-        .transaction(|t| {
-            let addr = address.to_db();
-            create_address(t, &addr).map_err(|e| {
-                error!("Could not create address in database: {}", e);
-                result::Error::RollbackTransaction
-            })?;
-
-            let usize = db_update_cook_and_run_start_point(t, cook_and_run_id, user_id, &addr.id)
-                .map_err(|e| {
+            _ => {
                 error!(
-                    "Could not update cook and run project with id {} in database: {}",
+                    "Could not update cook and run project start point with id {} in database: {}",
                     cook_and_run_id, e
                 );
-                result::Error::RollbackTransaction
-            })?;
-
-            if usize == 0 {
-                warn!(
-                    "Cook and run project with id {} not found in database",
-                    cook_and_run_id
-                );
-                return Err(result::Error::RollbackTransaction);
-            }
-            diesel::result::QueryResult::Ok(())
-        })
-        .map_err(|e| {
-            error!(
-                "Error while setting start point in cook and run {}: {}",
-                cook_and_run_id, e
-            );
-            RestError::InternalServer {
-                message: format!(
-                    "Error while setting start point in cook and run project with id {}",
-                    cook_and_run_id
-                ),
+                RestError::InternalServer {
+                    message: format!(
+                        "Could not update cook and run project start point with id {} in database",
+                        cook_and_run_id
+                    ),
+                }
             }
         })
 }
 
-pub fn update_cook_and_run_end_point(
+pub fn set_cook_and_run_end_point(
     db: &mut Database,
     cook_and_run_id: &Uuid,
     user_id: &str,
     address: &Address,
 ) -> Result<(), RestError> {
-    db.get_connection()
-        .map_err(|e| {
-            error!(
-                "Could not get database connection to update cook and run project with id {}: {}",
-                cook_and_run_id, e
-            );
-            RestError::InternalServer {
-                message: format!(
-                    "Could not get database connection to update cook and run project with id {}",
-                    cook_and_run_id
-                ),
+    db.set_cook_and_run_end_point(cook_and_run_id, user_id, &address.to_db())
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => {
+                map_not_found_cook_and_run(cook_and_run_id, "set cook and run end point", e)
             }
-        })?
-        .transaction(|t| {
-            let addr = address.to_db();
-            create_address(t, &addr).map_err(|e| {
-                error!("Could not create address in database: {}", e);
-                result::Error::RollbackTransaction
-            })?;
-
-            let usize = db_update_cook_and_run_end_point(t, cook_and_run_id, user_id, &addr.id)
-                .map_err(|e| {
-                    error!(
-                        "Could not update cook and run project with id {} in database: {}",
-                        cook_and_run_id, e
-                    );
-                    result::Error::RollbackTransaction
-                })?;
-
-            if usize == 0 {
-                warn!(
-                    "Cook and run project with id {} not found in database",
-                    cook_and_run_id
+            _ => {
+                error!(
+                    "Could not update cook and run project end point with id {} in database: {}",
+                    cook_and_run_id, e
                 );
-                return Err(result::Error::RollbackTransaction);
-            }
-            diesel::result::QueryResult::Ok(())
-        })
-        .map_err(|e| {
-            error!(
-                "Error while setting end point in cook and run {}: {}",
-                cook_and_run_id, e
-            );
-            RestError::InternalServer {
-                message: format!(
-                    "Error while setting end point in cook and run project with id {}",
-                    cook_and_run_id
-                ),
+                RestError::InternalServer {
+                    message: format!(
+                        "Could not update cook and run project end point with id {} in database",
+                        cook_and_run_id
+                    ),
+                }
             }
         })
+}
+
+pub fn delete_cook_and_run_start_point(
+    db: &mut Database,
+    cook_and_run_id: &Uuid,
+    user_id: &str,
+) -> Result<(), RestError> {
+    let cook_and_run = get_cook_and_run(db, cook_and_run_id, user_id)?;
+    let addr = cook_and_run.start_point.ok_or_else(|| {
+        warn!(
+            "Could not find start point in cook and run project with id {}!",
+            cook_and_run_id
+        );
+        RestError::NotFound {
+            message: format!(
+                "Start point of cook and run project with id {} not found in database",
+                cook_and_run_id
+            ),
+        }
+    })?;
+
+    db.delete_address(&addr.id).map_err(|e| {
+        error!(
+            "Could not delete start point in cook and run project with id {}: {}",
+            cook_and_run_id, e
+        );
+        RestError::InternalServer {
+            message: format!(
+                "Could not delete start point in cook and run project with id {}",
+                cook_and_run_id
+            ),
+        }
+    })
+}
+
+pub fn delete_cook_and_run_end_point(
+    db: &mut Database,
+    cook_and_run_id: &Uuid,
+    user_id: &str,
+) -> Result<(), RestError> {
+    let cook_and_run = get_cook_and_run(db, cook_and_run_id, user_id)?;
+    let addr = cook_and_run.end_point.ok_or_else(|| {
+        warn!(
+            "Could not find end point in cook and run project with id {}!",
+            cook_and_run_id
+        );
+        RestError::NotFound {
+            message: format!(
+                "End point of cook and run project with id {} not found in database",
+                cook_and_run_id
+            ),
+        }
+    })?;
+
+    db.delete_address(&addr.id).map_err(|e| {
+        error!(
+            "Could not delete end point in cook and run project with id {}: {}",
+            cook_and_run_id, e
+        );
+        RestError::InternalServer {
+            message: format!(
+                "Could not delete end point in cook and run project with id {}",
+                cook_and_run_id
+            ),
+        }
+    })
 }

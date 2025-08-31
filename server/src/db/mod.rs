@@ -11,7 +11,7 @@ mod team;
 use diesel::{
     r2d2::{ConnectionManager, Pool, PooledConnection},
     result::{DatabaseErrorInformation, DatabaseErrorKind},
-    Connection, PgConnection,
+    PgConnection,
 };
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use tracing::{event, Level};
