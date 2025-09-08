@@ -2,7 +2,7 @@ use diesel::dsl::{delete, insert_into, update};
 use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
 use uuid::Uuid;
 
-use crate::db::address::create_address;
+use crate::db::address::{create_address, delete_address};
 use crate::db::models::{Address, CookAndRun};
 use crate::db::{models::CookAndRunCreate, Database};
 impl Database {
@@ -66,15 +66,28 @@ impl Database {
         id_filter: &Uuid,
         user_id_filter: &str,
     ) -> Result<(), diesel::result::Error> {
+        let c_a_r = self.select_cook_and_run(id_filter, user_id_filter)?;
         let conn = &mut self.get_connection()?;
-        use crate::db::schema::cook_and_run::dsl::*;
-        let affected = delete(cook_and_run.find(id_filter))
-            .filter(user_id.eq(user_id_filter))
-            .execute(conn)?;
-        if affected == 0 {
-            return Err(diesel::result::Error::NotFound);
-        }
-        Ok(())
+
+        conn.transaction(|t| {
+            if let Some(start_point_id_filter) = c_a_r.start_point {
+                delete_address(t, &start_point_id_filter)?;
+            }
+
+            if let Some(end_point_id_filter) = c_a_r.end_point {
+                delete_address(t, &end_point_id_filter)?;
+            }
+
+            use crate::db::schema::cook_and_run::dsl::*;
+            let affected = delete(cook_and_run.find(id_filter))
+                .filter(user_id.eq(user_id_filter))
+                .execute(t)?;
+
+            if affected == 0 {
+                return Err(diesel::result::Error::NotFound);
+            }
+            Ok(())
+        })
     }
 
     pub fn set_cook_and_run_start_point(

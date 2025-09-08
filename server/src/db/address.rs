@@ -22,12 +22,7 @@ impl Database {
         to_delete_address_id: &Uuid,
     ) -> Result<(), diesel::result::Error> {
         let conn = &mut self.get_connection()?;
-        use crate::db::schema::address::dsl::*;
-        let affected = delete(address.find(to_delete_address_id)).execute(conn)?;
-        if affected == 0 {
-            return Err(diesel::result::Error::NotFound);
-        }
-        Ok(())
+        delete_address(conn, to_delete_address_id)
     }
 }
 
@@ -38,5 +33,17 @@ pub fn create_address(
     use crate::db::schema::address::dsl::*;
 
     insert_into(address).values(data).execute(conn)?;
+    Ok(())
+}
+
+pub fn delete_address(
+    conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
+    to_delete_address_id: &Uuid,
+) -> Result<(), diesel::result::Error> {
+    use crate::db::schema::address::dsl::*;
+    let affected = delete(address.find(to_delete_address_id)).execute(conn)?;
+    if affected == 0 {
+        return Err(diesel::result::Error::NotFound);
+    }
     Ok(())
 }

@@ -69,7 +69,6 @@ pub struct CookAndRun {
     pub occur: NaiveDateTime,
     pub team_list: Vec<Team>,
     pub course_list: Vec<Course>,
-    pub course_with_multiple_hosts: Option<Uuid>,
     pub start_point: Option<Address>,
     pub end_point: Option<Address>,
     pub share_team_config: Option<ShareTeamConfig>,
@@ -95,7 +94,6 @@ impl CookAndRun {
             occur: cook_and_run.occur,
             team_list,
             course_list,
-            course_with_multiple_hosts: cook_and_run.course_with_multiple_hosts,
             start_point,
             end_point,
             share_team_config,
@@ -146,7 +144,7 @@ pub fn get_cook_and_run(
             }
         })?;
     let team = team::get_list(db, cook_and_run_id)?;
-    let course = course::get_list(db, cook_and_run_id)?;
+    let course = course::get_list(db, cook_and_run_id, user_id)?;
 
     let start_point = cook_and_run
         .start_point

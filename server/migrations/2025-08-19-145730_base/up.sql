@@ -50,7 +50,6 @@ CREATE TABLE "cook_and_run" (
     "created" TIMESTAMPTZ NOT NULL,
     "edited" TIMESTAMPTZ NOT NULL,
     "occur" TIMESTAMPTZ NOT NULL,
-    "course_with_multiple_hosts" UUID NULL,
     "start_point" UUID NULL REFERENCES "address" ("id") ON DELETE SET NULL,
     "end_point" UUID NULL REFERENCES "address" ("id") ON DELETE SET NULL,
     "share_team_config" UUID NULL REFERENCES "share" ("id") ON DELETE SET NULL,
@@ -101,15 +100,13 @@ CREATE INDEX idx_note_team_id ON "note" ("team_id");
 -- ========================================
 CREATE TABLE "course" (
     "id" UUID PRIMARY KEY,
-    "cook_and_run_id" UUID NOT NULL,
+    "cook_and_run_id" UUID NOT NULL REFERENCES "cook_and_run" ("id") ON DELETE CASCADE,
     "name" TEXT NOT NULL,
     "time" TEXT NOT NULL,
-    FOREIGN KEY ("cook_and_run_id") REFERENCES "cook_and_run" ("id")
+    "has_multiple_hosts" BOOLEAN NOT NULL
 );
 
 CREATE INDEX idx_course_cook_and_run ON "course" ("cook_and_run_id");
-
-ALTER TABLE "cook_and_run" ADD CONSTRAINT fk_cookandrun_course_wmh FOREIGN KEY ("course_with_multiple_hosts") REFERENCES "course" ("id") ON DELETE CASCADE;
 
 -- ========================================
 -- Hosting

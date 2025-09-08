@@ -112,7 +112,7 @@ pub struct CookAndRun {
     pub occur: NaiveDateTime,
     pub team_list: Vec<Team>,
     pub course_list: Vec<Course>,
-    pub course_with_multiple_hosts: Option<Uuid>,
+
     pub start_point: Option<Address>,
     pub end_point: Option<Address>,
     pub share_team_config: Option<ShareTeamConfig>,
@@ -134,7 +134,6 @@ impl CookAndRun {
                 .into_iter()
                 .map(Course::from)
                 .collect(),
-            course_with_multiple_hosts: cook_and_run.course_with_multiple_hosts,
             start_point: cook_and_run.start_point.map(Address::from),
             end_point: cook_and_run.end_point.map(Address::from),
             share_team_config: cook_and_run.share_team_config.map(ShareTeamConfig::from),
@@ -162,10 +161,34 @@ pub struct CourseCreateData {
     pub time: String, // HH:MM format
 }
 
+impl CourseCreateData {
+    pub fn to(&self, cook_and_run_id: &Uuid, course_id: &Uuid) -> crate::course::Course {
+        crate::course::Course {
+            id: course_id.clone(),
+            cook_and_run_id: cook_and_run_id.clone(),
+            name: self.name.clone(),
+            time: self.time.clone(),
+            has_multiple_hosts: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CourseUpdateData {
-    pub name: Option<String>,
-    pub time: Option<String>,
+    pub name: String,
+    pub time: String,
+    pub has_multiple_hosts: bool,
+}
+impl CourseUpdateData {
+    pub fn to(&self, cook_and_run_id: &Uuid, course_id: &Uuid) -> crate::course::Course {
+        crate::course::Course {
+            id: course_id.clone(),
+            cook_and_run_id: cook_and_run_id.clone(),
+            name: self.name.clone(),
+            time: self.time.clone(),
+            has_multiple_hosts: self.has_multiple_hosts,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -173,6 +196,7 @@ pub struct Course {
     pub id: Uuid,
     pub name: String,
     pub time: String,
+    pub has_multiple_hosts: bool,
 }
 
 impl Course {
@@ -181,7 +205,14 @@ impl Course {
             id: course.id,
             name: course.name,
             time: course.time,
+            has_multiple_hosts: course.has_multiple_hosts,
         }
+    }
+}
+
+impl IntoResponse for Course {
+    fn into_response(self) -> Response {
+        (StatusCode::OK, Json(self)).into_response()
     }
 }
 

@@ -1,9 +1,5 @@
 use chrono::NaiveDateTime;
-use diesel::{
-    deserialize::FromSqlRow,
-    expression::AsExpression,
-    prelude::{Insertable, Queryable, Selectable},
-};
+use diesel::{deserialize::FromSqlRow, expression::AsExpression, prelude::*};
 use uuid::Uuid;
 
 // ========================================
@@ -56,14 +52,16 @@ pub struct Note {
 // ========================================
 // Course
 // ========================================
-#[derive(Queryable, Selectable, Insertable)]
+#[derive(Queryable, Selectable, Insertable, Associations, Identifiable)]
 #[diesel(belongs_to(CookAndRun))]
 #[diesel(table_name = crate::db::schema::course)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Course {
     pub id: Uuid,
     pub cook_and_run_id: Uuid,
     pub name: String,
     pub time: String,
+    pub has_multiple_hosts: bool,
 }
 
 // ========================================
@@ -217,8 +215,9 @@ pub struct CookAndRunCreate<'a> {
     pub occur: &'a NaiveDateTime,
 }
 
-#[derive(Queryable, Selectable)]
+#[derive(Queryable, Selectable, Identifiable)]
 #[diesel(table_name = crate::db::schema::cook_and_run)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct CookAndRun {
     pub id: Uuid,
     pub user_id: String,
@@ -226,7 +225,6 @@ pub struct CookAndRun {
     pub created: NaiveDateTime,
     pub edited: NaiveDateTime,
     pub occur: NaiveDateTime,
-    pub course_with_multiple_hosts: Option<Uuid>,
     pub start_point: Option<Uuid>,
     pub end_point: Option<Uuid>,
     pub share_team_config: Option<Uuid>,

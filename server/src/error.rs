@@ -84,9 +84,6 @@ pub fn map_not_found_cook_and_run(
         cook_and_run_id, needed_for, e
     );
     RestError::NotFound {
-        message: format!(
-            "Cook and run project with id {} not found in database",
-            cook_and_run_id
-        ),
+        message: "Entity not found".to_string(),
     }
 }

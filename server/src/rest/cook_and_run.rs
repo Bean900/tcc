@@ -35,6 +35,12 @@ pub struct ListCookAndRunQuery {
     pub sort: Option<SortOption>,
 }
 
+impl AuthenticatedUser for ListCookAndRunQuery {
+    fn user_id(&self) -> AuthUser {
+        AuthUser::Id(self.user_id.clone())
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SortOption {
@@ -149,6 +155,8 @@ async fn list_cook_and_run_projects(
     State(mut state): State<AppState>,
     Query(params): Query<ListCookAndRunQuery>,
 ) -> Result<CookAndRunListResponse, RestError> {
+    is_user_authenticated(&params, &claims)?;
+
     let result: Vec<CookAndRunMeta> =
         get_list_of_cook_and_run_meta(&mut state.db, &params.user_id)?
             .iter()
@@ -168,8 +176,6 @@ async fn list_cook_and_run_projects(
             has_prev: false,
         },
     };
-
-    is_user_authenticated(&response, &claims)?;
 
     Ok(response)
 }

@@ -56,20 +56,6 @@ async fn main() {
     debug!("Database initialized successfully.");
     let app_state = AppState { auth, db: database };
 
-    /*
-        let app = Router::new()
-            .route("/cook-and-run", post(create_cook_and_run))
-            .layer(from_fn_with_state(
-                app_state.clone(),
-                require_permission("read:cook_and_run"),
-            ))
-            .layer(
-                TraceLayer::new_for_http()
-                    .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
-                    .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
-            )
-            .with_state(app_state);
-    */
     let app = rest::get_routes(app_state.clone())
         .layer(
             TraceLayer::new_for_http()

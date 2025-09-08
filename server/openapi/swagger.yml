@@ -1728,12 +1728,6 @@ components:
           items:
             $ref: "#/components/schemas/Course"
           description: List of courses for the event
-        course_with_multiple_hosts:
-          type: array
-          items:
-            type: string
-            format: uuid
-          description: IDs of courses that allow multiple hosts
         start_point:
           allOf:
             - $ref: "#/components/schemas/Address"
@@ -1789,6 +1783,9 @@ components:
           type: string
           pattern: "^([0-1]?[0-9]|2[0-3]):[0-5][0-9]"
           description: Time when this course should be served
+        has_multiple_hosts:
+          type: boolean
+          description: Set when a course is allow for multiple hosts
 
     Course:
       type: object
@@ -1805,10 +1802,14 @@ components:
           type: string
           pattern: "^([0-1]?[0-9]|2[0-3]):[0-5][0-9]"
           description: Time when this course should be served
+        has_multiple_hosts:
+          type: boolean
+          description: Set when a course is allow for multiple hosts
       required:
         - id
         - name
         - time
+        - has_multiple_hosts
 
     TeamCreateData:
       type: object
