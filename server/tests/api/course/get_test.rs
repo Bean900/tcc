@@ -93,7 +93,7 @@ fn test_get_course_list_wrong_user() {
     get_course_list(&test_data.cook_and_run_id, &vec![], &token);
 }
 
-fn execute_get(
+pub fn execute_get(
     cook_and_run_id: &Uuid,
     course_id: &Uuid,
     token: &str,
