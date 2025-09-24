@@ -14,7 +14,7 @@ use crate::{
     error::RestError,
     rest::{
         auth::{require_permission, Claims, READ_PERMISSION, UPDATE_PERMISSION},
-        models::{Course, CourseCreateData, CourseUpdateData},
+        models::{Course, CourseCreateData, CourseUpdateData, PaginationInfo},
     },
     AppState,
 };
@@ -34,7 +34,7 @@ pub enum CourseSortOption {
 #[derive(Debug, Serialize)]
 pub struct CourseListResponse {
     pub data: Vec<Course>,
-    pub count: usize,
+    pub pagination: PaginationInfo,
 }
 
 impl IntoResponse for CourseListResponse {
@@ -94,11 +94,9 @@ async fn list_courses(
         .map(Course::from)
         .collect();
 
-    let count = result.len();
-
     let response = CourseListResponse {
         data: result,
-        count,
+        pagination: PaginationInfo::new(),
     };
     Ok(response)
 }

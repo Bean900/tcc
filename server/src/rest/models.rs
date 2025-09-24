@@ -21,6 +21,19 @@ pub struct PaginationInfo {
     pub has_prev: bool,
 }
 
+impl PaginationInfo {
+    pub fn new() -> Self {
+        PaginationInfo {
+            page: 1 as u32,
+            limit: 1 as u32,
+            total: 1 as u64,
+            total_pages: 1 as u32,
+            has_next: false,
+            has_prev: false,
+        }
+    }
+}
+
 // Address model
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Address {
@@ -230,6 +243,34 @@ pub struct TeamCreateData {
     pub needs_check: bool,
 }
 
+impl TeamCreateData {
+    pub fn to(
+        &self,
+        cook_and_run_id: &Uuid,
+        team_id: &Uuid,
+        created_by_user: &str,
+        time: &NaiveDateTime,
+    ) -> crate::team::Team {
+        let address = self.address.to();
+        let team = crate::team::Team {
+            id: team_id.clone(),
+            cook_and_run_id: cook_and_run_id.clone(),
+            created_by_user: Some(created_by_user.to_string()),
+            name: self.name.clone(),
+            created: *time,
+            edited: *time,
+            address: address,
+            mail: self.mail.clone(),
+            phone: self.phone.clone(),
+            members: self.members,
+            diets: self.diets.clone(),
+            needs_check: self.needs_check,
+            note_list: vec![],
+        };
+        team
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TeamUpdateData {
     pub name: String,
@@ -239,6 +280,34 @@ pub struct TeamUpdateData {
     pub members: Option<u32>,
     pub diets: Option<String>,
     pub needs_check: bool,
+}
+
+impl TeamUpdateData {
+    pub fn to(
+        &self,
+        cook_and_run_id: &Uuid,
+        team_id: &Uuid,
+        created_by_user: &str,
+        time: &NaiveDateTime,
+    ) -> crate::team::Team {
+        let address = self.address.to();
+        let team = crate::team::Team {
+            id: team_id.clone(),
+            cook_and_run_id: cook_and_run_id.clone(),
+            created_by_user: Some(created_by_user.to_string()),
+            name: self.name.clone(),
+            created: *time,
+            edited: *time,
+            address: address,
+            mail: self.mail.clone(),
+            phone: self.phone.clone(),
+            members: self.members,
+            diets: self.diets.clone(),
+            needs_check: self.needs_check,
+            note_list: vec![],
+        };
+        team
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -255,6 +324,12 @@ pub struct Team {
     pub diets: Option<String>,
     pub needs_check: bool,
     pub note_list: Vec<Note>,
+}
+
+impl IntoResponse for Team {
+    fn into_response(self) -> Response {
+        (StatusCode::OK, Json(self)).into_response()
+    }
 }
 
 impl Team {

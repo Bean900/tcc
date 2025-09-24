@@ -17,7 +17,7 @@ pub struct Address {
 // ========================================
 // Team
 // ========================================
-#[derive(Queryable, Selectable, Insertable)]
+#[derive(Queryable, Selectable, Insertable, Associations, Identifiable)]
 #[diesel(belongs_to(CookAndRun))]
 #[diesel(table_name = crate::db::schema::team)]
 pub struct Team {

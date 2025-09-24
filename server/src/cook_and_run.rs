@@ -143,7 +143,7 @@ pub fn get_cook_and_run(
                 }
             }
         })?;
-    let team = team::get_list(db, cook_and_run_id)?;
+    let team = team::get_list(db, cook_and_run_id, user_id)?;
     let course = course::get_list(db, cook_and_run_id, user_id)?;
 
     let start_point = cook_and_run

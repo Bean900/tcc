@@ -12,8 +12,9 @@ use crate::db::schema::course::{self, has_multiple_hosts, name, time};
 impl Database {
     pub fn create_course(&mut self, data: &Course) -> Result<(), diesel::result::Error> {
         let conn = &mut self.get_connection()?;
-        use crate::db::schema::course::dsl::*;
-        insert_into(course).values(data).execute(conn)?;
+        insert_into(course::dsl::course)
+            .values(data)
+            .execute(conn)?;
         Ok(())
     }
 

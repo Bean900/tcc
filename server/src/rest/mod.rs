@@ -6,6 +6,7 @@ pub mod auth;
 mod cook_and_run;
 mod course;
 mod models;
+mod team;
 
 pub struct Rest {}
 
@@ -19,4 +20,5 @@ pub fn get_routes(app_state: AppState) -> Router<AppState> {
     axum::Router::new()
         .merge(cook_and_run::routes(app_state.clone()))
         .merge(course::routes(app_state.clone()))
+        .merge(team::routes())
 }

@@ -1,0 +1,29 @@
+[package]
+name = "tcc_server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.7", features = ["macros"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["serde", "v4"] }
+time = { version = "0.3", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dotenvy = "0.15"
+thiserror = "1"
+tower-http = { version = "0.5", features = ["cors","trace"] }
+sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio","tls-rustls","postgres","uuid","chrono","json", "migrate", "macros"] }
+include_dir = "0.7"
+diesel = { version = "2.2", features = ["postgres", "uuid", "chrono", "serde_json", "r2d2"] }
+diesel_migrations = { version = "2.2", features = ["postgres"] }
+jsonwebtoken = "9.3.1"
+reqwest = { version ="0.12.23", features = ["json","blocking"] }
+
+# Test-Organisation
+[[test]]
+name = "api"
+path = "tests/api/mod.rs"
