@@ -20,5 +20,5 @@ pub fn get_routes(app_state: AppState) -> Router<AppState> {
     axum::Router::new()
         .merge(cook_and_run::routes(app_state.clone()))
         .merge(course::routes(app_state.clone()))
-        .merge(team::routes())
+        .merge(team::routes(app_state.clone()))
 }
