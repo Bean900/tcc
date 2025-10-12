@@ -1,16 +1,22 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
-    response::Json,
+    middleware::from_fn_with_state,
+    response::{IntoResponse, Json, Response},
     routing::{delete, get, post},
-    Router,
+    Extension, Router,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    models::{Note, NoteCreateData},
-    ApiResult, AppState,
+    error::RestError,
+    note::{self},
+    rest::{
+        auth::{require_permission, Claims, DELETE_PERMISSION, READ_PERMISSION, UPDATE_PERMISSION},
+        models::{Note, NoteCreateData, PaginationInfo},
+    },
+    AppState,
 };
 
 #[derive(Debug, Deserialize)]
@@ -28,78 +34,116 @@ pub enum NoteSortOption {
 #[derive(Debug, Serialize)]
 pub struct NoteListResponse {
     pub data: Vec<Note>,
-    pub count: usize,
+    pub pagination: PaginationInfo,
 }
 
-pub fn routes() -> Router<AppState> {
+impl IntoResponse for NoteListResponse {
+    fn into_response(self) -> Response {
+        (StatusCode::OK, Json(self)).into_response()
+    }
+}
+
+pub fn routes(app_state: AppState) -> Router<AppState> {
     Router::new()
         .route(
             "/cook_and_run/:cook_and_run_id/team/:team_id/notes",
-            get(get_team_notes),
+            get(get_team_notes).layer(from_fn_with_state(
+                app_state.clone(),
+                require_permission(READ_PERMISSION),
+            )),
         )
         .route(
             "/cook_and_run/:cook_and_run_id/team/:team_id/note/:note_id",
-            post(create_team_note),
+            get(get_note).layer(from_fn_with_state(
+                app_state.clone(),
+                require_permission(UPDATE_PERMISSION),
+            )),
         )
         .route(
             "/cook_and_run/:cook_and_run_id/team/:team_id/note/:note_id",
-            delete(delete_team_note),
+            post(create_team_note).layer(from_fn_with_state(
+                app_state.clone(),
+                require_permission(UPDATE_PERMISSION),
+            )),
+        )
+        .route(
+            "/cook_and_run/:cook_and_run_id/team/:team_id/note/:note_id",
+            delete(delete_team_note).layer(from_fn_with_state(
+                app_state.clone(),
+                require_permission(DELETE_PERMISSION),
+            )),
         )
 }
 
 /// Get all notes for a team
 async fn get_team_notes(
-    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    State(mut state): State<AppState>,
     Path((cook_and_run_id, team_id)): Path<(Uuid, Uuid)>,
-    Query(params): Query<ListNotesQuery>,
-) -> ApiResult<Json<NoteListResponse>> {
-    // TODO: Implement database query
-    // Check if cook_and_run_id exists -> 404 Not Found
-    // Check if team_id exists -> 404 Not Found
-    // Filter notes by team_id
-    // Apply sorting based on params.sort (default: created_desc)
+) -> Result<NoteListResponse, RestError> {
+    let result = note::get_list_by_cook_and_run_id_and_team_id(
+        &mut state.db,
+        &cook_and_run_id,
+        &team_id,
+        &claims.sub,
+    )?
+    .into_iter()
+    .map(Note::from)
+    .collect();
 
     let response = NoteListResponse {
-        data: vec![],
-        count: 0,
+        data: result,
+        pagination: PaginationInfo::new(),
     };
 
-    Ok(Json(response))
+    Ok(response)
+}
+
+/// Get note
+async fn get_note(
+    Extension(claims): Extension<Claims>,
+    State(mut state): State<AppState>,
+    Path((cook_and_run_id, team_id, note_id)): Path<(Uuid, Uuid, Uuid)>,
+) -> Result<Note, RestError> {
+    let result = note::get(
+        &mut state.db,
+        &cook_and_run_id,
+        &team_id,
+        &note_id,
+        &claims.sub,
+    )?;
+
+    Ok(Note::from(result))
 }
 
 /// Create note for team
 async fn create_team_note(
-    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    State(mut state): State<AppState>,
     Path((cook_and_run_id, team_id, note_id)): Path<(Uuid, Uuid, Uuid)>,
     Json(payload): Json<NoteCreateData>,
-) -> ApiResult<(StatusCode, Json<Note>)> {
-    // TODO: Implement note creation logic
-    // Check if cook_and_run_id exists -> 404 Not Found
-    // Check if team_id exists -> 404 Not Found
-    // Check if note_id already exists -> 409 Conflict
-    // Validate payload (headline and content length) -> 422 Validation Error
-    // Create note in database
-
-    let note = Note {
-        id: note_id,
-        headline: payload.headline,
-        content: payload.content,
-        created: chrono::Utc::now(),
-    };
-
-    Ok((StatusCode::CREATED, Json(note)))
+) -> Result<(), RestError> {
+    let time = chrono::Utc::now().naive_utc();
+    note::create(
+        &mut state.db,
+        &cook_and_run_id,
+        &team_id,
+        &claims.sub,
+        &payload.to(&note_id, time),
+    )
 }
 
 /// Delete note for team
 async fn delete_team_note(
-    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    State(mut state): State<AppState>,
     Path((cook_and_run_id, team_id, note_id)): Path<(Uuid, Uuid, Uuid)>,
-) -> ApiResult<StatusCode> {
-    // TODO: Implement note deletion logic
-    // Check if cook_and_run_id exists -> 404 Not Found
-    // Check if team_id exists -> 404 Not Found
-    // Check if note_id exists -> 404 Not Found
-    // Delete note from database
-
-    Ok(StatusCode::NO_CONTENT)
+) -> Result<(), RestError> {
+    note::delete(
+        &mut state.db,
+        &cook_and_run_id,
+        &team_id,
+        &note_id,
+        &claims.sub,
+    )
 }

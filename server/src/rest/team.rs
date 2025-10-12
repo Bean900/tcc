@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use crate::{
     error::RestError,
+    note,
     rest::{
         auth::{require_permission, Claims, CREATE_PERMISSION, READ_PERMISSION, UPDATE_PERMISSION},
         models::{PaginationInfo, Team, TeamCreateData, TeamUpdateData},

@@ -357,6 +357,16 @@ pub struct NoteCreateData {
     pub headline: String,
     pub content: String,
 }
+impl NoteCreateData {
+    pub(crate) fn to(&self, note_id: &Uuid, time: NaiveDateTime) -> crate::note::Note {
+        crate::note::Note {
+            id: note_id.clone(),
+            headline: self.headline.clone(),
+            content: self.content.clone(),
+            created: time,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Note {
@@ -374,6 +384,12 @@ impl Note {
             content: note.content,
             created: note.created,
         }
+    }
+}
+
+impl IntoResponse for Note {
+    fn into_response(self) -> Response {
+        (StatusCode::OK, Json(self)).into_response()
     }
 }
 
