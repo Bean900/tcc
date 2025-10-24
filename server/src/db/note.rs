@@ -47,7 +47,10 @@ impl Database {
                 query = query.filter(note::id.eq(note_id));
             }
 
-            query.select(Note::as_select()).load::<Note>(conn)
+            query
+                .order_by(note::created.asc())
+                .select(Note::as_select())
+                .load::<Note>(conn)
         } else {
             let mut query = note::table.into_boxed();
 
@@ -58,7 +61,10 @@ impl Database {
                 query = query.filter(note::id.eq(note_id));
             }
 
-            query.select(Note::as_select()).load::<Note>(conn)
+            query
+                .order_by(note::created.asc())
+                .select(Note::as_select())
+                .load::<Note>(conn)
         }
     }
 

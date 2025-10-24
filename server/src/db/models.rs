@@ -81,7 +81,7 @@ pub struct Hosting {
 // ========================================
 // Share
 // ========================================
-#[derive(Debug, Clone, Copy, AsExpression, FromSqlRow)]
+#[derive(Debug, Clone, Copy, AsExpression)]
 #[diesel(sql_type = crate::db::schema::sql_types::TeamFields)]
 #[diesel(postgres_type(name = "team_fields"))]
 pub enum TeamFields {
@@ -99,10 +99,10 @@ where
     fn from_sql(bytes: DB::RawValue<'_>) -> diesel::deserialize::Result<Self> {
         let s = String::from_sql(bytes)?;
         match s.as_str() {
-            "Mail" => Ok(TeamFields::Mail),
-            "Phone" => Ok(TeamFields::Phone),
-            "Members" => Ok(TeamFields::Members),
-            "Diets" => Ok(TeamFields::Diets),
+            "mail" => Ok(TeamFields::Mail),
+            "phone" => Ok(TeamFields::Phone),
+            "members" => Ok(TeamFields::Members),
+            "diets" => Ok(TeamFields::Diets),
             _ => Err(format!("Unknown variant: {}", s).into()),
         }
     }
@@ -118,10 +118,10 @@ where
         out: &mut diesel::serialize::Output<'b, '_, DB>,
     ) -> diesel::serialize::Result {
         let s = match self {
-            TeamFields::Mail => "Mail",
-            TeamFields::Phone => "Phone",
-            TeamFields::Members => "Members",
-            TeamFields::Diets => "Diets",
+            TeamFields::Mail => "mail",
+            TeamFields::Phone => "phone",
+            TeamFields::Members => "members",
+            TeamFields::Diets => "diets",
         };
         s.to_sql(out)
     }

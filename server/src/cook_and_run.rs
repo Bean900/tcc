@@ -158,7 +158,7 @@ pub fn get_cook_and_run(
 
     let share_team_config = cook_and_run
         .share_team_config
-        .map(|s| sharing::get_by_id(db, &s))
+        .map(|_| sharing::get_by_id(db, cook_and_run_id, user_id))
         .transpose()?;
 
     let plan = cook_and_run

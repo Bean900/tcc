@@ -15,6 +15,7 @@ pub enum RestError {
     InternalServer { message: String },
     NotFound { message: String },
     Conflict { message: String },
+    Forbidden { message: String },
 }
 
 impl RestError {
@@ -54,6 +55,7 @@ impl ErrorBody {
             RestError::Conflict { message } => (StatusCode::CONFLICT, message),
             RestError::Unauthorized { message } => (StatusCode::UNAUTHORIZED, message),
             RestError::NotFound { message } => (StatusCode::NOT_FOUND, message),
+            RestError::Forbidden { message } => (StatusCode::FORBIDDEN, message),
         };
         ErrorBody {
             status: status,

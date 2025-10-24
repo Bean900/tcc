@@ -1,19 +1,21 @@
 use axum::{
     extract::{Path, Query, State},
+    http::HeaderMap,
     middleware::from_fn_with_state,
     response::{IntoResponse, Json, Response},
     routing::{delete, get, patch, post},
     Extension, Router,
 };
+use axum_extra::TypedHeader;
+use headers::{authorization::Bearer, Authorization};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
     error::RestError,
-    note,
     rest::{
-        auth::{require_permission, Claims, CREATE_PERMISSION, READ_PERMISSION, UPDATE_PERMISSION},
+        auth::{require_permission, AuthState, Claims, READ_PERMISSION, UPDATE_PERMISSION},
         models::{PaginationInfo, Team, TeamCreateData, TeamUpdateData},
     },
     team, AppState,
@@ -58,10 +60,7 @@ pub fn routes(app_state: AppState) -> Router<AppState> {
         )
         .route(
             "/cook_and_run/:cook_and_run_id/team/:team_id",
-            post(create_team).layer(from_fn_with_state(
-                app_state.clone(),
-                require_permission(UPDATE_PERMISSION),
-            )),
+            post(create_team),
         )
         .route(
             "/cook_and_run/:cook_and_run_id/team/:team_id",
@@ -107,17 +106,28 @@ async fn list_teams(
 
 /// Create team for cook and run project
 async fn create_team(
-    Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path((cook_and_run_id, team_id)): Path<(Uuid, Uuid)>,
+    auth: Option<TypedHeader<Authorization<Bearer>>>,
     Json(payload): Json<TeamCreateData>,
 ) -> Result<(), RestError> {
+    let user_id = get_user_id(&auth, &state.auth);
     let time = chrono::Utc::now().naive_utc();
     team::create(
         &mut state.db,
-        &claims.sub,
-        &payload.to(&cook_and_run_id, &team_id, &claims.sub, &time),
+        &user_id,
+        &payload.to(&cook_and_run_id, &team_id, &user_id, &time),
     )
+}
+
+fn get_user_id(
+    auth: &Option<TypedHeader<Authorization<Bearer>>>,
+    auth_state: &AuthState,
+) -> Option<String> {
+    auth.as_ref()
+        .map(|header| header.token())
+        .and_then(|token| auth_state.verify_token(token).ok())
+        .map(|claims| claims.sub.to_string())
 }
 
 /// Get team details

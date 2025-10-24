@@ -248,14 +248,14 @@ impl TeamCreateData {
         &self,
         cook_and_run_id: &Uuid,
         team_id: &Uuid,
-        created_by_user: &str,
+        created_by_user: &Option<String>,
         time: &NaiveDateTime,
     ) -> crate::team::Team {
         let address = self.address.to();
         let team = crate::team::Team {
             id: team_id.clone(),
             cook_and_run_id: cook_and_run_id.clone(),
-            created_by_user: Some(created_by_user.to_string()),
+            created_by_user: created_by_user.clone(),
             name: self.name.clone(),
             created: *time,
             edited: *time,
@@ -404,6 +404,12 @@ pub struct ShareTeamConfig {
     pub max_teams: Option<u32>,
     pub registration_deadline: Option<NaiveDateTime>,
     pub created: NaiveDateTime,
+}
+
+impl IntoResponse for ShareTeamConfig {
+    fn into_response(self) -> Response {
+        (StatusCode::OK, Json(self)).into_response()
+    }
 }
 
 impl ShareTeamConfig {

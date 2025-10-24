@@ -245,8 +245,8 @@ fn assert_team_json(
     );
 
     assert!(
-        NaiveDateTime::parse_from_str(created, "%Y-%m-%dT%H:%M:%S").is_ok()
-            || NaiveDateTime::parse_from_str(created, "%Y-%m-%dT%H:%M:%S%.f").is_ok(),
+        NaiveDateTime::parse_from_str(edited, "%Y-%m-%dT%H:%M:%S").is_ok()
+            || NaiveDateTime::parse_from_str(edited, "%Y-%m-%dT%H:%M:%S%.f").is_ok(),
         "Edited is not a valid NaiveTime: {}",
         edited
     );

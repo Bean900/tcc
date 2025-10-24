@@ -7,6 +7,7 @@ mod cook_and_run;
 mod course;
 mod models;
 mod note;
+mod sharing;
 mod team;
 
 pub struct Rest {}
@@ -23,4 +24,5 @@ pub fn get_routes(app_state: AppState) -> Router<AppState> {
         .merge(course::routes(app_state.clone()))
         .merge(team::routes(app_state.clone()))
         .merge(note::routes(app_state.clone()))
+        .merge(sharing::routes(app_state.clone()))
 }

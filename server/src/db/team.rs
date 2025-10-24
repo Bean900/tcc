@@ -27,6 +27,19 @@ impl Database {
         })
     }
 
+    pub fn count_teams(
+        &mut self,
+        cook_and_run_id_filter: &Uuid,
+    ) -> Result<i64, diesel::result::Error> {
+        let conn = &mut self.get_connection()?;
+
+        team::table
+            .inner_join(c_a_r::table)
+            .filter(c_a_r::dsl::id.eq(cook_and_run_id_filter))
+            .count()
+            .get_result(conn)
+    }
+
     pub fn select_all_team(
         &mut self,
         cook_and_run_id_filter: &Uuid,
@@ -39,6 +52,7 @@ impl Database {
             .filter(c_a_r::dsl::id.eq(cook_and_run_id_filter))
             .filter(c_a_r::user_id.eq(user_id_filter))
             .inner_join(address::table)
+            .order(team::created.asc())
             .select((Team::as_select(), Address::as_select()))
             .load::<(Team, Address)>(conn)
     }

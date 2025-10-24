@@ -9,6 +9,7 @@ use crate::{
     db::{self, Database},
     error::{map_not_found_cook_and_run, RestError},
     note::{get_list_by_team_id, Note},
+    sharing::ShareTeamConfig,
 };
 
 #[derive(Debug, Clone)]
@@ -166,8 +167,28 @@ pub(crate) fn update(db: &mut Database, user_id: &str, data: &Team) -> Result<()
         })
 }
 
-pub fn create(db: &mut Database, user_id: &str, data: &Team) -> Result<(), RestError> {
-    let _ = get_cook_and_run(db, &data.cook_and_run_id, user_id)?;
+pub fn create(db: &mut Database, user_id: &Option<String>, data: &Team) -> Result<(), RestError> {
+    match db.select_share_uncheckt(&data.cook_and_run_id) {
+        Ok(share) => check_team_against_share(db, &ShareTeamConfig::from(share), user_id, data)?,
+        Err(diesel::result::Error::NotFound) => {
+            if let Some(user_id) = user_id {
+                let _ = get_cook_and_run(db, &data.cook_and_run_id, user_id)?;
+            } else {
+                return Err(RestError::NotFound {
+                    message: "Could not find cook and run project".to_string(),
+                });
+            }
+        }
+        Err(e) => {
+            error!(
+                "Database error while selecting share config for id {}: {}",
+                data.cook_and_run_id, e
+            );
+            return Err(RestError::InternalServer {
+                message: "Database error while selecting share config".to_string(),
+            });
+        }
+    }
 
     match db.create_team(&data.to(), &data.address.to_db()) {
         Ok(_) => Ok(()),
@@ -182,4 +203,93 @@ pub fn create(db: &mut Database, user_id: &str, data: &Team) -> Result<(), RestE
             });
         }
     }
+}
+
+fn check_team_against_share(
+    db: &mut Database,
+    share: &ShareTeamConfig,
+    user_id: &Option<String>,
+    data: &Team,
+) -> Result<(), RestError> {
+    if user_id
+        .clone()
+        .is_some_and(|user_id| get_cook_and_run(db, &data.cook_and_run_id, &user_id).is_ok())
+    {
+        return Ok(());
+    }
+
+    let deadline = share.registration_deadline;
+    if deadline.is_some_and(|deadline| deadline < chrono::Utc::now().naive_utc()) {
+        warn!("Registration deadline has passed: {:?}", deadline);
+        return Err(RestError::Forbidden {
+            message: "The registration deadline has passed".to_string(),
+        });
+    }
+
+    if share.needs_login && user_id.is_none() {
+        warn!("User is not logged in, but login is required to register a team");
+        return Err(RestError::Forbidden {
+            message: "You need to be logged in to register a team".to_string(),
+        });
+    }
+
+    if let Some(max_team_size) = share.max_teams {
+        let team_size = db.count_teams(&data.cook_and_run_id).map_err(|e| {
+            error!("Could not get team count from database: {}", e);
+            RestError::InternalServer {
+                message: "Could not create team in database".to_string(),
+            }
+        })?;
+        if team_size >= max_team_size as i64 {
+            warn!("Maximum number of teams reached: {}", max_team_size);
+            return Err(RestError::Forbidden {
+                message: "The maximum number of teams has been reached".to_string(),
+            });
+        }
+    }
+
+    if share.default_needs_check && !data.needs_check {
+        warn!("The needs_check field must be true, but is false");
+        return Err(RestError::Forbidden {
+            message: "The needs_check field must be true".to_string(),
+        });
+    }
+
+    for required_field in share.required_fields.iter() {
+        match required_field {
+            crate::sharing::RequiredField::Mail => {
+                if data.mail.is_none() {
+                    warn!("The mail field is required");
+                    return Err(RestError::Forbidden {
+                        message: "The mail field is required".to_string(),
+                    });
+                }
+            }
+            crate::sharing::RequiredField::Phone => {
+                if data.phone.is_none() {
+                    warn!("The phone field is required");
+                    return Err(RestError::Forbidden {
+                        message: "The phone field is required".to_string(),
+                    });
+                }
+            }
+            crate::sharing::RequiredField::Members => {
+                if data.members.is_none() {
+                    warn!("The members field is required");
+                    return Err(RestError::Forbidden {
+                        message: "The members field is required".to_string(),
+                    });
+                }
+            }
+            crate::sharing::RequiredField::Diets => {
+                if data.diets.is_none() {
+                    warn!("The diets field is required");
+                    return Err(RestError::Forbidden {
+                        message: "The diets field is required".to_string(),
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
 }

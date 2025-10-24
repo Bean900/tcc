@@ -779,7 +779,7 @@ paths:
         - Team Notes
 
   /cook_and_run/{cookAndRunId}/share_team_config:
-    patch:
+    post:
       summary: Create team sharing configuration
       description: |
         Creates a configuration for public team registration.
