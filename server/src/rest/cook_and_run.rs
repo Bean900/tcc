@@ -155,7 +155,7 @@ async fn list_cook_and_run_projects(
     State(mut state): State<AppState>,
     Query(params): Query<ListCookAndRunQuery>,
 ) -> Result<CookAndRunListResponse, RestError> {
-    is_user_authenticated(&params, &claims)?;
+    is_user_authenticated(&params, Some(&claims.sub))?;
 
     let result: Vec<CookAndRunMeta> =
         get_list_of_cook_and_run_meta(&mut state.db, &params.user_id)?
@@ -187,7 +187,7 @@ async fn create_cook_and_run_project(
     Path(cook_and_run_id): Path<Uuid>,
     Json(payload): Json<CookAndRunCreateData>,
 ) -> Result<(), RestError> {
-    is_user_authenticated(&payload, &claims)?;
+    is_user_authenticated(&payload, Some(&claims.sub))?;
 
     let time = chrono::Utc::now().naive_utc();
 

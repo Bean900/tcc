@@ -18,6 +18,7 @@ pub const DELETE_PERMISSION: &str = "delete:cook_and_run";
 
 #[derive(Debug)]
 pub enum AuthUser {
+    Anonymous,
     None,
     Id(String),
     AnyOf(Vec<String>),
@@ -180,20 +181,44 @@ pub fn require_permission(
 
 pub fn is_user_authenticated<T: AuthenticatedUser>(
     user: &T,
-    claims: &Claims,
+    c_user_id: Option<&str>,
 ) -> Result<(), RestError> {
     let auth_user = user.user_id();
     let is_autherised = match &auth_user {
+        AuthUser::Anonymous => true,
         AuthUser::None => false,
-        AuthUser::Id(id) => claims.sub == *id,
-        AuthUser::AnyOf(ids) => ids.iter().any(|id| &claims.sub == id),
-        AuthUser::AllOf(items) => items.iter().all(|id| &claims.sub == id),
+        AuthUser::Id(id) => {
+            if let Some(c_user_id) = c_user_id {
+                c_user_id == *id
+            } else {
+                false
+            }
+        }
+        AuthUser::AnyOf(ids) => ids.iter().any(|id| {
+            if let Some(c_user_id) = c_user_id {
+                c_user_id == *id
+            } else {
+                false
+            }
+        }),
+        AuthUser::AllOf(items) => items.iter().all(|id| {
+            if let Some(c_user_id) = c_user_id {
+                c_user_id == *id
+            } else {
+                false
+            }
+        }),
     };
 
     if !is_autherised {
         warn!(
-            "User {} is not authorized. The following auth user was expected: {:?}",
-            claims.sub, auth_user
+            "User \"{}\" is not authorized. The following auth user was expected: {:?}",
+            if let Some(c_user_id) = c_user_id {
+                c_user_id
+            } else {
+                "NOT SET"
+            },
+            auth_user
         );
         return Err(RestError::Unauthorized {
             message: "User is not authorized".to_string(),

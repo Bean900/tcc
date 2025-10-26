@@ -9,13 +9,17 @@ use axum::{
 use axum_extra::TypedHeader;
 use headers::{authorization::Bearer, Authorization};
 use reqwest::StatusCode;
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Serialize};
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 use crate::{
     error::RestError,
     rest::{
-        auth::{require_permission, AuthState, Claims, READ_PERMISSION, UPDATE_PERMISSION},
+        auth::{
+            is_user_authenticated, require_permission, AuthState, Claims, READ_PERMISSION,
+            UPDATE_PERMISSION,
+        },
         models::{PaginationInfo, Team, TeamCreateData, TeamUpdateData},
     },
     team, AppState,
@@ -111,12 +115,19 @@ async fn create_team(
     auth: Option<TypedHeader<Authorization<Bearer>>>,
     Json(payload): Json<TeamCreateData>,
 ) -> Result<(), RestError> {
-    let user_id = get_user_id(&auth, &state.auth);
+    debug!(
+        "Creating team for cook and run project: {}",
+        cook_and_run_id
+    );
+    let user_id: Option<String> = get_user_id(&auth, &state.auth);
+    debug!("User ID from auth: {:?}", user_id);
+    is_user_authenticated(&payload, user_id.as_deref())?;
+    debug!("User is authenticated to create team");
     let time = chrono::Utc::now().naive_utc();
     team::create(
         &mut state.db,
         &user_id,
-        &payload.to(&cook_and_run_id, &team_id, &user_id, &time),
+        &payload.to(&cook_and_run_id, &team_id, &time),
     )
 }
 
@@ -127,7 +138,7 @@ fn get_user_id(
     auth.as_ref()
         .map(|header| header.token())
         .and_then(|token| auth_state.verify_token(token).ok())
-        .map(|claims| claims.sub.to_string())
+        .map(|claims| claims.sub)
 }
 
 /// Get team details

@@ -22,8 +22,11 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
-    let subscriber = tracing_subscriber::FmtSubscriber::new();
-    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
+    // let subscriber = tracing_subscriber::FmtSubscriber::new();
+    //  tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     let database_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/postgres".to_string());

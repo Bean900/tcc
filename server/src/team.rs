@@ -1,6 +1,6 @@
 use chrono::NaiveDateTime;
 use diesel::result::DatabaseErrorKind;
-use tracing::{error, warn};
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -171,13 +171,9 @@ pub fn create(db: &mut Database, user_id: &Option<String>, data: &Team) -> Resul
     match db.select_share_uncheckt(&data.cook_and_run_id) {
         Ok(share) => check_team_against_share(db, &ShareTeamConfig::from(share), user_id, data)?,
         Err(diesel::result::Error::NotFound) => {
-            if let Some(user_id) = user_id {
-                let _ = get_cook_and_run(db, &data.cook_and_run_id, user_id)?;
-            } else {
-                return Err(RestError::NotFound {
-                    message: "Could not find cook and run project".to_string(),
-                });
-            }
+            return Err(RestError::NotFound {
+                message: "Could not find cook and run project or share".to_string(),
+            })
         }
         Err(e) => {
             error!(
@@ -211,12 +207,16 @@ fn check_team_against_share(
     user_id: &Option<String>,
     data: &Team,
 ) -> Result<(), RestError> {
+    debug!("Checking team against share config: {:?}", share);
     if user_id
         .clone()
         .is_some_and(|user_id| get_cook_and_run(db, &data.cook_and_run_id, &user_id).is_ok())
     {
+        debug!("User is the owner of the cook and run project, skipping share checks");
         return Ok(());
     }
+
+    debug!("User is not the owner of the cook and run project, performing share checks");
 
     let deadline = share.registration_deadline;
     if deadline.is_some_and(|deadline| deadline < chrono::Utc::now().naive_utc()) {
@@ -228,7 +228,7 @@ fn check_team_against_share(
 
     if share.needs_login && user_id.is_none() {
         warn!("User is not logged in, but login is required to register a team");
-        return Err(RestError::Forbidden {
+        return Err(RestError::Unprocessable {
             message: "You need to be logged in to register a team".to_string(),
         });
     }
@@ -250,7 +250,7 @@ fn check_team_against_share(
 
     if share.default_needs_check && !data.needs_check {
         warn!("The needs_check field must be true, but is false");
-        return Err(RestError::Forbidden {
+        return Err(RestError::Unprocessable {
             message: "The needs_check field must be true".to_string(),
         });
     }
@@ -260,7 +260,7 @@ fn check_team_against_share(
             crate::sharing::RequiredField::Mail => {
                 if data.mail.is_none() {
                     warn!("The mail field is required");
-                    return Err(RestError::Forbidden {
+                    return Err(RestError::Unprocessable {
                         message: "The mail field is required".to_string(),
                     });
                 }
@@ -268,7 +268,7 @@ fn check_team_against_share(
             crate::sharing::RequiredField::Phone => {
                 if data.phone.is_none() {
                     warn!("The phone field is required");
-                    return Err(RestError::Forbidden {
+                    return Err(RestError::Unprocessable {
                         message: "The phone field is required".to_string(),
                     });
                 }
@@ -276,7 +276,7 @@ fn check_team_against_share(
             crate::sharing::RequiredField::Members => {
                 if data.members.is_none() {
                     warn!("The members field is required");
-                    return Err(RestError::Forbidden {
+                    return Err(RestError::Unprocessable {
                         message: "The members field is required".to_string(),
                     });
                 }
@@ -284,7 +284,7 @@ fn check_team_against_share(
             crate::sharing::RequiredField::Diets => {
                 if data.diets.is_none() {
                     warn!("The diets field is required");
-                    return Err(RestError::Forbidden {
+                    return Err(RestError::Unprocessable {
                         message: "The diets field is required".to_string(),
                     });
                 }

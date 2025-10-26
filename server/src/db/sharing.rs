@@ -65,10 +65,11 @@ impl Database {
 
         share::table
             .filter(
-                share::id.eq_any(
+                share::id.nullable().eq_any(
                     c_a_r::table
                         .filter(c_a_r::id.eq(cook_and_run_id_filter))
-                        .select(c_a_r::id),
+                        .filter(c_a_r::share_team_config.is_not_null())
+                        .select(c_a_r::share_team_config),
                 ),
             )
             .select(Share::as_select())

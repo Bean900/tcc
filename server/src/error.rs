@@ -16,6 +16,7 @@ pub enum RestError {
     NotFound { message: String },
     Conflict { message: String },
     Forbidden { message: String },
+    Unprocessable { message: String },
 }
 
 impl RestError {
@@ -56,6 +57,7 @@ impl ErrorBody {
             RestError::Unauthorized { message } => (StatusCode::UNAUTHORIZED, message),
             RestError::NotFound { message } => (StatusCode::NOT_FOUND, message),
             RestError::Forbidden { message } => (StatusCode::FORBIDDEN, message),
+            RestError::Unprocessable { message } => (StatusCode::UNPROCESSABLE_ENTITY, message),
         };
         ErrorBody {
             status: status,

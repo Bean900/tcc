@@ -234,12 +234,13 @@ impl IntoResponse for Course {
 pub struct TeamCreateData {
     pub name: String,
     #[serde(rename = "userId")]
-    pub user_id: String,
+    pub user_id: Option<String>,
     pub address: Address,
     pub mail: Option<String>,
     pub phone: Option<String>,
     pub members: Option<u32>,
     pub diets: Option<String>,
+    #[serde(default)]
     pub needs_check: bool,
 }
 
@@ -248,14 +249,13 @@ impl TeamCreateData {
         &self,
         cook_and_run_id: &Uuid,
         team_id: &Uuid,
-        created_by_user: &Option<String>,
         time: &NaiveDateTime,
     ) -> crate::team::Team {
         let address = self.address.to();
         let team = crate::team::Team {
             id: team_id.clone(),
             cook_and_run_id: cook_and_run_id.clone(),
-            created_by_user: created_by_user.clone(),
+            created_by_user: self.user_id.clone(),
             name: self.name.clone(),
             created: *time,
             edited: *time,
@@ -268,6 +268,16 @@ impl TeamCreateData {
             note_list: vec![],
         };
         team
+    }
+}
+
+impl AuthenticatedUser for TeamCreateData {
+    fn user_id(&self) -> AuthUser {
+        if let Some(user_id) = &self.user_id {
+            AuthUser::Id(user_id.clone())
+        } else {
+            AuthUser::Anonymous
+        }
     }
 }
 
