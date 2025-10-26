@@ -56,7 +56,7 @@ pub fn routes(app_state: AppState) -> Router<AppState> {
             "/cook_and_run/:cook_and_run_id/team/:team_id/note/:note_id",
             get(get_note).layer(from_fn_with_state(
                 app_state.clone(),
-                require_permission(UPDATE_PERMISSION),
+                require_permission(READ_PERMISSION),
             )),
         )
         .route(

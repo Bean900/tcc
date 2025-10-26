@@ -1,5 +1,6 @@
 use chrono::NaiveDateTime;
 use diesel::result::DatabaseErrorKind;
+use serde_json::de;
 use tracing::{debug, error, warn};
 use uuid::Uuid;
 
@@ -171,9 +172,21 @@ pub fn create(db: &mut Database, user_id: &Option<String>, data: &Team) -> Resul
     match db.select_share_uncheckt(&data.cook_and_run_id) {
         Ok(share) => check_team_against_share(db, &ShareTeamConfig::from(share), user_id, data)?,
         Err(diesel::result::Error::NotFound) => {
-            return Err(RestError::NotFound {
-                message: "Could not find cook and run project or share".to_string(),
-            })
+            if let Some(user_id) = user_id {
+                debug!(
+                    "No share config found for cook and run id {}, checking if user is owner",
+                    data.cook_and_run_id
+                );
+                let _ = get_cook_and_run(db, &data.cook_and_run_id, user_id)?;
+            } else {
+                debug!(
+                    "Could not find share config for cook and run id {}, and no user id provided",
+                    data.cook_and_run_id
+                );
+                return Err(RestError::NotFound {
+                    message: "Could not find cook and run project or share".to_string(),
+                });
+            }
         }
         Err(e) => {
             error!(
