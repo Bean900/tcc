@@ -85,6 +85,12 @@ impl CookAndRunMeta {
     }
 }
 
+impl IntoResponse for CookAndRunMeta {
+    fn into_response(self) -> Response {
+        (StatusCode::OK, Json(self)).into_response()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CookAndRunCreateData {
     pub name: String,

@@ -12,8 +12,9 @@ use uuid::Uuid;
 use crate::{
     cook_and_run::{
         create_cook_and_run, delete_cook_and_run, delete_cook_and_run_end_point,
-        delete_cook_and_run_start_point, get_cook_and_run, get_list_of_cook_and_run_meta,
-        set_cook_and_run_end_point, set_cook_and_run_start_point, update_cook_and_run_name,
+        delete_cook_and_run_start_point, get_cook_and_run, get_cook_and_run_meta,
+        get_list_of_cook_and_run_meta, set_cook_and_run_end_point, set_cook_and_run_start_point,
+        update_cook_and_run_name,
     },
     error::RestError,
     rest::{
@@ -101,6 +102,13 @@ pub fn routes(app_state: AppState) -> Router<AppState> {
         .route(
             "/cook_and_run/:cook_and_run_id",
             get(get_cook_and_run_project).layer(from_fn_with_state(
+                app_state.clone(),
+                require_permission(READ_PERMISSION),
+            )),
+        )
+        .route(
+            "/cook_and_run/:cook_and_run_id/metadata",
+            get(get_cook_and_run_project_meta).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
             )),
@@ -198,6 +206,16 @@ async fn create_cook_and_run_project(
 }
 
 /// Get cook and run project details
+async fn get_cook_and_run_project_meta(
+    Extension(claims): Extension<Claims>,
+    State(mut state): State<AppState>,
+    Path(cook_and_run_id): Path<Uuid>,
+) -> Result<CookAndRunMeta, RestError> {
+    let result = get_cook_and_run_meta(&mut state.db, &cook_and_run_id, &claims.sub)?;
+    Ok(CookAndRunMeta::from(&result))
+}
+
+/// Get cook and run project meta data
 async fn get_cook_and_run_project(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,

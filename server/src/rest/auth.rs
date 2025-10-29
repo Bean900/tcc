@@ -30,9 +30,25 @@ pub trait AuthenticatedUser {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum Audience {
+    Single(String),
+    Multiple(Vec<String>),
+}
+
+impl Audience {
+    pub fn as_vec(&self) -> Vec<&str> {
+        match self {
+            Audience::Single(s) => vec![s.as_str()],
+            Audience::Multiple(v) => v.iter().map(|s| s.as_str()).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
     pub sub: String,
-    pub aud: Vec<String>,
+    pub aud: Audience,
     pub iss: String,
     pub exp: usize,
     pub iat: usize,

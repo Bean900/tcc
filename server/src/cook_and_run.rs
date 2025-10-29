@@ -177,6 +177,32 @@ pub fn get_cook_and_run(
     ))
 }
 
+pub fn get_cook_and_run_meta(
+    db: &mut Database,
+    cook_and_run_id: &Uuid,
+    user_id: &str,
+) -> Result<CookAndRunMeta, RestError> {
+    db.select_cook_and_run(cook_and_run_id, user_id)
+        .map(CookAndRunMeta::from)
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => {
+                map_not_found_cook_and_run(cook_and_run_id, "loading cook and run", e)
+            }
+            _ => {
+                error!(
+                    "Could not get cook and run project with id {} from database: {}",
+                    cook_and_run_id, e
+                );
+                RestError::InternalServer {
+                    message: format!(
+                        "Could not get cook and run project with id {} from database",
+                        cook_and_run_id
+                    ),
+                }
+            }
+        })
+}
+
 pub fn create_cook_and_run(
     db: &mut Database,
     cook_and_run: CookAndRunCreate,
