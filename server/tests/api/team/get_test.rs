@@ -105,7 +105,7 @@ pub fn execute_get(
             "{}/cook_and_run/{}/team/{}",
             base_url, cook_and_run_id, team_id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("authorization", format!("Bearer {}", token))
         .send()
         .expect("Failed to send request")
 }
@@ -134,7 +134,7 @@ fn execute_get_list(cook_and_run_id: &Uuid, token: &str) -> reqwest::blocking::R
             "{}/cook_and_run/{}/teams",
             base_url, cook_and_run_id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("authorization", format!("Bearer {}", token))
         .send()
         .expect("Failed to send request")
 }

@@ -7,12 +7,9 @@ use web_sys::console;
 
 use crate::side::details::address::{Address, AddressParam};
 use crate::side::InputPhoneNumber;
-use crate::storage::{AddressData, ContactData, LocalStorage};
+use crate::storage::{AddressData, StorageManager, TeamData};
 
-use crate::{
-    side::{ConfirmButton, Input, InputError, InputNumber},
-    storage::StorageW,
-};
+use crate::side::{ConfirmButton, Input, InputError, InputNumber};
 
 fn add_team(
     id: Uuid,
@@ -23,10 +20,9 @@ fn add_team(
     members: u32,
     address_data: AddressData,
 ) -> Result<(), String> {
-    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-    let mut storage = storage.lock().expect("Expected storage lock");
+    let mut storage = StorageManager::get_lock()?;
 
-    let team = ContactData {
+    let team = TeamData {
         id: Uuid::new_v4(),
         team_name,
         address: address_data,
@@ -35,10 +31,9 @@ fn add_team(
         phone_number: tel,
         members,
         needs_check: true,
-        notes: vec![],
+        note_list: vec![],
     };
-    let result = storage.add_team_to_cook_and_run(id, team);
-    result
+    storage.create_team_of_cook_and_run(id, &team)
 }
 
 #[component]
@@ -53,11 +48,11 @@ fn AddTeamDialog(project_id: Uuid, share_id: Uuid) -> Element {
     let team_name_signal = use_signal(|| "".to_string());
     let team_name_error_signal = use_signal(|| "".to_string());
 
-    let contact_email_signal = use_signal(|| "".to_string());
-    let contact_email_error_signal = use_signal(|| "".to_string());
+    let team_email_signal = use_signal(|| "".to_string());
+    let team_email_error_signal = use_signal(|| "".to_string());
 
-    let contact_tel_signal = use_signal(|| "".to_string());
-    let contact_tel_error_signal = use_signal(|| "".to_string());
+    let team_tel_signal = use_signal(|| "".to_string());
+    let team_tel_error_signal = use_signal(|| "".to_string());
 
     let members_signal = use_signal(|| "".to_string());
     let members_error_signal = use_signal(|| "".to_string());
@@ -80,10 +75,10 @@ fn AddTeamDialog(project_id: Uuid, share_id: Uuid) -> Element {
                         project_id,
                         team_name_signal,
                         team_name_error_signal,
-                        contact_email_signal,
-                        contact_email_error_signal,
-                        contact_tel_signal,
-                        contact_tel_error_signal,
+                        team_email_signal,
+                        team_email_error_signal,
+                        team_tel_signal,
+                        team_tel_error_signal,
                         members_signal,
                         members_error_signal,
                         diets_signal,
@@ -99,10 +94,10 @@ fn AddTeamDialog(project_id: Uuid, share_id: Uuid) -> Element {
                                 if !check_all(
                                     team_name_signal,
                                     team_name_error_signal,
-                                    contact_email_signal,
-                                    contact_email_error_signal,
-                                    contact_tel_signal,
-                                    contact_tel_error_signal,
+                                    team_email_signal,
+                                    team_email_error_signal,
+                                    team_tel_signal,
+                                    team_tel_error_signal,
                                     members_error_signal,
                                     members_signal,
                                     address_param.clone(),
@@ -113,8 +108,8 @@ fn AddTeamDialog(project_id: Uuid, share_id: Uuid) -> Element {
                                     project_id,
                                     team_name_signal.read().trim().to_string(),
                                     diets_signal.read().split(',').map(|s| s.trim().to_string()).collect(),
-                                    contact_email_signal.read().trim().to_string(),
-                                    contact_tel_signal.read().trim().to_string(),
+                                    team_email_signal.read().trim().to_string(),
+                                    team_tel_signal.read().trim().to_string(),
                                     members_signal.read().parse::<u32>().unwrap_or(0),
                                     address_param
                                         .get_address_data()
@@ -143,10 +138,10 @@ fn TeamDialog(
     project_id: Uuid,
     team_name_signal: Signal<String>,
     team_name_error_signal: Signal<String>,
-    contact_email_signal: Signal<String>,
-    contact_email_error_signal: Signal<String>,
-    contact_tel_signal: Signal<String>,
-    contact_tel_error_signal: Signal<String>,
+    team_email_signal: Signal<String>,
+    team_email_error_signal: Signal<String>,
+    team_tel_signal: Signal<String>,
+    team_tel_error_signal: Signal<String>,
     members_signal: Signal<String>,
     members_error_signal: Signal<String>,
     diets_signal: Signal<String>,
@@ -169,33 +164,33 @@ fn TeamDialog(
                 }
                 InputError { error: team_name_error_signal.read() }
 
-                // Contact E-Mail
-                label { class: "block font-semibold text-gray-700 mb-1", "Contact E-Mail" }
+                // Team E-Mail
+                label { class: "block font-semibold text-gray-700 mb-1", "Team E-Mail" }
                 Input {
                     place_holer: Some("e.g. chili@chasers.de".to_string()),
-                    is_error: !contact_email_error_signal.read().is_empty(),
-                    value: contact_email_signal.clone(),
+                    is_error: !team_email_error_signal.read().is_empty(),
+                    value: team_email_signal.clone(),
                     oninput: move |e: Event<FormData>| {
-                        let contact_email = e.value();
-                        contact_email_signal.set(contact_email.clone());
-                        check_contact_email(contact_email_signal, contact_email_error_signal);
+                        let team_email = e.value();
+                        team_email_signal.set(team_email.clone());
+                        check_team_email(team_email_signal, team_email_error_signal);
                     },
                 }
-                InputError { error: contact_email_error_signal.read() }
+                InputError { error: team_email_error_signal.read() }
 
-                // Contact Phone Number
-                label { class: "block font-semibold text-gray-700 mb-1", "Contact Phone Number" }
+                // Team Phone Number
+                label { class: "block font-semibold text-gray-700 mb-1", "Team Phone Number" }
                 InputPhoneNumber {
                     place_holer: Some("e.g. +49 1234 56789".to_string()),
-                    is_error: !contact_tel_error_signal.read().is_empty(),
-                    value: contact_tel_signal.clone(),
+                    is_error: !team_tel_error_signal.read().is_empty(),
+                    value: team_tel_signal.clone(),
                     oninput: move |e: Event<FormData>| {
-                        let contact_tel = e.value();
-                        contact_tel_signal.set(contact_tel.clone());
-                        check_contact_tel(contact_tel_signal, contact_tel_error_signal);
+                        let team_tel = e.value();
+                        team_tel_signal.set(team_tel.clone());
+                        check_team_tel(team_tel_signal, team_tel_error_signal);
                     },
                 }
-                InputError { error: contact_tel_error_signal.read() }
+                InputError { error: team_tel_error_signal.read() }
 
                 // Number of Members
                 label { class: "block font-semibold text-gray-700 mb-1", "Number of Members" }
@@ -238,20 +233,20 @@ fn TeamDialog(
 fn check_all(
     team_name_signal: Signal<String>,
     team_name_error_signal: Signal<String>,
-    contact_email_signal: Signal<String>,
-    contact_email_error_signal: Signal<String>,
-    contact_tel_signal: Signal<String>,
-    contact_tel_error_signal: Signal<String>,
+    team_email_signal: Signal<String>,
+    team_email_error_signal: Signal<String>,
+    team_tel_signal: Signal<String>,
+    team_tel_error_signal: Signal<String>,
     members_error_signal: Signal<String>,
     members_signal: Signal<String>,
     address_param: AddressParam,
 ) -> bool {
     let team_name_check = check_team_name(team_name_signal, team_name_error_signal);
-    let contact_email_check = check_contact_email(contact_email_signal, contact_email_error_signal);
-    let contact_tel_check = check_contact_tel(contact_tel_signal, contact_tel_error_signal);
+    let team_email_check = check_team_email(team_email_signal, team_email_error_signal);
+    let team_tel_check = check_team_tel(team_tel_signal, team_tel_error_signal);
     let member_check = check_members(members_signal, members_error_signal);
     let address_check = address_param.check_address_data().is_ok();
-    team_name_check && contact_email_check && contact_tel_check && member_check && address_check
+    team_name_check && team_email_check && team_tel_check && member_check && address_check
 }
 
 fn check_team_name(
@@ -268,33 +263,33 @@ fn check_team_name(
     }
 }
 
-fn check_contact_email(
-    contact_email_signal: Signal<String>,
-    mut contact_email_error_signal: Signal<String>,
+fn check_team_email(
+    team_email_signal: Signal<String>,
+    mut team_email_error_signal: Signal<String>,
 ) -> bool {
-    let contact_email = contact_email_signal.read();
-    if contact_email.is_empty() {
-        contact_email_error_signal.set("Contact E-Mail cannot be empty!".to_string());
+    let team_email = team_email_signal.read();
+    if team_email.is_empty() {
+        team_email_error_signal.set("Team E-Mail cannot be empty!".to_string());
         false
-    } else if !contact_email.contains('@') || !contact_email.contains('.') {
-        contact_email_error_signal.set("Please enter a valid email address!".to_string());
+    } else if !team_email.contains('@') || !team_email.contains('.') {
+        team_email_error_signal.set("Please enter a valid email address!".to_string());
         false
     } else {
-        contact_email_error_signal.set("".to_string());
+        team_email_error_signal.set("".to_string());
         true
     }
 }
 
-fn check_contact_tel(
-    contact_tel_signal: Signal<String>,
-    mut contact_tel_error_signal: Signal<String>,
+fn check_team_tel(
+    team_tel_signal: Signal<String>,
+    mut team_tel_error_signal: Signal<String>,
 ) -> bool {
-    let contact_tel = contact_tel_signal.read();
-    if contact_tel.is_empty() {
-        contact_tel_error_signal.set("Contact phone number cannot be empty!".to_string());
+    let team_tel = team_tel_signal.read();
+    if team_tel.is_empty() {
+        team_tel_error_signal.set("Team phone number cannot be empty!".to_string());
         false
     } else {
-        contact_tel_error_signal.set("".to_string());
+        team_tel_error_signal.set("".to_string());
         true
     }
 }

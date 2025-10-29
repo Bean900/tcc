@@ -45,7 +45,7 @@ fn execute_delete(cook_and_run_id: &Uuid, token: &str) -> reqwest::blocking::Res
     let (client, base_url) = get_client();
     client
         .delete(&format!("{}/cook_and_run/{}", base_url, cook_and_run_id))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("authorization", format!("Bearer {}", token))
         .send()
         .expect("Failed to send request")
 }

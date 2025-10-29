@@ -7,8 +7,8 @@ use std::{
 mod data;
 
 use chrono::NaiveTime;
-use data::{get_contact_list, get_course_list};
-use tcc::storage::{mapper::Plan, AddressData, ContactData, CourseData, MeetingPointData};
+use data::{get_team_list, get_course_list};
+use tcc::storage::{mapper::Plan, AddressData, TeamData, CourseData, MeetingPointData};
 use tcc::{calculator::Calculator, storage::mapper::Hosting};
 use uuid::Uuid;
 
@@ -29,10 +29,10 @@ fn print_plan(plan: &Plan) {
     }
 
     println!("Courses:");
-    for (contact, hosting_list) in &plan.walking_path {
+    for (team, hosting_list) in &plan.walking_path {
         let mut path_url = "https://routing.openstreetmap.de/?".to_string();
 
-        println!("\tTeam: {}", contact.team_name);
+        println!("\tTeam: {}", team.team_name);
         for host in hosting_list {
             path_url.push_str(&format!(
                 "&loc={}%2C{}",
@@ -49,10 +49,10 @@ fn print_plan(plan: &Plan) {
     }
 }
 
-fn print_test_params(contact_list: &Vec<ContactData>, course_list: &Vec<CourseData>) {
+fn print_test_params(team_list: &Vec<TeamData>, course_list: &Vec<CourseData>) {
     println!(
-        "Contact names: {:?}",
-        contact_list
+        "Team names: {:?}",
+        team_list
             .iter()
             .map(|c| c.team_name.as_str())
             .collect::<Vec<&str>>()
@@ -69,7 +69,7 @@ fn print_test_params(contact_list: &Vec<ContactData>, course_list: &Vec<CourseDa
 
 // END PRINT AREA
 // START ASSERT AREA
-fn assert_number_of_guests_in_course(walkin_path: &HashMap<ContactData, Vec<Hosting>>) {
+fn assert_number_of_guests_in_course(walkin_path: &HashMap<TeamData, Vec<Hosting>>) {
     let course_host_map: HashMap<Uuid /* Course Id */, Vec<Hosting>> = walkin_path
         .values()
         .flat_map(|hosting_list| {
@@ -125,11 +125,11 @@ fn assert_number_of_guests_in_course(walkin_path: &HashMap<ContactData, Vec<Host
     }
 }
 
-fn assert_team_is_not_two_times_in_one_course(walkin_path: &HashMap<ContactData, Vec<Hosting>>) {
-    let mut course_hosting_contact_map = HashMap::new();
+fn assert_team_is_not_two_times_in_one_course(walkin_path: &HashMap<TeamData, Vec<Hosting>>) {
+    let mut course_hosting_team_map = HashMap::new();
     for (_, hosting_list) in walkin_path.iter() {
         for hosting in hosting_list {
-            let hosting_map = course_hosting_contact_map
+            let hosting_map = course_hosting_team_map
                 .entry(hosting.course.id)
                 .or_insert_with(HashMap::new);
 
@@ -152,43 +152,43 @@ fn assert_team_is_not_two_times_in_one_course(walkin_path: &HashMap<ContactData,
             }
         }
     }
-    for (course, hosting_map) in course_hosting_contact_map {
-        let mut seen_contacts = HeshSet::new();
-        for (_, contact_list) in hosting_map {
-            for contact in contact_list {
+    for (course, hosting_map) in course_hosting_team_map {
+        let mut seen_teams = HeshSet::new();
+        for (_, team_list) in hosting_map {
+            for team in team_list {
                 assert!(
-                    !seen_contacts.contains(&contact),
-                    "Contact \"{}\" was already seen in course \"{}\"",
-                    contact,
+                    !seen_teams.contains(&team),
+                    "Team \"{}\" was already seen in course \"{}\"",
+                    team,
                     course
                 );
-                seen_contacts.insert(contact);
+                seen_teams.insert(team);
             }
         }
     }
 }
-fn assert_team_cooks_not_two_times(walkin_path: &HashMap<ContactData, Vec<Hosting>>) {
-    for (contact, hosting_list) in walkin_path {
+fn assert_team_cooks_not_two_times(walkin_path: &HashMap<TeamData, Vec<Hosting>>) {
+    for (team, hosting_list) in walkin_path {
         let mut already_cooking = false;
         for hosting in hosting_list {
-            if contact.id.eq(&hosting.host.id) {
+            if team.id.eq(&hosting.host.id) {
                 assert!(
                     !already_cooking,
-                    "Contact \"{}\" is already hosting one cooking",
-                    contact.team_name
+                    "Team \"{}\" is already hosting one cooking",
+                    team.team_name
                 );
                 already_cooking = true;
             }
         }
         assert!(
             already_cooking,
-            "Contact \"{}\" is not hosting",
-            contact.team_name
+            "Team \"{}\" is not hosting",
+            team.team_name
         );
     }
 }
 
-fn check_course(walkin_path: &HashMap<ContactData, Vec<Hosting>>) {
+fn check_course(walkin_path: &HashMap<TeamData, Vec<Hosting>>) {
     assert_number_of_guests_in_course(walkin_path);
     assert_team_cooks_not_two_times(walkin_path);
     assert_team_is_not_two_times_in_one_course(walkin_path);
@@ -224,13 +224,13 @@ fn run_calculation(calculator: &mut Calculator) {
 fn test_team_of_nine() {
     let number_of_guests = 9;
     let number_course = 3;
-    let contact_list = get_contact_list(number_of_guests);
+    let team_list = get_team_list(number_of_guests);
     let course_list = get_course_list(number_course);
 
-    print_test_params(&contact_list, &course_list);
+    print_test_params(&team_list, &course_list);
 
     let cook_and_run = get_cook_and_run(
-        contact_list.clone(),
+        team_list.clone(),
         course_list.clone(),
         None,
         Some(MeetingPointData {
@@ -257,7 +257,7 @@ fn test_team_of_nine() {
     let plan_data = calculator.get_top_plan();
 
     let plan_data = plan_data.expect("Expect plan");
-    let plan = Plan::to_plan(&plan_data, &course_list, &contact_list);
+    let plan = Plan::to_plan(&plan_data, &course_list, &team_list);
 
     print_plan(&plan);
     assert_eq!(
@@ -279,14 +279,14 @@ fn test_team_real() {
     println!("Start test_team_real");
     let number_of_guests = 35;
     let number_course = 3;
-    let contact_list = real_live_data();
+    let team_list = real_live_data();
     let course_list = get_course_list(number_course);
     let course_with_more_hosts = Some(course_list[1].id);
 
-    print_test_params(&contact_list, &course_list);
+    print_test_params(&team_list, &course_list);
 
     let cook_and_run = get_cook_and_run(
-        contact_list.clone(),
+        team_list.clone(),
         course_list.clone(),
         course_with_more_hosts,
         None,
@@ -313,7 +313,7 @@ fn test_team_real() {
     let plan_data = calculator.get_top_plan();
 
     let plan_data = plan_data.expect("Expect plan");
-    let plan = Plan::to_plan(&plan_data, &course_list, &contact_list);
+    let plan = Plan::to_plan(&plan_data, &course_list, &team_list);
 
     print_plan(&plan);
     assert_eq!(

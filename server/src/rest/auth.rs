@@ -32,7 +32,7 @@ pub trait AuthenticatedUser {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
     pub sub: String,
-    pub aud: String,
+    pub aud: Vec<String>,
     pub iss: String,
     pub exp: usize,
     pub iat: usize,
@@ -146,14 +146,14 @@ pub fn require_permission(
         Box::pin(async move {
             let auth_header = request
                 .headers()
-                .get("Authorization")
+                .get("authorization")
                 .and_then(|header| header.to_str().ok())
                 .ok_or_else(|| {
-                    warn!("Missing Authorization header");
+                    warn!("Missing authorization header");
                     StatusCode::UNAUTHORIZED
                 })?;
             let token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
-                warn!("Invalid Authorization header format");
+                warn!("Invalid authorization header format");
                 StatusCode::UNAUTHORIZED
             })?;
 

@@ -1,5 +1,5 @@
 mod address_connector;
-mod auth0;
+pub mod auth0;
 mod calculator;
 mod side;
 mod storage;
@@ -9,21 +9,20 @@ use std::sync::Mutex;
 
 use dioxus::prelude::*;
 
-use auth0::Callback;
-use side::Dashboard;
-use side::ProjectCalculationPage;
-use side::ProjectCoursesPage;
-use side::ProjectOverviewPage;
-use side::ProjectStartEndPage;
-use side::ProjectTeamsPage;
-use side::RunSchedule;
-use side::ShareTeam;
-use storage::LocalStorage;
+use side::Dashboard; /*
+                     use side::ProjectCalculationPage;
+                     use side::ProjectCoursesPage;
+                     use side::ProjectOverviewPage;
+                     use side::ProjectStartEndPage;
+                     use side::ProjectTeamsPage;
+                     use side::RunSchedule;
+                     use side::ShareTeam;*/
 use uuid::Uuid;
 use web_sys::console;
+use web_sys::window;
 
-use crate::auth0::AuthService;
-use crate::storage::StorageR;
+pub use crate::auth0::AuthState;
+use crate::storage::StorageManager;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const PROVILE: Asset = asset!("/assets/profile.png");
@@ -36,15 +35,16 @@ fn main() {
 #[derive(Routable, Clone)]
 #[rustfmt::skip]
 enum Route {
+    #[layout(Wrapper)]
     #[route("/")]
     Home {},
     #[nest("/cook-and-run")]
         #[route("/")]
         Dashboard {},
-        #[route("/callback?:code&:state&:error")]
-        Callback { code:  String, state: String, error: String },
-        #[route("/:cook_and_run_id")]
-        #[route("/:cook_and_run_id/overview")]
+      //  #[route("/callback?:code&:state&:error")]
+     //   Callback { code:  String, state: String, error: String },
+       /*    #[route("/:cook_and_run_id")]
+      #[route("/:cook_and_run_id/overview")]
         ProjectOverviewPage { cook_and_run_id: Uuid },
         #[route("/:cook_and_run_id/teams")]
         ProjectTeamsPage { cook_and_run_id: Uuid },
@@ -56,8 +56,8 @@ enum Route {
         ProjectCoursesPage { cook_and_run_id: Uuid },
         #[route("/:cook_and_run_id/calculation")]
         ProjectCalculationPage { cook_and_run_id: Uuid },
-        #[route("/:cook_and_run_id/run-schedule/:contact_id")]
-        RunSchedule {cook_and_run_id:Uuid, contact_id: Uuid },
+        #[route("/:cook_and_run_id/run-schedule/:team_id")]
+        RunSchedule {cook_and_run_id:Uuid, team_id: Uuid },*/
     #[end_nest]
     #[route("/:..route")]
     NotFound {
@@ -93,35 +93,38 @@ fn NotFound(route: Vec<String>) -> Element {
 }
 
 #[component]
-fn App() -> Element {
-    let storage = LocalStorage::new();
-    if storage.is_err() {
-        console::error_1(
-            &format!(
-                "Error when loading storage: {}",
-                storage.err().expect("Expect storage error!")
-            )
-            .into(),
-        );
-        return error(
-            "Fatal error!".to_string(),
-            "Error when loading storage!".to_string(),
-        );
+fn Wrapper() -> Element {
+    let storage = StorageManager::new();
+    if let Err(s) = storage {
+        console::error_1(&format!("Error when loading storage: {}", s).into());
+        return error("Fatal error!", "Error when loading storage!");
     }
+    let storage = storage.expect("Storage should be loaded correctly here");
 
-    let storage = storage.expect("Expected storage");
-    let storage = Arc::new(Mutex::new(storage));
-    use_context_provider(|| storage.clone());
+    let storage_signal = use_context_provider(|| Signal::new(storage));
 
-    let mut profile_signal = use_signal(|| false);
+    let mut auth_signal = use_context_provider(|| Signal::new(AuthState::new()));
 
-    let logged_in_signal = use_signal(|| {
-        let auth_data = storage
-            .lock()
-            .expect("Expected storage lock")
-            .select_auth_data()
-            .unwrap();
-        auth_data.session_data.is_some()
+    use_effect(move || {
+        let mut auth_signal = auth_signal.clone();
+        if matches!(*auth_signal.read(), AuthState::Loading(_)) {
+            let window = window().unwrap();
+            let location = window.location();
+            let search = location.search().unwrap();
+            let params = web_sys::UrlSearchParams::new_with_str(&search).unwrap();
+
+            let code = params.get("code");
+            let state = params.get("state");
+
+            spawn(async move {
+                if let (Some(code), Some(state)) = (code, state) {
+                    let auth = AuthState::new().callback(code, state).await;
+                    auth_signal.set(auth);
+                } else {
+                    auth_signal.set(AuthState::LoggedOut);
+                }
+            });
+        }
     });
 
     rsx! {
@@ -138,67 +141,70 @@ fn App() -> Element {
                         }
                         div { class: "flex items-center gap-4" }
                     }
-                    if true {
-                        div { class: "flex items-center gap-4",
-                            div { class: "relative",
-                                button {
-                                    class: "relative flex items-center gap-2 bg-gray-200 px-3 py-2 rounded-full hover:bg-gray-300 focus:outline-none",
-                                    onclick: move |_| {
-                                        let state = *profile_signal.read();
-                                        profile_signal.set(!state);
-                                    },
-                                    img {
-                                        src: PROVILE, // Replace with user avatar URL
-                                        alt: "User Avatar",
-                                        class: "h-8 w-8 rounded-full",
+                    div { class: "flex items-center gap-4",
+                        div { class: "relative",
+                            match *auth_signal.read() {
+                                AuthState::Loading(_) => rsx! {
+                                    div { class: "relative flex items-center gap-2 bg-gray-200 px-3 py-2 rounded-full hover:bg-gray-300 focus:outline-none",
+                                        "Loading..."
                                     }
-                                }
-                                if *profile_signal.read() {
-                                    // Dropdown menu
-                                    div { class: "absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded shadow-lg",
-                                        ul { class: "py-1",
-                                            if *logged_in_signal.read() {
-                                                li {
-                                                    a {
-                                                        href: "/profile",
-                                                        class: "block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100",
-                                                        "Profile"
-                                                    }
-                                                }
-                                                li {
-                                                    button {
-                                                        class: "block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100",
-                                                        onclick: move |_| {
-                                                            AuthService::logout();
-                                                        },
-                                                        "Logout"
-                                                    }
-                                                }
-                                            } else {
-                                                li {
-                                                    button {
-                                                        class: "block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100",
-                                                        onclick: move |_| {
-                                                            AuthService::login();
-                                                        },
-                                                        "Login"
-                                                    }
-                                                }
-                                            }
-                                        }
+                                },
+                                AuthState::LoggedOut => rsx! {
+                                    button {
+                                        class: "relative flex items-center gap-2 bg-gray-200 px-3 py-2 rounded-full hover:bg-gray-300 focus:outline-none",
+                                        onclick: move |_| {
+                                            let path = use_route::<Route>();
+                                            let (auth_state, auth_url) = AuthState::login(&path.to_string());
+                                            auth_signal.set(auth_state);
+                                            window().unwrap().location().set_href(&auth_url).unwrap();
+                                        },
+                                        "Login"
                                     }
-                                }
+                                },
+                                AuthState::LoggedIn(_) => rsx! {
+                                    button {
+                                        class: "relative flex items-center gap-2 bg-gray-200 px-3 py-2 rounded-full hover:bg-gray-300 focus:outline-none",
+                                        onclick: move |_| {
+                                            let path = use_route::<Route>();
+                                            let (auth_state, auth_url) = auth_signal.read().logout(&path.to_string());
+                                            auth_signal.set(auth_state);
+                                            window().unwrap().location().set_href(&auth_url).unwrap();
+                                        },
+                                        img { src: PROVILE, alt: "User Avatar", class: "h-8 w-8 rounded-full" }
+                                        "Logout"
+                                    }
+                                },
+                                AuthState::Error(_) => rsx! {
+                                    button {
+                                        class: "relative flex items-center gap-2 bg-gray-200 px-3 py-2 rounded-full hover:bg-gray-300 focus:outline-none",
+                                        onclick: move |_| {
+                                            let path = use_route::<Route>();
+                                            let (auth_state, auth_url) = AuthState::login(&path.to_string());
+                                            auth_signal.set(auth_state);
+                                            window().unwrap().location().set_href(&auth_url).unwrap();
+                                        },
+                                        "Login..."
+                                    }
+                                },
                             }
+                        
                         }
                     }
                 }
             }
-            main { class: "flex h-full w-full", Router::<Route> {} }
+            main { class: "flex h-full w-full", Outlet::<Route> {} }
         }
     }
 }
 
-fn error(headline: String, message: String) -> Element {
+#[component]
+fn App() -> Element {
+    rsx! {
+        Router::<Route> {}
+    }
+}
+
+pub fn error(headline: &str, message: &str) -> Element {
     rsx! {
         div {
             class: "flex p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400",

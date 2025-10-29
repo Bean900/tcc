@@ -100,7 +100,7 @@ fn execute_patch_start_point(
             "{}/cook_and_run/{}/start_point",
             base_url, cook_and_run_id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("authorization", format!("Bearer {}", token))
         .json(&payload)
         .send()
         .expect("Failed to send request")
@@ -117,7 +117,7 @@ fn execute_patch_end_point(
             "{}/cook_and_run/{}/end_point",
             base_url, cook_and_run_id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("authorization", format!("Bearer {}", token))
         .json(&payload)
         .send()
         .expect("Failed to send request")

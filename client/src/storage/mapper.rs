@@ -2,36 +2,36 @@ use std::collections::HashMap;
 
 use uuid::Uuid;
 
-use super::{ContactData, CourseData, HostingData, PlanData};
+use super::{CourseData, HostingData, PlanData, TeamData};
 
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct Hosting {
     pub id: Uuid,
     pub course: CourseData,
-    pub host: ContactData,
-    pub guest_list: Vec<ContactData>,
+    pub host: TeamData,
+    pub guest_list: Vec<TeamData>,
 }
 
 impl Hosting {
     fn from_hosting_data(
         hosting_data: &HostingData,
         course_list: &Vec<CourseData>,
-        contact_list: &Vec<ContactData>,
+        team_list: &Vec<TeamData>,
     ) -> Self {
         Hosting {
             id: hosting_data.id,
             course: find_course(hosting_data.name, course_list)
                 .expect("Expect course")
                 .clone(),
-            host: find_contact(hosting_data.host, contact_list)
-                .expect("Expect contact")
+            host: find_team(hosting_data.host, team_list)
+                .expect("Expect team")
                 .clone(),
             guest_list: hosting_data
                 .guest_list
                 .iter()
                 .map(|&g| {
-                    find_contact(g, contact_list)
-                        .expect("Expect contact")
+                    find_team(g, team_list)
+                        .expect("Expect team")
                         .clone()
                 })
                 .collect(),
@@ -43,7 +43,7 @@ impl Hosting {
 pub struct Plan {
     pub id: Uuid,
     pub hosting_list: Vec<Hosting>,
-    pub walking_path: HashMap<ContactData, Vec<Hosting>>,
+    pub walking_path: HashMap<TeamData, Vec<Hosting>>,
     pub greatest_distance: f64,
 }
 
@@ -51,20 +51,20 @@ impl Plan {
     pub fn from_plan_data(
         plan_data: &PlanData,
         course_list: &Vec<CourseData>,
-        contact_list: &Vec<ContactData>,
+        team_list: &Vec<TeamData>,
     ) -> Self {
         let id = plan_data.id;
         let hosting_list: Vec<Hosting> = plan_data
             .hosting_list
             .iter()
-            .map(|h| Hosting::from_hosting_data(h, course_list, contact_list))
+            .map(|h| Hosting::from_hosting_data(h, course_list, team_list))
             .collect();
-        let walking_path: HashMap<ContactData, Vec<Hosting>> = plan_data
+        let walking_path: HashMap<TeamData, Vec<Hosting>> = plan_data
             .walking_path
             .iter()
-            .map(|(&contact_id, hosting_ids)| {
-                let contact = find_contact(contact_id, contact_list)
-                    .expect("Expect contact")
+            .map(|(&team_id, hosting_ids)| {
+                let team = find_team(team_id, team_list)
+                    .expect("Expect team")
                     .clone();
                 let hostings: Vec<Hosting> = hosting_ids
                     .iter()
@@ -75,7 +75,7 @@ impl Plan {
                         host
                     })
                     .collect();
-                (contact, hostings)
+                (team, hostings)
             })
             .collect();
         let greatest_distance = plan_data.greatest_distance;
@@ -89,10 +89,10 @@ impl Plan {
     }
 }
 
-fn find_contact(id: Uuid, contact_list: &Vec<ContactData>) -> Option<&ContactData> {
-    for contact in contact_list.iter() {
-        if contact.id == id {
-            return Some(contact);
+fn find_team(id: Uuid, team_list: &Vec<TeamData>) -> Option<&TeamData> {
+    for team in team_list.iter() {
+        if team.id == id {
+            return Some(team);
         }
     }
     None

@@ -1,20 +1,14 @@
 use std::sync::{Arc, Mutex};
 
-use chrono::NaiveTime;
 use dioxus::prelude::*;
 use uuid::Uuid;
-use web_sys::{
-    console, js_sys,
-    wasm_bindgen::{JsCast, JsValue},
-    window,
-};
+use web_sys::console;
 
 use crate::{
     side::{AddressSVG, PersonSVG, PhoneSVG, StartSVG, WarningSVG},
     storage::{
         mapper::{Hosting, Plan},
-        AddressData, ContactData, CookAndRunData, CourseData, HostingData, LocalStorage,
-        MeetingPointData, StorageR,
+        CookAndRunData, MeetingPointData, StorageManager, TeamData,
     },
     Route,
 };
@@ -26,16 +20,15 @@ const LEAF_2: Asset = asset!("/assets/leaf_2.png");
 const CAKE: Asset = asset!("/assets/cake.png");
 const CARROT: Asset = asset!("/assets/carrot.png");
 
-fn get_cook_and_run(cook_and_run_id: Uuid) -> Result<CookAndRunData, String> {
-    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
+async fn get_cook_and_run(cook_and_run_id: Uuid) -> Result<CookAndRunData, String> {
+    let storage = use_context::<Arc<Mutex<StorageManager>>>();
     let storage = storage.lock().expect("Expected storage lock");
 
-    let result = storage.select_cook_and_run(cook_and_run_id);
-    result
+    storage.select_cook_and_run(cook_and_run_id)
 }
 
 #[component]
-pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
+pub fn RunSchedule(cook_and_run_id: Uuid, team_id: Uuid) -> Element {
     let cook_and_run = get_cook_and_run(cook_and_run_id);
     if cook_and_run.is_err() {
         console::error_1(
@@ -51,16 +44,16 @@ pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
     }
     let cook_and_run = cook_and_run.expect("Expect cook and run");
     let cook_and_run_date = cook_and_run.occur.format("%d.%m.%Y").to_string();
-    let current_contact = cook_and_run
-        .contact_list
+    let current_team = cook_and_run
+        .team_list
         .iter()
-        .filter(|c| c.id.eq(&contact_id))
+        .filter(|c| c.id.eq(&team_id))
         .next();
-    if current_contact.is_none() {
+    if current_team.is_none() {
         console::error_1(
             &format!(
-                "Error while loading contact: {}",
-                "Contact not found in cook and run",
+                "Error while loading team: {}",
+                "Team not found in cook and run",
             )
             .into(),
         );
@@ -68,7 +61,7 @@ pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
             div { "Cook and Run not found!" }
         );
     }
-    let current_contact = current_contact.expect("Expect current contact").clone();
+    let current_team = current_team.expect("Expect current team").clone();
 
     let plan_data = cook_and_run.top_plan;
     if plan_data.is_none() {
@@ -82,7 +75,7 @@ pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
     let plan = Plan::from_plan_data(
         &plan_data,
         &cook_and_run.course_list,
-        &cook_and_run.contact_list,
+        &cook_and_run.team_list,
     );
 
     let start_point = cook_and_run.start_point.clone();
@@ -91,17 +84,17 @@ pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
     let hosting_param_list: Vec<HostingParam> = plan
         .walking_path
         .iter()
-        .filter(|current_walking_path| current_walking_path.0.id.eq(&current_contact.id))
+        .filter(|current_walking_path| current_walking_path.0.id.eq(&current_team.id))
         .flat_map(|current_walking_path| current_walking_path.1.iter())
-        .map(|hosting| HostingParam::new(hosting, current_contact.id))
+        .map(|hosting| HostingParam::new(hosting, current_team.id))
         .collect();
 
     let current_hosting = plan
         .hosting_list
         .iter()
-        .find(|h| h.host.id.eq(&current_contact.id))
+        .find(|h| h.host.id.eq(&current_team.id))
         .cloned()
-        .expect("Expect one hosting for current contact");
+        .expect("Expect one hosting for current team");
 
     rsx!(
         div { class: "fixed bottom-4 right-4 z-50 flex gap-4",
@@ -152,7 +145,7 @@ pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
                         "COOK"
                     }
                     h1 { class: "font-chewy text-9xl text-[#543D2B] tracking-wide",
-                        "AND RUN"
+                        "'N' RUN"
                     }
                 }
 
@@ -166,7 +159,7 @@ pub fn RunSchedule(cook_and_run_id: Uuid, contact_id: Uuid) -> Element {
                 // MyInfo
                 div { class: "grid grid-cols1 md:grid-cols-2 md:gap-x-4",
                     div {
-                        MyInfo { contact: current_contact }
+                        MyInfo { team: current_team }
                     }
                     div {
                         MyHosting { hosting: current_hosting }
@@ -198,10 +191,10 @@ struct HostingParam {
 }
 
 impl HostingParam {
-    fn new(hosting: &Hosting, current_contact_id: Uuid) -> Self {
+    fn new(hosting: &Hosting, current_team_id: Uuid) -> Self {
         HostingParam {
             id: hosting.id,
-            you_are_hosting: hosting.host.id.eq(&current_contact_id),
+            you_are_hosting: hosting.host.id.eq(&current_team_id),
             course_name: hosting.course.name.clone(),
             course_team_name: hosting.host.team_name.clone(),
             course_team_tel: hosting.host.phone_number.clone(),
@@ -416,7 +409,7 @@ fn MyHosting(hosting: Hosting) -> Element {
             div { class: "flex items-start",
                 PersonSVG {}
                 div { class: "mx-2 text-[#543D2B] font-gluten font-bold",
-                    span { "({guest.members}) {guest.team_name}" }
+                    span { "{guest.team_name}" }
                 }
             }
 
@@ -429,7 +422,7 @@ fn MyHosting(hosting: Hosting) -> Element {
             }
 
             // Diets
-            if !guest.diets.is_empty() {
+            if !guest.diets.is_empty() && guest.diets.iter().any(|s| !s.trim().is_empty()) {
                 div { class: "flex items-start mx-6",
                     WarningSVG {}
                     div { class: "mx-2 text-[#543D2B] font-gluten",
@@ -442,8 +435,8 @@ fn MyHosting(hosting: Hosting) -> Element {
 }
 
 #[component]
-fn MyInfo(contact: ContactData) -> Element {
-    let diets_string = contact.diets.join(", ");
+fn MyInfo(team: TeamData) -> Element {
+    let diets_string = team.diets.join(", ");
     rsx!(
         div { class: "flex items-center my-4",
             div { class: "flex-grow h-1 bg-[#C66741]" }
@@ -455,7 +448,7 @@ fn MyInfo(contact: ContactData) -> Element {
         div { class: "flex items-start",
             PersonSVG {}
             div { class: "mx-2 text-[#543D2B] font-gluten font-bold",
-                span { "({contact.members}) {contact.team_name}" }
+                span { "{team.team_name}" }
             }
         }
 
@@ -476,7 +469,7 @@ fn MyInfo(contact: ContactData) -> Element {
             }
 
             div { class: "mx-2 text-[#543D2B] font-gluten",
-                span { "{contact.mail}" }
+                span { "{team.mail}" }
             }
         
         }
@@ -486,7 +479,7 @@ fn MyInfo(contact: ContactData) -> Element {
             PhoneSVG {}
 
             div { class: "mx-2 text-[#543D2B] font-gluten",
-                span { "{contact.phone_number}" }
+                span { "{team.phone_number}" }
             }
         
         }
@@ -495,7 +488,7 @@ fn MyInfo(contact: ContactData) -> Element {
         div { class: "flex items-start",
             AddressSVG {}
             div { class: "mx-2 text-[#543D2B] font-gluten",
-                span { "{contact.address.address}" }
+                span { "{team.address.address}" }
             }
         }
 

@@ -5,11 +5,11 @@ use std::{
 
 use uuid::Uuid;
 
-use crate::storage::{AddressData, ContactData, CookAndRunData, HostingData, PlanData};
+use crate::storage::{AddressData, CookAndRunData, HostingData, PlanData, TeamData};
 
 #[derive(Debug, Clone)]
 pub struct Calculator {
-    contact_list: HashMap<Uuid, ContactData>,
+    team_list: HashMap<Uuid, TeamData>,
     course_list: Vec<Uuid>,
     course_with_more_hosts: Option<Uuid>,
     start_point: Option<AddressData>,
@@ -21,7 +21,7 @@ pub struct Calculator {
 #[derive(Default, Debug, Clone, PartialEq)]
 struct Plan {
     hosting_list: HashMap<Uuid /*Hosting ID */, HostingData>,
-    walking_path: HashMap<Uuid /*Contact ID */, Vec<Uuid /*Hosting ID */>>,
+    walking_path: HashMap<Uuid /*Team ID */, Vec<Uuid /*Hosting ID */>>,
     greatest_distance: f64,
 }
 
@@ -91,7 +91,7 @@ impl Plan {
         end_point: &Option<AddressData>,
         course_sorted_list: &Vec<Uuid>,
         hosting_list: HashMap<Uuid, HostingData>,
-        contact_list: &HashMap<Uuid, ContactData>,
+        team_list: &HashMap<Uuid, TeamData>,
     ) -> Self {
         let walking_path = Self::calculate_walking_path(course_sorted_list, &hosting_list);
         let greatest_distance = Self::calculate_fitness(
@@ -99,7 +99,7 @@ impl Plan {
             end_point,
             &hosting_list,
             &walking_path,
-            contact_list,
+            team_list,
         );
         Plan {
             hosting_list,
@@ -113,7 +113,7 @@ impl Plan {
         end_point: &Option<AddressData>,
         hosting_list: &HashMap<Uuid, HostingData>,
         walking_path: &HashMap<Uuid, Vec<Uuid>>,
-        contact_list: &HashMap<Uuid, ContactData>,
+        team_list: &HashMap<Uuid, TeamData>,
     ) -> f64 {
         let mut fitness = 0.0;
 
@@ -122,7 +122,7 @@ impl Plan {
 
             let mut hosting_iter = hosting_path.iter();
             let mut last_addr = Self::get_address(
-                &contact_list,
+                &team_list,
                 &hosting_list
                     .get(hosting_iter.next().expect("Expect first Hosting"))
                     .expect("Expect to find Hosting")
@@ -137,7 +137,7 @@ impl Plan {
                 let next_hosting = hosting_iter.next();
                 if let Some(next_hosting) = next_hosting {
                     let next_addr = Self::get_address(
-                        &contact_list,
+                        &team_list,
                         &hosting_list
                             .get(next_hosting)
                             .expect("Expect to find Hosting")
@@ -165,13 +165,10 @@ impl Plan {
     }
 
     fn get_address<'a>(
-        contact_list: &'a HashMap<Uuid, ContactData>,
-        contact_id: &'a Uuid,
+        team_list: &'a HashMap<Uuid, TeamData>,
+        team_id: &'a Uuid,
     ) -> &'a AddressData {
-        &contact_list
-            .get(contact_id)
-            .expect("Expect to find Contact")
-            .address
+        &team_list.get(team_id).expect("Expect to find Team").address
     }
 
     fn calculate_walking_path(
@@ -179,7 +176,7 @@ impl Plan {
         hosting_list: &HashMap<Uuid, HostingData>,
     ) -> HashMap<Uuid, Vec<Uuid>> {
         let mut walking_path: HashMap<
-            Uuid, /*Contact ID */
+            Uuid, /*Team ID */
             Vec<(Uuid /*Hosting ID */, Uuid /*Course ID */)>,
         > = HashMap::new();
 
@@ -208,9 +205,9 @@ impl Plan {
 
         walking_path
             .iter()
-            .map(|(contact_id, path)| {
+            .map(|(team_id, path)| {
                 (
-                    *contact_id,
+                    *team_id,
                     path.iter().map(|(hosting_id, _)| *hosting_id).collect(),
                 )
             })
@@ -225,8 +222,8 @@ impl Calculator {
         course_list.sort_by(|a, b| a.time.cmp(&b.time));
         let course_list = course_list.iter().map(|c| c.id).collect();
         let calc = Calculator {
-            contact_list: cook_and_run_data
-                .contact_list
+            team_list: cook_and_run_data
+                .team_list
                 .iter()
                 .map(|c| (c.id, c.clone()))
                 .collect(),
@@ -247,7 +244,7 @@ impl Calculator {
 
     pub fn calculate(&self) {
         println!("Starting deterministic calculation...");
-        let contact_list = self.contact_list.clone();
+        let team_list = self.team_list.clone();
         let course_list = self.course_list.clone();
         let start_point = self.start_point.clone();
         let end_point = self.end_point.clone();
@@ -262,7 +259,7 @@ impl Calculator {
         // thread::spawn(move || {
         // Deterministic calculation
         let result = Self::calculate_optimal_plan(
-            &contact_list,
+            &team_list,
             &course_list,
             &start_point,
             &end_point,
@@ -277,7 +274,7 @@ impl Calculator {
                     &end_point,
                     &course_list,
                     hosting_map,
-                    &contact_list,
+                    &team_list,
                 );
                 println!("Plan fitness: {}", plan.greatest_distance);
                 top_plan.lock().unwrap().replace(plan);
@@ -286,7 +283,7 @@ impl Calculator {
                 println!("Error during optimal calculation: {}", err);
                 // Fallback to relaxed constraints
                 if let Ok(fallback_map) = Self::calculate_with_relaxed_constraints(
-                    &contact_list,
+                    &team_list,
                     &course_list,
                     &start_point,
                     &end_point,
@@ -298,7 +295,7 @@ impl Calculator {
                         &end_point,
                         &course_list,
                         fallback_map,
-                        &contact_list,
+                        &team_list,
                     );
                     println!("Fallback plan fitness: {}", plan.greatest_distance);
                     top_plan.lock().unwrap().replace(plan);
@@ -311,7 +308,7 @@ impl Calculator {
     }
 
     fn calculate_optimal_plan(
-        contact_list: &HashMap<Uuid, ContactData>,
+        team_list: &HashMap<Uuid, TeamData>,
         course_list: &Vec<Uuid>,
         start_point: &Option<AddressData>,
         end_point: &Option<AddressData>,
@@ -319,7 +316,7 @@ impl Calculator {
     ) -> Result<HashMap<Uuid, HostingData>, String> {
         // Phase 1: Optimal host assignment
         let host_assignments = Self::assign_hosts_optimally(
-            contact_list,
+            team_list,
             course_list,
             start_point,
             end_point,
@@ -327,11 +324,11 @@ impl Calculator {
         );
 
         // Phase 2: Deterministic guest assignment
-        Self::assign_guests_deterministically(host_assignments, contact_list, course_list)
+        Self::assign_guests_deterministically(host_assignments, team_list, course_list)
     }
 
     fn calculate_with_relaxed_constraints(
-        contact_list: &HashMap<Uuid, ContactData>,
+        team_list: &HashMap<Uuid, TeamData>,
         course_list: &Vec<Uuid>,
         start_point: &Option<AddressData>,
         end_point: &Option<AddressData>,
@@ -339,18 +336,18 @@ impl Calculator {
     ) -> Result<HashMap<Uuid, HostingData>, String> {
         // Same as optimal but with relaxed meeting constraints
         let host_assignments = Self::assign_hosts_optimally(
-            contact_list,
+            team_list,
             course_list,
             start_point,
             end_point,
             course_with_more_hosts,
         );
 
-        Self::assign_guests_with_relaxed_constraints(host_assignments, contact_list, course_list)
+        Self::assign_guests_with_relaxed_constraints(host_assignments, team_list, course_list)
     }
 
     fn assign_hosts_optimally(
-        contact_list: &HashMap<Uuid, ContactData>,
+        team_list: &HashMap<Uuid, TeamData>,
         course_list: &Vec<Uuid>,
         start_point: &Option<AddressData>,
         end_point: &Option<AddressData>,
@@ -358,38 +355,38 @@ impl Calculator {
     ) -> HashMap<Uuid, HostingData> {
         println!(
             "Assigning {} hosting with distance calculation",
-            contact_list.len()
+            team_list.len()
         );
-        let mut contact_start_distance = Vec::new();
-        let mut contact_goal_distance = Vec::new();
+        let mut team_start_distance = Vec::new();
+        let mut team_goal_distance = Vec::new();
 
-        for contact in contact_list.values() {
+        for team in team_list.values() {
             if let Some(start_point) = start_point.as_ref() {
-                let start_distance = start_point.distance(&contact.address);
+                let start_distance = start_point.distance(&team.address);
                 if let Some(end_point) = end_point.as_ref() {
-                    let end_distance = end_point.distance(&contact.address);
+                    let end_distance = end_point.distance(&team.address);
                     if start_distance < end_distance {
-                        contact_start_distance.push((contact, start_distance));
+                        team_start_distance.push((team, start_distance));
                     } else {
-                        contact_goal_distance.push((contact, end_distance));
+                        team_goal_distance.push((team, end_distance));
                     }
                 } else {
-                    contact_start_distance.push((contact, start_distance));
+                    team_start_distance.push((team, start_distance));
                 }
             } else if let Some(end_point) = end_point.as_ref() {
-                let end_distance = end_point.distance(&contact.address);
-                contact_goal_distance.push((contact, end_distance));
+                let end_distance = end_point.distance(&team.address);
+                team_goal_distance.push((team, end_distance));
             }
         }
 
-        contact_start_distance.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-        contact_goal_distance.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        team_start_distance.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        team_goal_distance.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
 
-        let contact_list = [contact_start_distance, contact_goal_distance].concat();
-        println!("List of hosts sorted by distance: {:?}", contact_list);
+        let team_list = [team_start_distance, team_goal_distance].concat();
+        println!("List of hosts sorted by distance: {:?}", team_list);
 
-        let hosts_per_course = contact_list.len() / course_list.len();
-        let overhang = contact_list.len() % course_list.len();
+        let hosts_per_course = team_list.len() / course_list.len();
+        let overhang = team_list.len() % course_list.len();
         let mut hosting_list = HashMap::new();
 
         let mut current_course_index = 0;
@@ -398,11 +395,11 @@ impl Calculator {
         println!("Assigne {} hosts per course", hosts_per_course);
         println!("Overhang: {}", overhang);
 
-        for (contact, _) in contact_list {
+        for (team, _) in team_list {
             let course_id = course_list[current_course_index];
             let hosting_data = HostingData {
                 id: Uuid::new_v4(),
-                host: contact.id,
+                host: team.id,
                 name: course_id,
                 guest_list: Vec::new(),
             };
@@ -435,7 +432,7 @@ impl Calculator {
 
     fn assign_guests_deterministically(
         host_assignments: HashMap<Uuid, HostingData>,
-        contact_list: &HashMap<Uuid, ContactData>,
+        team_list: &HashMap<Uuid, TeamData>,
         course_list: &Vec<Uuid>,
     ) -> Result<HashMap<Uuid, HostingData>, String> {
         let mut new_hosting_map = HashMap::new();
@@ -454,7 +451,7 @@ impl Calculator {
         for &course_id in course_list {
             if let Some(hosting_list) = course_hosting_map.get(&course_id) {
                 let host_ids: HashSet<Uuid> = hosting_list.iter().map(|h| h.host).collect();
-                let mut available_guests: Vec<Uuid> = contact_list
+                let mut available_guests: Vec<Uuid> = team_list
                     .keys()
                     .filter(|&id| !host_ids.contains(id))
                     .copied()
@@ -518,7 +515,7 @@ impl Calculator {
 
     fn assign_guests_with_relaxed_constraints(
         host_assignments: HashMap<Uuid, HostingData>,
-        contact_list: &HashMap<Uuid, ContactData>,
+        team_list: &HashMap<Uuid, TeamData>,
         course_list: &Vec<Uuid>,
     ) -> Result<HashMap<Uuid, HostingData>, String> {
         let mut new_hosting_map = HashMap::new();
@@ -536,7 +533,7 @@ impl Calculator {
         for &course_id in course_list {
             if let Some(hosting_list) = course_hosting_map.get(&course_id) {
                 let host_ids: HashSet<Uuid> = hosting_list.iter().map(|h| h.host).collect();
-                let available_guests: Vec<Uuid> = contact_list
+                let available_guests: Vec<Uuid> = team_list
                     .keys()
                     .filter(|&id| !host_ids.contains(id))
                     .copied()
@@ -605,21 +602,21 @@ impl Calculator {
 
 impl Calculator {
     fn check(&self) -> Result<(), String> {
-        self.check_min_number_of_contacts()?;
+        self.check_min_number_of_teams()?;
         self.check_overhang()?;
         Ok(())
     }
 
-    fn check_min_number_of_contacts(&self) -> Result<(), String> {
-        if self.contact_list.len() < self.course_list.len() {
-            Err("There can't be more courses than contact's!".to_string())
+    fn check_min_number_of_teams(&self) -> Result<(), String> {
+        if self.team_list.len() < self.course_list.len() {
+            Err("There can't be more courses than team's!".to_string())
         } else {
             Ok(())
         }
     }
 
     fn check_overhang(&self) -> Result<(), String> {
-        if self.contact_list.len() % self.course_list.len() != 0
+        if self.team_list.len() % self.course_list.len() != 0
             && self.course_with_more_hosts.is_none()
         {
             Err("A course with more hosts has to be set!".to_string())
@@ -636,7 +633,7 @@ mod tests {
 
     use crate::{
         calculator::{Calculator, MeetingTracker},
-        storage::{ContactData, CookAndRunData, CourseData},
+        storage::{CookAndRunData, CourseData, TeamData},
     };
 
     #[test]
@@ -662,9 +659,9 @@ mod tests {
         cook_and_run_data.course_list.push(course_1.clone());
         cook_and_run_data.course_list.push(course_3.clone());
 
-        cook_and_run_data.contact_list.push(ContactData::default());
-        cook_and_run_data.contact_list.push(ContactData::default());
-        cook_and_run_data.contact_list.push(ContactData::default());
+        cook_and_run_data.team_list.push(TeamData::default());
+        cook_and_run_data.team_list.push(TeamData::default());
+        cook_and_run_data.team_list.push(TeamData::default());
 
         let calculator = Calculator::new(&cook_and_run_data);
         assert!(

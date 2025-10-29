@@ -11,16 +11,17 @@ use overview::Overview;
 use startend::{StartEnd, StartEndParam};
 use teams::{Teams, TeamsProps};
 
-use crate::storage::{CookAndRunData, LocalStorage, StorageR};
-use dioxus::{html::label, prelude::*};
+use dioxus::prelude::*;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 use web_sys::console;
 
 pub use share_team::ShareTeam;
 
+use crate::storage::{CookAndRunData, StorageManager};
+
 fn get_cook_and_run_data(id: Uuid) -> Result<CookAndRunData, String> {
-    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
+    let storage = use_context::<Arc<Mutex<StorageManager>>>();
     let storage = storage.lock().expect("Expected storage lock");
     let cook_and_run = storage.select_cook_and_run(id);
     cook_and_run
@@ -88,7 +89,7 @@ fn ProjectDetailPage(cook_and_run_id: Uuid, menu: MenuPage) -> Element {
 
     let team_props = TeamsProps {
         project_id: cook_and_run_id,
-        team_list: cook_and_run.contact_list,
+        team_list: cook_and_run.team_list,
     };
 
     let start_end_param = StartEndParam::new(
@@ -131,7 +132,7 @@ fn ProjectDetailPage(cook_and_run_id: Uuid, menu: MenuPage) -> Element {
     }
 }
 
-fn get_side_bar(mut current_page: Signal<MenuPage>) -> Element {
+fn get_side_bar(current_page: Signal<MenuPage>) -> Element {
     rsx!(
         nav { class: "w-64 h-full bg-[#F8EFE1] p-6 shadow-md rounded-r-2xl flex flex-col",
 

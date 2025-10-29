@@ -2189,9 +2189,9 @@ components:
         - `exp`: Token expiration time
         - `iss`: Token issuer (api.travelingcook.com)
 
-        Format: `Authorization: Bearer <token>`
+        Format: `authorization: Bearer <token>`
 
-        Example: `Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`
+        Example: `authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`
 
 # Security considerations:
 # - Tokens should be refreshed every 24 hours

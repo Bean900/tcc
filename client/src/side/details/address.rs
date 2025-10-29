@@ -1,6 +1,6 @@
 use crate::{
     address_connector::get_address,
-    side::{AddressSVG, Headline3, InfoSVG, Text},
+    side::{AddressSVG, Headline3, InfoSVG},
 };
 use dioxus::prelude::*;
 use web_sys::console;

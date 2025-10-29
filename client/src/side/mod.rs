@@ -1,15 +1,15 @@
 mod dashboard;
-mod details;
-mod run_schedule;
+//mod details;
+//mod run_schedule;
 
 pub use dashboard::Dashboard;
-pub use details::ProjectCalculationPage;
+/*pub use details::ProjectCalculationPage;
 pub use details::ProjectCoursesPage;
 pub use details::ProjectOverviewPage;
 pub use details::ProjectStartEndPage;
 pub use details::ProjectTeamsPage;
 pub use details::ShareTeam;
-pub use run_schedule::RunSchedule;
+pub use run_schedule::RunSchedule;*/
 
 use dioxus::prelude::*;
 use dioxus::signals::{Readable, Signal};

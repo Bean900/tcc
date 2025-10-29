@@ -9,7 +9,15 @@ mod rest;
 mod sharing;
 mod team;
 
-use tower_http::trace::{self, TraceLayer};
+use axum::http::HeaderValue;
+use reqwest::{
+    header::{AUTHORIZATION, CONTENT_TYPE},
+    Method,
+};
+use tower_http::{
+    cors::CorsLayer,
+    trace::{self, TraceLayer},
+};
 use tracing::{debug, error, info, Level};
 
 use crate::{db::Database, rest::auth::AuthState};
@@ -59,12 +67,24 @@ async fn main() {
     debug!("Database initialized successfully.");
     let app_state = AppState { auth, db: database };
 
+    let cors_layer = CorsLayer::new()
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::OPTIONS,
+            Method::PUT,
+            Method::DELETE,
+        ])
+        .allow_origin("http://localhost:8080".parse::<HeaderValue>().unwrap())
+        .allow_headers([AUTHORIZATION, CONTENT_TYPE]);
+
     let app = rest::get_routes(app_state.clone())
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
                 .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
         )
+        .layer(cors_layer)
         .with_state(app_state);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();

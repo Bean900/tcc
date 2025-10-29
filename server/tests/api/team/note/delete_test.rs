@@ -56,7 +56,7 @@ fn execute_delete(
             "{}/cook_and_run/{}/team/{}/note/{}",
             base_url, cook_and_run_id, team_id, note_id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("authorization", format!("Bearer {}", token))
         .send()
         .expect("Failed to send request")
 }

@@ -10,7 +10,7 @@ use crate::{
         debounce, details::address::Address, EndSVG, Headline1, Headline2, Input, InputError,
         InputTime, SavingIcon, StartSVG,
     },
-    storage::{LocalStorage, MeetingPointData, StorageW},
+    storage::{MeetingPointData, StorageManager},
 };
 
 use super::address::AddressParam;
@@ -32,20 +32,23 @@ fn update_start_point_in_cook_and_run(
     let start_data = start_data.expect("Expact data");
     start_signal.clone().set(start_data.clone());
     debounce(start_signal, start_saving_signal, move |data| {
-        let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-        let mut storage = storage.lock().expect("Expected storage lock");
-        let result = storage.update_start_point_in_cook_and_run(id, data);
-        if result.is_err() {
-            console::error_1(
-                &format!(
-                    "Error while saving data: {}",
-                    result.expect_err("Expect error"),
-                )
-                .into(),
-            );
+        let storage = StorageManager::get_lock();
+        if let Err(e) = storage {
+            console::error_1(&format!("Error while getting storage lock: {}", e).into());
             start_saving_error_signal
                 .clone()
                 .set("Error while saving data!".to_string());
+            return;
+        }
+        let mut storage = storage.expect("Expected storage lock");
+        let result = storage.update_start_point_in_cook_and_run(id, &data);
+        if let Err(e) = result {
+            console::error_1(&format!("Error while saving data: {}", e,).into());
+            start_saving_error_signal
+                .clone()
+                .set("Error while saving data!".to_string());
+        } else {
+            start_saving_error_signal.clone().set("".to_string());
         }
     });
 }
@@ -67,20 +70,23 @@ fn update_end_point_in_cook_and_run(
     let end_data = end_data.expect("Expact data");
     end_signal.clone().set(end_data.clone());
     debounce(end_signal, end_saving_signal, move |data| {
-        let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-        let mut storage = storage.lock().expect("Expected storage lock");
-        let result = storage.update_goal_point_in_cook_and_run(id, data);
-        if result.is_err() {
-            console::error_1(
-                &format!(
-                    "Error while saving data: {}",
-                    result.expect_err("Expect error"),
-                )
-                .into(),
-            );
+        let storage = StorageManager::get_lock();
+        if let Err(e) = storage {
+            console::error_1(&format!("Error while getting storage lock: {}", e).into());
             end_saving_error_signal
                 .clone()
                 .set("Error while saving data!".to_string());
+            return;
+        }
+        let mut storage = storage.expect("Expected storage lock");
+        let result = storage.update_end_point_in_cook_and_run(id, &data);
+        if let Err(e) = result {
+            console::error_1(&format!("Error while saving data: {}", e,).into());
+            end_saving_error_signal
+                .clone()
+                .set("Error while saving data!".to_string());
+        } else {
+            end_saving_error_signal.clone().set("".to_string());
         }
     });
 }
@@ -354,7 +360,7 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                     }
                 }
 
-                // Goal Point
+                // End Point
                 div { class: "bg-[#fdfaf6] shadow rounded-xl p-4 border w-100 h-160",
 
 

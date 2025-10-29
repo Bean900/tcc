@@ -1,10 +1,10 @@
 use chrono::{Local, NaiveTime};
-use tcc::storage::{AddressData, ContactData, CookAndRunData, CourseData, MeetingPointData};
+use tcc::storage::{AddressData, TeamData, CookAndRunData, CourseData, MeetingPointData};
 use uuid::Uuid;
 
-pub fn real_live_data() -> Vec<ContactData> {
+pub fn real_live_data() -> Vec<TeamData> {
     vec![
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "The Snackademics".into(),
             address: AddressData {
@@ -17,9 +17,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "SoJa".into(),
             address: AddressData {
@@ -32,9 +32,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Schöner Abend & Genuss".into(),
             address: AddressData {
@@ -47,9 +47,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Hauben(tal)küche".into(),
             address: AddressData {
@@ -62,9 +62,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Die Flotten Pfannen".into(),
             address: AddressData {
@@ -77,9 +77,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Tajik It Easy, We're Hungary".into(),
             address: AddressData {
@@ -92,9 +92,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "JoSo-United".into(),
             address: AddressData {
@@ -107,9 +107,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Auf die Gabel fertig los!".into(),
             address: AddressData {
@@ -122,9 +122,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Salt and Pepper".into(),
             address: AddressData {
@@ -137,9 +137,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Eierlikör & Ernste Gespräche".into(),
             address: AddressData {
@@ -152,9 +152,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Die Krümelmonster".into(),
             address: AddressData {
@@ -167,9 +167,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegan".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Citygirls".into(),
             address: AddressData {
@@ -182,9 +182,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Bier + Schorle".into(),
             address: AddressData {
@@ -197,9 +197,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Running Chefs".into(),
             address: AddressData {
@@ -212,9 +212,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Perilli 69".into(),
             address: AddressData {
@@ -227,9 +227,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Chocas à la Carte".into(),
             address: AddressData {
@@ -242,9 +242,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Yes, Chef!".into(),
             address: AddressData {
@@ -257,9 +257,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Ja".into(),
             address: AddressData {
@@ -272,9 +272,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "ESSkalation".into(),
             address: AddressData {
@@ -287,9 +287,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team Shangool".into(),
             address: AddressData {
@@ -302,9 +302,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Final Foodstation".into(),
             address: AddressData {
@@ -317,9 +317,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Holy Aperoly".into(),
             address: AddressData {
@@ -332,9 +332,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Schaub".into(),
             address: AddressData {
@@ -347,9 +347,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "JeKi".into(),
             address: AddressData {
@@ -362,9 +362,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Die taffen Giraffen".into(),
             address: AddressData {
@@ -377,9 +377,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegan".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Kulinarische Kilometer".into(),
             address: AddressData {
@@ -392,9 +392,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Süß & Salzig".into(),
             address: AddressData {
@@ -407,9 +407,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Schnibbel Sisters".into(),
             address: AddressData {
@@ -422,9 +422,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Jolina und Jose".into(),
             address: AddressData {
@@ -437,9 +437,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Teamname".into(),
             address: AddressData {
@@ -452,9 +452,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "LiLa".into(),
             address: AddressData {
@@ -467,9 +467,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "".into(),
             address: AddressData {
@@ -482,9 +482,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegan".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Brathering Fanclub e.V.".into(),
             address: AddressData {
@@ -497,9 +497,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Johannes Lafer".into(),
             address: AddressData {
@@ -512,9 +512,9 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Die Pommes Philosophen".into(),
             address: AddressData {
@@ -527,15 +527,15 @@ pub fn real_live_data() -> Vec<ContactData> {
             members: 2,
             diets: vec!["vegetarisch".into()],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
     ]
 }
 
-pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
+pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
     //These addresses are randomly generated and do not correspond to known addresses
-    let contact_data = vec![
-        ContactData {
+    let team_data = vec![
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 1".to_string(),
             address: AddressData {
@@ -548,9 +548,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 2".to_string(),
             address: AddressData {
@@ -563,9 +563,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 3".to_string(),
             address: AddressData {
@@ -578,9 +578,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 4".to_string(),
             address: AddressData {
@@ -593,9 +593,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 5".to_string(),
             address: AddressData {
@@ -608,9 +608,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 6".to_string(),
             address: AddressData {
@@ -623,9 +623,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 7".to_string(),
             address: AddressData {
@@ -638,9 +638,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 8".to_string(),
             address: AddressData {
@@ -653,9 +653,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 9".to_string(),
             address: AddressData {
@@ -668,9 +668,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 10".to_string(),
             address: AddressData {
@@ -683,9 +683,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 11".to_string(),
             address: AddressData {
@@ -698,9 +698,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 12".to_string(),
             address: AddressData {
@@ -713,9 +713,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 13".to_string(),
             address: AddressData {
@@ -728,9 +728,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 14".to_string(),
             address: AddressData {
@@ -743,9 +743,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 15".to_string(),
             address: AddressData {
@@ -758,9 +758,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 16".to_string(),
             address: AddressData {
@@ -773,9 +773,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 17".to_string(),
             address: AddressData {
@@ -788,9 +788,9 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
-        ContactData {
+        TeamData {
             id: Uuid::new_v4(),
             team_name: "Team 18".to_string(),
             address: AddressData {
@@ -803,15 +803,15 @@ pub fn get_contact_list(number_of_contacts: usize) -> Vec<ContactData> {
             members: 2,
             diets: vec![],
             needs_check: false,
-            notes: vec![],
+            note_list: vec![],
         },
     ];
 
-    if number_of_contacts > contact_data.len() {
-        panic!("Number of contacts must be greater than or equal to the number of contact data");
+    if number_of_teams > team_data.len() {
+        panic!("Number of teams must be greater than or equal to the number of team data");
     }
 
-    contact_data[..number_of_contacts].to_vec()
+    team_data[..number_of_teams].to_vec()
 }
 
 pub fn get_course_list(number_of_courses: usize) -> Vec<CourseData> {
@@ -852,7 +852,7 @@ pub fn get_course_list(number_of_courses: usize) -> Vec<CourseData> {
 }
 
 pub fn get_cook_and_run(
-    contact_list: Vec<ContactData>,
+    team_list: Vec<TeamData>,
     course_list: Vec<CourseData>,
     course_with_more_hosts: Option<Uuid>,
     start_point: Option<MeetingPointData>,
@@ -864,7 +864,7 @@ pub fn get_cook_and_run(
         created: Local::now().to_utc(),
         edited: Local::now().to_utc(),
         occur: Local::now().to_utc().date_naive(),
-        contact_list: contact_list.clone(),
+        team_list: team_list.clone(),
         course_list: course_list.clone(),
         invite_allowed: false,
         course_with_more_hosts: course_with_more_hosts,

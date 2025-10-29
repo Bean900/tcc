@@ -53,7 +53,7 @@ fn execute_patch_name(
             "{}/cook_and_run/{}/name",
             base_url, cook_and_run_id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("authorization", format!("Bearer {}", token))
         .json(&payload)
         .send()
         .expect("Failed to send request")

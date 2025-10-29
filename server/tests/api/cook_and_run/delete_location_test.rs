@@ -104,7 +104,7 @@ fn execute_delete_start_point(cook_and_run_id: &Uuid, token: &str) -> reqwest::b
             "{}/cook_and_run/{}/start_point",
             base_url, cook_and_run_id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("authorization", format!("Bearer {}", token))
         .send()
         .expect("Failed to send request")
 }
@@ -116,7 +116,7 @@ fn execute_delete_end_point(cook_and_run_id: &Uuid, token: &str) -> reqwest::blo
             "{}/cook_and_run/{}/end_point",
             base_url, cook_and_run_id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("authorization", format!("Bearer {}", token))
         .send()
         .expect("Failed to send request")
 }

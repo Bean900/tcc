@@ -1,75 +1,78 @@
-use std::{
-    fs,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use dioxus::prelude::*;
 use uuid::Uuid;
 use web_sys::{console, wasm_bindgen::JsCast, HtmlInputElement};
 
 use crate::{
-    side::{CloseButton, ConfirmButton, Input, InputError, SecondaryButton},
-    storage::{LocalStorage, StorageR, StorageW},
+    side::{CloseButton, ConfirmButton, ErrorSVG, Input, InputError, SecondaryButton},
+    storage::{CookAndRunData, StorageManager},
     Route,
 };
 
 #[component]
 pub fn Dashboard() -> Element {
-    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-    let storage = storage.lock().expect("Expected storage lock");
-    let cook_and_run_list = storage.select_all_cook_and_run_minimal();
-
-    if cook_and_run_list.is_err() {
-        console::error_1(
-            &format!(
-                "Error loading cook and run data: {}",
-                cook_and_run_list.err().expect("Expected error")
-            )
-            .into(),
-        );
-        return rsx! {
-            div { "Error loading data" }
+    let cook_and_run_list = use_resource(move || async move {
+        let mut storage = use_context::<Signal<StorageManager>>();
+        let mut storage = storage.write();
+        match storage.select_cook_and_run_meta_list().await {
+            Ok(list) => return Ok(list),
+            Err(err) => {
+                console::error_1(&format!("Failed to load cook and run list: {}", err).into());
+                return Err("Failed to load data!");
+            }
         };
-    }
-    let cook_and_run_list = cook_and_run_list.expect("Expected cook and run data");
+    });
 
-    let mut create_project_signal: Signal<Element> = use_signal(|| rsx!());
-    let create_dialog = rsx! {
-        CreateProjectDialog { create_project_signal: create_project_signal.clone() }
-    };
+    let mut create_project_signal = use_signal(|| false);
 
     rsx! {
         div { class: "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 p-6",
 
             // Bestehende Projekte
             {
-                cook_and_run_list
-                    .iter()
-                    .map(|cook_and_run| {
-                        rsx! {
-                            DashboardCard {
-                                id: cook_and_run.id,
-                                name: cook_and_run.name.clone(),
-                                created: cook_and_run.created.format("%Y-%m-%d %H:%M").to_string(),
-                                updated: cook_and_run.edited.format("%Y-%m-%d %H:%M").to_string(),
-                                uploaded: false,
-                            }
+                match &*cook_and_run_list.read_unchecked() {
+                    Some(Err(err)) => rsx! {
+                        ErrorSVG {}
+                        div { class: "col-span-full text-red-500", {err} }
+                    },
+                    Some(Ok(list)) => rsx! {
+                        {
+                            list.iter()
+                                .map(|cook_and_run| {
+                                    rsx! {
+                                        DashboardCard {
+                                            id: cook_and_run.id,
+                                            name: cook_and_run.name.clone(),
+                                            created: cook_and_run.created.format("%Y-%m-%d %H:%M").to_string(),
+                                            updated: cook_and_run.edited.format("%Y-%m-%d %H:%M").to_string(),
+                                            uploaded: cook_and_run.is_in_cloud,
+                                        }
+                                    }
+                                })
                         }
-                    })
+                    },
+                    None => rsx! {
+                        LoadingCard {}
+                    },
+                }
             }
 
             a {
                 class: "border-4 border-dashed border-gray-300 rounded-xl p-6 h-36 flex items-center justify-center text-gray-400 hover:bg-[#fdfaf6] hover:text-[#4F7445] hover:scale-105 transition-all duration-200 cursor-pointer",
                 onclick: move |_| {
-                    create_project_signal.set(create_dialog.clone());
+                    create_project_signal.set(true);
                 },
                 div {
 
                     div { class: "text-5xl font-bold", "+" }
                 }
             }
+        
         }
-        {create_project_signal}
+        if *create_project_signal.read() {
+            CreateProjectDialog { create_project_signal: create_project_signal.clone() }
+        }
     }
 }
 
@@ -142,7 +145,48 @@ fn DashboardCard(props: DashboardCardProps) -> Element {
 }
 
 #[component]
-fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
+fn LoadingCard() -> Element {
+    rsx! {
+        div { class: "relative bg-[#fdfaf6] shadow-md rounded-xl p-6 h-36 hover:shadow-lg transition-all cursor-pointer hover:scale-105",
+
+
+            span { class: "sr-only", "Loading..." }
+            div { role: "status", class: "h-6 max-w-sm animate-pulse",
+                div { class: "h-6 bg-gray-200 rounded-full dark:bg-gray-700 w-48 mb-4" }
+            }
+
+            div { class: "flex items-center text-sm text-gray-500 mt-4",
+                svg {
+                    class: "w-4 h-4 mr-2 text-gray-400",
+                    fill: "currentColor",
+                    view_box: "0 0 20 20",
+                    xmlns: "http://www.w3.org/2000/svg",
+                    path { d: "M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zM2 9v7a2 2 0 002 2h12a2 2 0 002-2V9H2z" }
+                }
+                div { role: "status", class: "h-4 max-w-sm animate-pulse",
+                    div { class: "h-4 bg-gray-200 rounded-full dark:bg-gray-700 w-48 mb-4" }
+                }
+            }
+
+            div { class: "flex items-center text-sm text-gray-400 mt-4",
+                svg {
+                    class: "w-4 h-4 mr-2 text-gray-300",
+                    fill: "currentColor",
+                    view_box: "0 0 20 20",
+                    xmlns: "http://www.w3.org/2000/svg",
+                    path { d: "M17.414 2.586a2 2 0 010 2.828l-8.586 8.586a2 2 0 01-.879.515l-4 1a1 1 0 01-1.213-1.213l1-4a2 2 0 01.515-.879l8.586-8.586a2 2 0 012.828 0zM15 5l-1-1L6 12l-.5 2 .5.5 2-.5L15 5z" }
+                }
+                div { role: "status", class: "h-4 max-w-sm animate-pulse",
+                    div { class: "h-4 bg-gray-200 rounded-full dark:bg-gray-700 w-48 mb-4" }
+                }
+            }
+        
+        }
+    }
+}
+
+#[component]
+fn CreateProjectDialog(create_project_signal: Signal<bool>) -> Element {
     let mut project_name_signal = use_signal(|| "".to_string());
     let mut error_signal = use_signal(|| "".to_string());
 
@@ -154,7 +198,7 @@ fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
                 // Close button
                 CloseButton {
                     onclick: move |_| {
-                        create_project_signal.set(rsx! {});
+                        create_project_signal.set(false);
                     },
                 }
 
@@ -192,10 +236,24 @@ fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
                                 for file_name in &files {
                                     if let Some(file) = file_engine.read_file_to_string(file_name).await
                                     {
-                                        let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-                                        let mut storage = storage.lock().expect("Expected storage lock");
+                                        let mut storage = use_context::<Signal<StorageManager>>();
+                                        let mut storage = storage.write();
                                         let project_id = Uuid::new_v4();
-                                        let result = storage.create_cook_and_run_json(project_id, file);
+                                        let cook_and_run = CookAndRunData::from_json(&file);
+                                        if cook_and_run.is_err() {
+                                            console::error_1(
+                                                &format!(
+                                                    "Error parsing project file: {}",
+                                                    cook_and_run.err().expect("Expected error"),
+                                                )
+                                                    .into(),
+                                            );
+                                            error_signal.set("Error parsing project file".to_string());
+                                            continue;
+                                        }
+                                        let cook_and_run = cook_and_run
+                                            .expect("Expected CookAndRunData");
+                                        let result = storage.create_cook_and_run(&cook_and_run).await;
                                         if result.is_err() {
                                             console::error_1(
                                                 &format!(
@@ -207,12 +265,8 @@ fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
                                             error_signal
                                                 .set("Error creating project from file".to_string());
                                         } else {
-                                            create_project_signal
-                                                .set(rsx! {});
-                                            use_navigator()
-                                                .push(Route::ProjectOverviewPage {
-                                                    cook_and_run_id: project_id,
-                                                });
+                                            create_project_signal.set(false);
+                                            todo!();
                                         }
                                     }
                                 }
@@ -243,16 +297,17 @@ fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
                     ConfirmButton {
                         text: "Create".to_string(),
                         error_signal: error_signal.clone(),
-                        onclick: move |_| {
+                        onclick: move |_| async move {
                             if project_name_signal.read().trim().is_empty() {
                                 error_signal.set("Project name cannot be empty!".to_string());
                                 return;
                             }
                             let project_id = Uuid::new_v4();
-                            let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-                            let mut storage = storage.lock().expect("Expected storage lock");
+                            let mut storage = use_context::<Signal<StorageManager>>();
+                            let mut storage = storage.write();
                             let project_name = project_name_signal.read().to_string();
-                            let result = storage.create_cook_and_run(project_id, project_name);
+                            let cook_and_run = CookAndRunData::new(project_id, project_name);
+                            let result = storage.create_cook_and_run(&cook_and_run).await;
                             if result.is_err() {
                                 console::error_1(
                                     &format!(
@@ -262,11 +317,8 @@ fn CreateProjectDialog(create_project_signal: Signal<Element>) -> Element {
                                         .into(),
                                 );
                             }
-                            create_project_signal.set(rsx! {});
-                            use_navigator()
-                                .push(Route::ProjectOverviewPage {
-                                    cook_and_run_id: project_id,
-                                });
+                            create_project_signal.set(false);
+                            todo!();
                         },
                     }
                 }

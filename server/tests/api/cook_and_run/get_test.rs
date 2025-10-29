@@ -106,7 +106,7 @@ pub fn execute_get(cook_and_run_id: &Uuid, token: &str) -> reqwest::blocking::Re
     let (client, base_url) = get_client();
     client
         .get(&format!("{}/cook_and_run/{}", base_url, cook_and_run_id))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("authorization", format!("Bearer {}", token))
         .send()
         .expect("Failed to send request")
 }
@@ -121,7 +121,7 @@ fn execute_get_meta(user_id: &str, token: &str) -> reqwest::blocking::Response {
     let (client, base_url) = get_client();
     client
         .get(&format!("{}/cook_and_run?userId={}", base_url, user_id))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("authorization", format!("Bearer {}", token))
         .send()
         .expect("Failed to send request")
 }

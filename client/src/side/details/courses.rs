@@ -1,23 +1,20 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
-
 use chrono::NaiveTime;
 use dioxus::prelude::*;
 use uuid::Uuid;
 use web_sys::console;
 
 use crate::{
+    error,
     side::{Headline1, Input, InputError, InputTime, SavingIcon, WarnButton},
-    storage::{CourseData, LocalStorage, StorageW},
+    storage::{CourseData, StorageManager},
 };
 
 #[derive(PartialEq, Clone, Copy)]
 pub struct CoursesParam {
     cook_and_run_id: Uuid,
-    course_map: Signal<HashMap<Uuid, CourseParam>>,
+    course_list: Signal<Vec<CourseParam>>,
     selected_course: Signal<Option<Uuid>>,
+    creating_course: Signal<bool>,
 }
 
 #[derive(PartialEq, Clone)]
@@ -38,113 +35,50 @@ impl CoursesParam {
         course_data_list: Vec<CourseData>,
         selected_course: Option<Uuid>,
     ) -> Self {
-        let course_map: HashMap<Uuid, CourseParam> = course_data_list
+        let mut course_list: Vec<CourseParam> = course_data_list
             .iter()
-            .map(|c| (c.id, CourseParam::new(cook_and_run_id, c.clone())))
+            .map(|c| CourseParam::new(cook_and_run_id, c.clone()))
             .collect();
+
+        course_list.sort_by_key(|course| course.time);
 
         CoursesParam {
             cook_and_run_id,
-            course_map: use_signal(|| course_map),
+            course_list: use_signal(|| course_list),
             selected_course: use_signal(|| selected_course),
+            creating_course: use_signal(|| false),
         }
     }
+}
 
-    fn get_sorted_course_key_list(&self) -> Vec<Uuid> {
-        let mut course_list: Vec<Uuid> = self
-            .course_map
-            .read()
-            .iter()
-            .map(|(k, _)| k.clone())
-            .collect();
-        course_list.sort_by_key(|id| self.get_course(id).time);
-        course_list
-    }
+fn update_course<'a>(
+    cook_and_run_id: Uuid,
+    course_param: &'a CourseParam,
+) -> Result<&'a CourseParam, String> {
+    let mut storage = StorageManager::get_lock()?;
+    let course = course_param.to_course_data();
+    storage.update_course_of_cook_and_run(cook_and_run_id, &course)?;
+    Ok(course_param)
+}
 
-    fn get_course(&self, course_id: &Uuid) -> CourseParam {
-        self.course_map
-            .read()
-            .get(&course_id)
-            .cloned()
-            .expect("Expect value in map!")
-    }
-    fn set_course(&mut self, course_param: CourseParam) {
-        let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-        let mut storage = storage.lock().expect("Expected storage lock");
-        let result = storage
-            .update_course_in_cook_and_run(self.cook_and_run_id, course_param.to_course_data());
-        if result.is_err() {
-            console::error_1(
-                &format!(
-                    "Error while saving course: {}",
-                    result.expect_err("Expect error"),
-                )
-                .into(),
-            );
-            return;
-        }
+fn del_course(cook_and_run_id: Uuid, course_id: Uuid) -> Result<(), String> {
+    let mut storage = StorageManager::get_lock()?;
+    storage.delete_course_of_cook_and_run(cook_and_run_id, course_id)?;
+    Ok(())
+}
 
-        self.course_map
-            .write()
-            .insert(course_param.id, course_param);
-    }
+fn create_course(cook_and_run_id: Uuid) -> Result<CourseParam, String> {
+    let course = CourseParam::default(cook_and_run_id);
 
-    fn del_course(&mut self, course_id: &Uuid) {
-        let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-        let mut storage = storage.lock().expect("Expected storage lock");
-        let result = storage.delete_course_in_cook_and_run(self.cook_and_run_id, course_id.clone());
-        if result.is_err() {
-            console::error_1(
-                &format!(
-                    "Error while deleting course: {}",
-                    result.expect_err("Expect error"),
-                )
-                .into(),
-            );
-            return;
-        }
+    let mut storage = StorageManager::get_lock()?;
+    storage.create_course_of_cook_and_run(cook_and_run_id, &course.to_course_data())?;
+    Ok(course)
+}
 
-        self.course_map.write().remove(course_id);
-    }
-
-    fn add_course_in_cook_and_rund_course(&mut self) {
-        let course = CourseParam::default(self.cook_and_run_id);
-
-        let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-        let mut storage = storage.lock().expect("Expected storage lock");
-        let result =
-            storage.add_course_in_cook_and_run(self.cook_and_run_id, course.to_course_data());
-        if result.is_err() {
-            console::error_1(
-                &format!(
-                    "Error while adding course: {}",
-                    result.expect_err("Expect error"),
-                )
-                .into(),
-            );
-            return;
-        }
-
-        self.course_map.write().insert(course.id.clone(), course);
-    }
-
-    fn set_course_with_more_hosts(&mut self, course_id: &Uuid) {
-        let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-        let mut storage = storage.lock().expect("Expected storage lock");
-        let result = storage
-            .update_course_with_more_hosts_in_cook_and_run(self.cook_and_run_id, course_id.clone());
-        if result.is_err() {
-            console::error_1(
-                &format!(
-                    "Error while setting course with more hosts: {}",
-                    result.expect_err("Expect error"),
-                )
-                .into(),
-            );
-            return;
-        }
-        self.selected_course.set(Some(*course_id));
-    }
+fn set_course_with_more_hosts(cook_and_run_id: Uuid, course_id: Uuid) -> Result<(), String> {
+    let mut storage = StorageManager::get_lock()?;
+    storage.update_course_with_more_hosts_of_cook_and_run(cook_and_run_id, course_id)?;
+    Ok(())
 }
 
 impl CourseParam {
@@ -185,117 +119,255 @@ impl CourseParam {
 
 #[component]
 pub fn Courses(param: CoursesParam) -> Element {
+    let cook_and_run_id = param.cook_and_run_id;
+    let mut course_list = param.course_list.clone();
+    let mut selected_course = param.selected_course.clone();
+    let mut creating_course = param.creating_course.clone();
     rsx! {
         section {
             Headline1 { headline: "Courses".to_string() }
 
             // Scrollable grid
             div { class: "grid grid-cols-1 gap-4 p-8 max-h-[calc(100vh-16rem)] overflow-y-auto pr-6",
-
-
-                for course_id in param.get_sorted_course_key_list() {
-
-                    {
-                        rsx! {
-                            div { class: "relative bg-[#fdfaf6] shadow-md rounded-xl p-6 hover:shadow-lg transition-all",
-                                SavingIcon {
-                                    saving: param.get_course(&course_id).saving,
-                                    error: param.get_course(&course_id).saving_error,
+                for (index , course) in course_list.iter().enumerate() {
+                    div { class: "relative bg-[#fdfaf6] shadow-md rounded-xl p-6 hover:shadow-lg transition-all",
+                        SavingIcon {
+                            saving: course.saving,
+                            error: "{course.saving_error}",
+                        }
+                        div { class: "grid grid-cols-10 gap-4",
+                            div {
+                                class: "flex flex-col col-span-7",
+                                key: course_id,
+                                span { class: "text-sm font-semibold mb-1 text-gray-700",
+                                    "Name:"
                                 }
-                            
-                                div { class: "grid grid-cols-10 gap-4",
-                                    div { class: "flex flex-col col-span-7", key: course_id,
-                                        span { class: "text-sm font-semibold mb-1 text-gray-700", "Name:" }
-                                        Input {
-                                            place_holer: "Course name",
-                                            value: param.get_course(&course_id).name,
-                                            is_error: !param.get_course(&course_id).name_error.is_empty(),
-                                            oninput: move |e: Event<FormData>| {
-                                                let name_value = e.value();
-                                                let mut course = param.get_course(&course_id);
+                                Input {
+                                    place_holer: "Course name",
+                                    value: "{course.name}",
+                                    is_error: !course.name_error.is_empty(),
+                                    oninput: move |e: Event<FormData>| {
+                                        let name_value = e.value();
+                                        course_list
+                                            .with_mut(|course_list_mut| {
+                                                let course = course_list_mut.get_mut(index).expect("Expected course");
+                                                course.saving = true;
                                                 course.name = name_value.clone();
                                                 if name_value.trim().is_empty() {
                                                     course.name_error = "Course name cannot be empty!".to_string();
                                                 } else {
                                                     course.name_error = "".to_string();
                                                 }
-                                                param.set_course(course);
-                                            },
+                                            });
+                                        let course = course_list.read().get(index).expect("Expected course").clone();
+                                        spawn(async move {
+                                            let saving_error = match update_course(cook_and_run_id, &course) {
+                                                Ok(_) => {
+                                                    console::log_1(
+                                                        &format!("Course {} saved successfully", course.name).into(),
+                                                    );
+                                                    "".to_string()
+                                                }
+                                                Err(e) => {
+                                                    console::error_1(&format!("Error saving course: {}", e).into());
+                                                    "Error when saving course!".to_string()
+                                                }
+                                            };
+                                            course_list
+                                                .with_mut(|course_list| {
+                                                    let course = course_list.get_mut(index).expect("Expected course");
+                                                    course.saving = false;
+                                                    course.saving_error = saving_error;
+                                                });
+                                        });
+                                    },
+                                }
+                                InputError { error: "{course.name_error}" }
+                            }
+                            div { class: "flex flex-col col-span-3",
+                                span { class: "text-sm font-semibold mb-1 text-gray-700",
+                                    "Time:"
+                                }
+                                InputTime {
+                                    value: course.time,
+                                    is_error: !course.time_error.is_empty(),
+                                    oninput: move |event: Event<FormData>| {
+                                        let time = NaiveTime::parse_from_str(&event.value(), "%H:%M");
+                                        course_list
+                                            .with_mut(|course_list| {
+                                                let course = course_list.get_mut(index).expect("Expected course");
+                                                match time {
+                                                    Ok(t) => {
+                                                        course.saving = true;
+                                                        course.time = t;
+                                                        course.time_error = "".to_string();
+                                                    }
+                                                    Err(_) => {
+                                                        course.time_error = "Time format is not correct!".to_string();
+                                                    }
+                                                };
+                                            });
+                                        if let Some(e) = time.err() {
+                                            console::error_1(&format!("Time format is not correct: {}", e).into());
+                                            return;
                                         }
-                                        InputError { error: param.get_course(&course_id).name_error }
-                                    }
-                            
-                                    div { class: "flex flex-col col-span-3",
-                                        span { class: "text-sm font-semibold mb-1 text-gray-700", "Time:" }
-                                        InputTime {
-                                            value: param.get_course(&course_id).time,
-                                            is_error: !param.get_course(&course_id).time_error.is_empty(),
-                                            oninput: move |event: Event<FormData>| {
-                                                let time = NaiveTime::parse_from_str(&event.value(), "%H:%M");
-                                                let mut course = param.get_course(&course_id);
-                                                if time.is_err() {
-                                                    console::error_1(
+                                        let course = course_list.read().get(index).expect("Expected course").clone();
+                                        spawn(async move {
+                                            let saving_error = match update_course(cook_and_run_id, &course) {
+                                                Ok(_) => {
+                                                    console::log_1(
+                                                        &format!("Course {} saved successfully", course.name).into(),
+                                                    );
+                                                    "".to_string()
+                                                }
+                                                Err(e) => {
+                                                    console::error_1(&format!("Error saving course: {}", e).into());
+                                                    "Error when saving course!".to_string()
+                                                }
+                                            };
+                                            course_list
+                                                .with_mut(|course_list| {
+                                                    let course = course_list.get_mut(index).expect("Expected course");
+                                                    course.saving = false;
+                                                    course.saving_error = saving_error;
+                                                });
+                                        });
+                                    },
+                                }
+                                InputError { error: "{course.time_error}" }
+                            }
+                        }
+                        div { class: "flex flex-wrap items-center gap-3",
+                            WarnButton {
+                                text: "Delete",
+                                onclick: move |_| {
+                                    course_list
+                                        .with_mut(|course_list| {
+                                            let course = course_list.get_mut(index).expect("Expected course");
+                                            course.saving = true;
+                                            course.saving_error = "".to_string();
+                                        });
+                                    let course = course_list.read().get(index).expect("Expected course").clone();
+                                    spawn(async move {
+                                        let result = del_course(cook_and_run_id, course.id);
+                                        match result {
+                                            Ok(_) => {
+                                                console::log_1(
+                                                    &format!("Course {} deleted successfully", course.name).into(),
+                                                );
+                                                course_list
+                                                    .with_mut(|course_list| {
+                                                        course_list.remove(index);
+                                                    });
+                                            }
+                                            Err(e) => {
+                                                console::error_1(&format!("Error deleting course: {}", e).into());
+                                                course_list
+                                                    .with_mut(|course_list| {
+                                                        let course = course_list
+                                                            .get_mut(index)
+                                                            .expect("Expected course");
+                                                        course.saving_error = "Error when deleting course!"
+                                                            .to_string();
+                                                        course.saving = false;
+                                                    });
+                                            }
+                                        }
+                                    });
+                                },
+                            }
+                            div { class: "flex items-center gap-2",
+                                input {
+                                    r#type: "radio",
+                                    name: "multi_participant_course",
+                                    checked: selected_course.read().is_some_and(|c| c.eq(&course.id)),
+                                    onchange: move |_| {
+                                        course_list
+                                            .with_mut(|course_list| {
+                                                let course = course_list.get_mut(index).expect("Expected course");
+                                                course.saving = true;
+                                                course.saving_error = "".to_string();
+                                            });
+                                        let course = course_list.read().get(index).expect("Expected course").clone();
+                                        spawn(async move {
+                                            let result = set_course_with_more_hosts(cook_and_run_id, course.id);
+                                            match result {
+                                                Ok(_) => {
+                                                    console::log_1(
                                                         &format!(
-                                                            "Time format is not correct: {}",
-                                                            time.expect_err("Expect error"),
+                                                            "Course {} set successfully as main course",
+                                                            course.name,
                                                         )
                                                             .into(),
                                                     );
-                                                    course.time_error = "Time format is not correct!".to_string();
-                                                    param.set_course(course);
-                                                    return;
+                                                    course_list
+                                                        .with_mut(|course_list| {
+                                                            let course = course_list
+                                                                .get_mut(index)
+                                                                .expect("Expected course");
+                                                            course.saving = false;
+                                                        });
+                                                    selected_course.set(Some(course.id));
                                                 }
-                                                course.time_error = "".to_string();
-                                                let time = time.expect("Expect time");
-                                                course.time = time;
-                                                param.set_course(course);
-                                            },
-                                        }
-                                        InputError { error: param.get_course(&course_id).time_error }
-                                    }
+                                                Err(e) => {
+                                                    console::error_1(
+                                                        &format!("Error when setting main course: {}", e).into(),
+                                                    );
+                                                    course_list
+                                                        .with_mut(|course_list| {
+                                                            let course = course_list
+                                                                .get_mut(index)
+                                                                .expect("Expected course");
+                                                            course.saving_error = "Error when setting main course!"
+                                                                .to_string();
+                                                            course.saving = false;
+                                                        });
+                                                }
+                                            }
+                                        });
+                                    },
                                 }
-                            
-                                div { class: "flex flex-wrap items-center gap-3",
-                            
-                            
-                                    WarnButton {
-                                        text: "Delete",
-                                        onclick: move |_| {
-                                            param.del_course(&course_id);
-                                        },
-                                    }
-                            
-                            
-                                    div { class: "flex items-center gap-2",
-                            
-                                        input {
-                                            r#type: "radio",
-                                            name: "multi_participant_course",
-                                            checked: param.selected_course.read().is_some_and(|c| c.eq(&course_id)),
-                                            onchange: move |_| {
-                                                param.set_course_with_more_hosts(&course_id);
-                                            },
-                                        }
-                                        label { class: "text-sm text-gray-700", "Allow more hosts!" }
-                                    }
-                                }
+                                label { class: "text-sm text-gray-700", "Allow more hosts!" }
                             }
                         }
                     }
                 }
 
                 div {
-                    a {
-                        class: "border-4 border-dashed border-gray-300 rounded-xl p-6 flex items-center justify-center text-gray-400 hover:bg-[#fdfaf6] hover:text-[#C66741] hover:scale-105 transition-all duration-200 cursor-pointer",
-                        onclick: move |_| {
-                            param.add_course_in_cook_and_rund_course();
-                        },
-                        div {
-                            div { class: "text-5xl font-bold", "+" }
+                    if *creating_course.read() {
+                        a { class: "border-4 border-dashed border-gray-300 rounded-xl p-6 flex items-center justify-center text-gray-400 hover:bg-[#fdfaf6] hover:text-[#C66741] hover:scale-105 transition-all duration-200 cursor-pointer",
+                            div {
+                                SavingIcon { saving: true, error: "".to_string() }
+                            }
+                        }
+                    } else {
+                        a {
+                            class: "border-4 border-dashed border-gray-300 rounded-xl p-6 flex items-center justify-center text-gray-400 hover:bg-[#fdfaf6] hover:text-[#C66741] hover:scale-105 transition-all duration-200 cursor-pointer",
+                            onclick: move |_| {
+                                creating_course.set(true);
+                                spawn(async move {
+                                    let result = create_course(cook_and_run_id);
+                                    match result {
+                                        Ok(course) => {
+                                            console::log_1(&format!("Course created successfully").into());
+                                            course_list.push(course);
+                                            creating_course.set(false);
+                                        }
+                                        Err(e) => {
+                                            console::error_1(
+                                                &format!("Error when setting main course: {}", e).into(),
+                                            );
+                                            error("Connection Error", "Error when creating course!");
+                                        }
+                                    }
+                                });
+                            },
+                            div {
+                                div { class: "text-5xl font-bold", "+" }
+                            }
                         }
                     }
                 }
-            
             }
         }
     }

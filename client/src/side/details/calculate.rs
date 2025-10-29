@@ -1,42 +1,45 @@
-use std::sync::{Arc, Mutex};
-
 use dioxus::prelude::*;
 use uuid::Uuid;
 use web_sys::console;
 
 use crate::{
     calculator::Calculator,
+    error,
     side::{AddressSVG, Headline1, Headline2, SecondaryButton},
-    storage::{ContactData, LocalStorage, PlanData, StorageR, StorageW},
+    storage::{TeamData, PlanData, StorageManager},
     Route,
 };
 
-fn save_plan(cook_and_run_id: Uuid, plan: Option<PlanData>) -> Result<(), String> {
-    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-    let mut storage = storage.lock().expect("Expected storage lock");
-
-    let result = storage.update_top_plan_in_cook_and_run(cook_and_run_id, plan);
+fn save_plan(cook_and_run_id: Uuid, plan: &PlanData) -> Result<(), String> {
+    let mut storage = StorageManager::get_lock()?;
+    let result = storage.update_plan_of_cook_and_run(cook_and_run_id, &plan);
     result
 }
 
 #[component]
 pub fn Calculate(id: Uuid) -> Element {
-    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-    let storage: std::sync::MutexGuard<'_, LocalStorage> =
-        storage.lock().expect("Expected storage lock");
-    let cook_and_run = storage.select_cook_and_run(id);
+    let storage = match StorageManager::get_lock() {
+        Ok(storage) => storage,
+        Err(e) => {
+            console::error_1(&format!("Error while getting storage lock: {}", e).into());
+            return error(
+                "Unexpected Error",
+                "An unexpected error has occurred. Please team your system administrator.",
+            );
+        }
+    };
 
-    if cook_and_run.is_err() {
-        console::error_1(
-            &format!(
-                "Error while loading cook and run: {}",
-                cook_and_run.expect_err("Expect error"),
-            )
-            .into(),
-        );
-        return rsx!( "Error while loading cook and run" );
-    }
-    let cook_and_run = cook_and_run.expect("Expect cook and run");
+    let cook_and_run = match storage.select_cook_and_run(id) {
+        Ok(cook_and_run) => cook_and_run,
+        Err(e) => {
+            console::error_1(&format!("Error while loading cook and run: {}", e,).into());
+            return error(
+                "Not Found",
+                "The requested cook and run could not be found.",
+            );
+        }
+    };
+
     let mut top_plan_signal = use_signal(|| cook_and_run.top_plan.clone());
 
     let calculator = Calculator::new(&cook_and_run);
@@ -48,7 +51,7 @@ pub fn Calculate(id: Uuid) -> Element {
             )
             .into(),
         );
-        return rsx!( "Error while creating calculator. Are all fields set?" );
+        return rsx!("Error while creating calculator. Are all fields set?");
     }
     let calculator = calculator.expect("Expect calculator");
 
@@ -63,7 +66,7 @@ pub fn Calculate(id: Uuid) -> Element {
                     calculator.stop();
                     match calculator.get_top_plan() {
                         Some(result) => {
-                            if let Err(e) = save_plan(id, Some(result.clone())) {
+                            if let Err(e) = save_plan(id, &result) {
                                 console::error_1(&format!("Error saving plan: {}", e).into());
                             } else {
                                 top_plan_signal.set(Some(result));
@@ -82,23 +85,23 @@ pub fn Calculate(id: Uuid) -> Element {
                 if top_plan_signal.read().is_some() {
                     {
                         cook_and_run
-                            .contact_list
+                            .team_list
                             .iter()
-                            .map(|contact| {
-                                let contact_id = contact.id.clone();
+                            .map(|team| {
+                                let team_id = team.id.clone();
                                 rsx! {
                                     a {
-                                        key: {contact_id},
+                                        key: {team_id},
                                         onclick: move |_| {
                                             let cook_and_run_id = id;
                                             use_navigator()
                                                 .push(Route::RunSchedule {
                                                     cook_and_run_id,
-                                                    contact_id,
+                                                    team_id,
                                                 });
                                         },
                                         class: "bg-white relative shadow-lg rounded-xl p-6 hover:shadow-xl transition-all cursor-pointer hover:scale-105",
-                                        div { class: "flex flex-col items-start", {ContactCard(contact.clone())} }
+                                        div { class: "flex flex-col items-start", {TeamCard(team.clone())} }
                                     }
                                 }
                             })
@@ -109,7 +112,7 @@ pub fn Calculate(id: Uuid) -> Element {
     }
 }
 #[component]
-fn ContactCard(props: ContactData) -> Element {
+fn TeamCard(props: TeamData) -> Element {
     rsx! {
         div {
             // Name

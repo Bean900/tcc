@@ -48,7 +48,7 @@ fn execute_patch_course(
             "{}/cook_and_run/{}/course/{}",
             base_url, cook_and_run_id, course_id
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("authorization", format!("Bearer {}", token))
         .json(&payload)
         .send()
         .expect("Failed to send request")

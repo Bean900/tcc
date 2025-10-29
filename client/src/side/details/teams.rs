@@ -7,13 +7,10 @@ use web_sys::console;
 
 use crate::side::details::address::{Address, AddressParam};
 use crate::side::{AddressSVG, Headline1, Headline2, InputPhoneNumber};
-use crate::storage::{AddressData, ContactData, LocalStorage, NoteData};
+use crate::storage::{AddressData, NoteData, StorageManager, TeamData};
 
-use crate::{
-    side::{
-        CloseButton, ConfirmButton, DeleteButton, Input, InputError, InputMultirow, InputNumber,
-    },
-    storage::StorageW,
+use crate::side::{
+    CloseButton, ConfirmButton, DeleteButton, Input, InputError, InputMultirow, InputNumber,
 };
 
 fn add_team(
@@ -25,10 +22,9 @@ fn add_team(
     members: u32,
     address_data: AddressData,
 ) -> Result<(), String> {
-    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-    let mut storage = storage.lock().expect("Expected storage lock");
+    let mut storage = StorageManager::get_lock()?;
 
-    let team = ContactData {
+    let team = TeamData {
         id: Uuid::new_v4(),
         team_name,
         address: address_data,
@@ -37,17 +33,14 @@ fn add_team(
         phone_number: tel,
         members,
         needs_check: false,
-        notes: vec![],
+        note_list: vec![],
     };
-    let result = storage.add_team_to_cook_and_run(id, team);
-    result
+    storage.create_team_of_cook_and_run(id, &team)
 }
 
-fn update_team(id: Uuid, team: ContactData) -> Result<(), String> {
-    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-    let mut storage = storage.lock().expect("Expected storage lock");
-    let result = storage.update_team_in_cook_and_run(id, team);
-    result
+fn update_team(id: Uuid, team: &TeamData) -> Result<(), String> {
+    let mut storage = StorageManager::get_lock()?;
+    storage.update_team_of_cook_and_run(id, team)
 }
 
 fn add_team_note(
@@ -56,29 +49,19 @@ fn add_team_note(
     headline: String,
     description: String,
 ) -> Result<(), String> {
-    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-    let mut storage = storage.lock().expect("Expected storage lock");
-    let result = storage.create_team_note_in_cook_and_run(id, team_id, headline, description);
-    result
-}
-
-fn update_team_needs_check(id: Uuid, team_id: Uuid, needs_check: bool) -> Result<(), String> {
-    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-    let mut storage = storage.lock().expect("Expected storage lock");
-    let result = storage.update_team_needs_ckeck_in_cook_and_run(id, team_id, needs_check);
-    result
+    let note = NoteData::new(headline, description);
+    let mut storage = StorageManager::get_lock()?;
+    storage.create_team_note_of_cook_and_run(id, team_id, &note)
 }
 
 fn delete_team(id: Uuid, team_id: Uuid) -> Result<(), String> {
-    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-    let mut storage = storage.lock().expect("Expected storage lock");
-    let result = storage.delete_team_in_cook_and_run(id, team_id);
-    result
+    let mut storage = StorageManager::get_lock()?;
+    storage.delete_team_of_cook_and_run(id, team_id)
 }
 
 pub(crate) struct TeamsProps {
     pub project_id: Uuid,
-    pub team_list: Vec<ContactData>,
+    pub team_list: Vec<TeamData>,
 }
 
 #[component]
@@ -104,7 +87,7 @@ pub(crate) fn Teams(props: &TeamsProps) -> Element {
                         .iter()
                         .map(|team| {
                             let project_id = props.project_id;
-                            let contact_data = team.clone();
+                            let team_data = team.clone();
                             let background = if team.needs_check {
                                 "bg-orange-100"
                             } else {
@@ -118,12 +101,10 @@ pub(crate) fn Teams(props: &TeamsProps) -> Element {
                                             EditTeamDialog {
                                                 team_dialog_signal: team_dialog_signal.clone(),
                                                 project_id,
-                                                contact_data: contact_data.clone(),
+                                                team_data: team_data.clone(),
                                             }
                                         });
                                     },
-                                
-                                
                                     class: "{background} relative  shadow-md rounded-xl p-6  hover:shadow-lg transition-all cursor-pointer hover:scale-105",
                                     {TeamCard(team.clone())}
                                 }
@@ -142,14 +123,13 @@ pub(crate) fn Teams(props: &TeamsProps) -> Element {
                     }
                 }
             }
-        
         }
         {team_dialog_signal}
     }
 }
 
 #[component]
-fn TeamCard(props: ContactData) -> Element {
+fn TeamCard(props: TeamData) -> Element {
     rsx! {
         div {
             // Name
@@ -176,11 +156,11 @@ fn AddTeamDialog(team_dialog_signal: Signal<Element>, project_id: Uuid) -> Eleme
     let team_name_signal = use_signal(|| "".to_string());
     let team_name_error_signal = use_signal(|| "".to_string());
 
-    let contact_email_signal = use_signal(|| "".to_string());
-    let contact_email_error_signal = use_signal(|| "".to_string());
+    let team_email_signal = use_signal(|| "".to_string());
+    let team_email_error_signal = use_signal(|| "".to_string());
 
-    let contact_tel_signal = use_signal(|| "".to_string());
-    let contact_tel_error_signal = use_signal(|| "".to_string());
+    let team_tel_signal = use_signal(|| "".to_string());
+    let team_tel_error_signal = use_signal(|| "".to_string());
 
     let members_signal = use_signal(|| "".to_string());
     let members_error_signal = use_signal(|| "".to_string());
@@ -199,10 +179,10 @@ fn AddTeamDialog(team_dialog_signal: Signal<Element>, project_id: Uuid) -> Eleme
                     project_id,
                     team_name_signal,
                     team_name_error_signal,
-                    contact_email_signal,
-                    contact_email_error_signal,
-                    contact_tel_signal,
-                    contact_tel_error_signal,
+                    team_email_signal,
+                    team_email_error_signal,
+                    team_tel_signal,
+                    team_tel_error_signal,
                     members_signal,
                     members_error_signal,
                     diets_signal,
@@ -223,10 +203,10 @@ fn AddTeamDialog(team_dialog_signal: Signal<Element>, project_id: Uuid) -> Eleme
                             if !check_all(
                                 team_name_signal,
                                 team_name_error_signal,
-                                contact_email_signal,
-                                contact_email_error_signal,
-                                contact_tel_signal,
-                                contact_tel_error_signal,
+                                team_email_signal,
+                                team_email_error_signal,
+                                team_tel_signal,
+                                team_tel_error_signal,
                                 members_error_signal,
                                 members_signal,
                                 address_param.clone(),
@@ -237,8 +217,8 @@ fn AddTeamDialog(team_dialog_signal: Signal<Element>, project_id: Uuid) -> Eleme
                                 project_id,
                                 team_name_signal.read().trim().to_string(),
                                 diets_signal.read().split(',').map(|s| s.trim().to_string()).collect(),
-                                contact_email_signal.read().trim().to_string(),
-                                contact_tel_signal.read().trim().to_string(),
+                                team_email_signal.read().trim().to_string(),
+                                team_tel_signal.read().trim().to_string(),
                                 members_signal.read().parse::<u32>().unwrap_or(0),
                                 address_param
                                     .get_address_data()
@@ -267,37 +247,37 @@ fn AddTeamDialog(team_dialog_signal: Signal<Element>, project_id: Uuid) -> Eleme
 fn EditTeamDialog(
     team_dialog_signal: Signal<Element>,
     project_id: Uuid,
-    contact_data: ContactData,
+    team_data: TeamData,
 ) -> Element {
-    let team_name_signal = use_signal(|| contact_data.team_name.clone());
+    let team_name_signal = use_signal(|| team_data.team_name.clone());
     let team_name_error_signal = use_signal(|| "".to_string());
 
-    let contact_email_signal = use_signal(|| contact_data.mail.clone());
-    let contact_email_error_signal = use_signal(|| "".to_string());
+    let team_email_signal = use_signal(|| team_data.mail.clone());
+    let team_email_error_signal = use_signal(|| "".to_string());
 
-    let contact_tel_signal = use_signal(|| contact_data.phone_number.clone());
-    let contact_tel_error_signal = use_signal(|| "".to_string());
+    let team_tel_signal = use_signal(|| team_data.phone_number.clone());
+    let team_tel_error_signal = use_signal(|| "".to_string());
 
-    let members_signal = use_signal(|| contact_data.members.to_string());
+    let members_signal = use_signal(|| team_data.members.to_string());
     let members_error_signal = use_signal(|| "".to_string());
 
-    let diets_signal = use_signal(|| contact_data.diets.join(", "));
+    let diets_signal = use_signal(|| team_data.diets.join(", "));
 
-    let mut needs_check_signal = use_signal(|| contact_data.needs_check);
+    let mut needs_check_signal = use_signal(|| team_data.needs_check);
 
     let error_signal = use_signal(|| "".to_string());
 
     let mut is_edit_team_signal = use_signal(|| true);
 
-    let address_param = AddressParam::new(&contact_data.address);
+    let address_param = AddressParam::new(&team_data.address);
     use_effect(move || {
         check_all(
             team_name_signal,
             team_name_error_signal,
-            contact_email_signal,
-            contact_email_error_signal,
-            contact_tel_signal,
-            contact_tel_error_signal,
+            team_email_signal,
+            team_email_error_signal,
+            team_tel_signal,
+            team_tel_error_signal,
             members_error_signal,
             members_signal,
             address_param,
@@ -340,26 +320,15 @@ fn EditTeamDialog(
                                 class: "text-[#C66741] rounded",
                                 onclick: move |_| {
                                     let new_value = !*needs_check_signal.read();
-                                    let result = update_team_needs_check(project_id, contact_data.id, new_value);
-                                    if result.is_err() {
-                                        console::error_1(
-                                            &format!(
-                                                "Error updating team needs check: {}",
-                                                result.err().expect("Expected error"),
-                                            )
-                                                .into(),
-                                        );
-                                        needs_check_signal.set(!new_value);
-                                    } else {
-                                        needs_check_signal.set(new_value);
-                                    }
+                                    team_data.needs_check = new_value;
+                                    todo!();
                                 },
                             }
                         }
                     }
                     DeleteButton {
                         onclick: move |_| {
-                            let result = delete_team(project_id, contact_data.id);
+                            let result = delete_team(project_id, team_data.id);
                             if result.is_err() {
                                 console::error_1(
                                     &format!(
@@ -388,10 +357,10 @@ fn EditTeamDialog(
                         project_id,
                         team_name_signal,
                         team_name_error_signal,
-                        contact_email_signal,
-                        contact_email_error_signal,
-                        contact_tel_signal,
-                        contact_tel_error_signal,
+                        team_email_signal,
+                        team_email_error_signal,
+                        team_tel_signal,
+                        team_tel_error_signal,
                         members_signal,
                         members_error_signal,
                         diets_signal,
@@ -408,10 +377,10 @@ fn EditTeamDialog(
                                 if !check_all(
                                     team_name_signal,
                                     team_name_error_signal,
-                                    contact_email_signal,
-                                    contact_email_error_signal,
-                                    contact_tel_signal,
-                                    contact_tel_error_signal,
+                                    team_email_signal,
+                                    team_email_error_signal,
+                                    team_tel_signal,
+                                    team_tel_error_signal,
                                     members_error_signal,
                                     members_signal,
                                     address_param.clone(),
@@ -420,12 +389,12 @@ fn EditTeamDialog(
                                 }
                                 let result = update_team(
                                     project_id,
-                                    ContactData {
-                                        id: contact_data.id,
+                                    &TeamData {
+                                        id: team_data.id,
                                         team_name: team_name_signal.read().trim().to_string(),
                                         address: address_param.get_address_data().expect("Expect address data!"),
-                                        mail: contact_email_signal.read().trim().to_string(),
-                                        phone_number: contact_tel_signal.read().trim().to_string(),
+                                        mail: team_email_signal.read().trim().to_string(),
+                                        phone_number: team_tel_signal.read().trim().to_string(),
                                         members: members_signal.read().parse::<u32>().unwrap_or(0),
                                         diets: diets_signal
                                             .read()
@@ -433,7 +402,7 @@ fn EditTeamDialog(
                                             .map(|s| s.trim().to_string())
                                             .collect(),
                                         needs_check: *needs_check_signal.read(),
-                                        notes: vec![],
+                                        note_list: vec![],
                                     },
                                 );
                                 if result.is_err() {
@@ -453,8 +422,8 @@ fn EditTeamDialog(
                 } else {
                     TeamNotes {
                         project_id,
-                        team_id: contact_data.id,
-                        note_data_list: contact_data.notes,
+                        team_id: team_data.id,
+                        note_data_list: team_data.note_list,
                     }
                 }
             }
@@ -468,10 +437,10 @@ fn TeamDialog(
     project_id: Uuid,
     team_name_signal: Signal<String>,
     team_name_error_signal: Signal<String>,
-    contact_email_signal: Signal<String>,
-    contact_email_error_signal: Signal<String>,
-    contact_tel_signal: Signal<String>,
-    contact_tel_error_signal: Signal<String>,
+    team_email_signal: Signal<String>,
+    team_email_error_signal: Signal<String>,
+    team_tel_signal: Signal<String>,
+    team_tel_error_signal: Signal<String>,
     members_signal: Signal<String>,
     members_error_signal: Signal<String>,
     diets_signal: Signal<String>,
@@ -494,33 +463,33 @@ fn TeamDialog(
                 }
                 InputError { error: team_name_error_signal.read() }
 
-                // Contact E-Mail
-                label { class: "block font-semibold text-gray-700 mb-1", "Contact E-Mail" }
+                // Team E-Mail
+                label { class: "block font-semibold text-gray-700 mb-1", "Team E-Mail" }
                 Input {
                     place_holer: Some("e.g. chili@chasers.de".to_string()),
-                    is_error: !contact_email_error_signal.read().is_empty(),
-                    value: contact_email_signal.clone(),
+                    is_error: !team_email_error_signal.read().is_empty(),
+                    value: team_email_signal.clone(),
                     oninput: move |e: Event<FormData>| {
-                        let contact_email = e.value();
-                        contact_email_signal.set(contact_email.clone());
-                        check_contact_email(contact_email_signal, contact_email_error_signal);
+                        let team_email = e.value();
+                        team_email_signal.set(team_email.clone());
+                        check_team_email(team_email_signal, team_email_error_signal);
                     },
                 }
-                InputError { error: contact_email_error_signal.read() }
+                InputError { error: team_email_error_signal.read() }
 
-                // Contact Phone Number
-                label { class: "block font-semibold text-gray-700 mb-1", "Contact Phone Number" }
+                // Team Phone Number
+                label { class: "block font-semibold text-gray-700 mb-1", "Team Phone Number" }
                 InputPhoneNumber {
                     place_holer: Some("e.g. +49 1234 56789".to_string()),
-                    is_error: !contact_tel_error_signal.read().is_empty(),
-                    value: contact_tel_signal.clone(),
+                    is_error: !team_tel_error_signal.read().is_empty(),
+                    value: team_tel_signal.clone(),
                     oninput: move |e: Event<FormData>| {
-                        let contact_tel = e.value();
-                        contact_tel_signal.set(contact_tel.clone());
-                        check_contact_tel(contact_tel_signal, contact_tel_error_signal);
+                        let team_tel = e.value();
+                        team_tel_signal.set(team_tel.clone());
+                        check_team_tel(team_tel_signal, team_tel_error_signal);
                     },
                 }
-                InputError { error: contact_tel_error_signal.read() }
+                InputError { error: team_tel_error_signal.read() }
 
                 // Number of Members
                 label { class: "block font-semibold text-gray-700 mb-1", "Number of Members" }
@@ -549,7 +518,6 @@ fn TeamDialog(
                         },
                     }
                 }
-            
             }
 
             // Right side: Address block
@@ -572,10 +540,10 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
 
     let mut creating_error_signal = use_signal(|| "".to_string());
 
-    let mut sorted_notes = note_data_list.clone();
-    sorted_notes.sort_by(|a, b| b.created.cmp(&a.created));
+    let mut sorted_note_list = note_data_list.clone();
+    sorted_note_list.sort_by(|a, b| b.created.cmp(&a.created));
 
-    let mut sorted_notes_signal = use_signal(|| sorted_notes);
+    let mut sorted_note_list_signal = use_signal(|| sorted_note_list);
 
     rsx! {
         div { class: "flex flex-col md:flex-row",
@@ -666,7 +634,7 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                             );
                             creating_error_signal.set("Error creating note!".to_string());
                         } else {
-                            sorted_notes_signal
+                            sorted_note_list_signal
                                 .set({
                                     let mut note_list = vec![
                                         NoteData {
@@ -682,7 +650,7 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                                             created: chrono::Utc::now(),
                                         },
                                     ];
-                                    note_list.extend(sorted_notes_signal.read().clone());
+                                    note_list.extend(sorted_note_list_signal.read().clone());
                                     note_list
                                 });
                             create_note_headline_signal.set("".to_string());
@@ -702,12 +670,11 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                 label { class: "block font-semibold text-gray-700 mb-2", "Notes" }
 
                 div { class: "space-y-2 overflow-y-auto max-h-96",
-                    // Iterate over notes
-                    for note_data in sorted_notes_signal.iter() {
+                    // Iterate over note_list
+                    for note_data in sorted_note_list_signal.iter() {
                         Note { note_data: note_data.clone() }
                     }
                 }
-            
 
             }
         }
@@ -736,20 +703,20 @@ fn Note(note_data: NoteData) -> Element {
 fn check_all(
     team_name_signal: Signal<String>,
     team_name_error_signal: Signal<String>,
-    contact_email_signal: Signal<String>,
-    contact_email_error_signal: Signal<String>,
-    contact_tel_signal: Signal<String>,
-    contact_tel_error_signal: Signal<String>,
+    team_email_signal: Signal<String>,
+    team_email_error_signal: Signal<String>,
+    team_tel_signal: Signal<String>,
+    team_tel_error_signal: Signal<String>,
     members_error_signal: Signal<String>,
     members_signal: Signal<String>,
     address_param: AddressParam,
 ) -> bool {
     let team_name_check = check_team_name(team_name_signal, team_name_error_signal);
-    let contact_email_check = check_contact_email(contact_email_signal, contact_email_error_signal);
-    let contact_tel_check = check_contact_tel(contact_tel_signal, contact_tel_error_signal);
+    let team_email_check = check_team_email(team_email_signal, team_email_error_signal);
+    let team_tel_check = check_team_tel(team_tel_signal, team_tel_error_signal);
     let member_check = check_members(members_signal, members_error_signal);
     let address_check = address_param.check_address_data().is_ok();
-    team_name_check && contact_email_check && contact_tel_check && member_check && address_check
+    team_name_check && team_email_check && team_tel_check && member_check && address_check
 }
 
 fn check_team_name(
@@ -766,33 +733,33 @@ fn check_team_name(
     }
 }
 
-fn check_contact_email(
-    contact_email_signal: Signal<String>,
-    mut contact_email_error_signal: Signal<String>,
+fn check_team_email(
+    team_email_signal: Signal<String>,
+    mut team_email_error_signal: Signal<String>,
 ) -> bool {
-    let contact_email = contact_email_signal.read();
-    if contact_email.is_empty() {
-        contact_email_error_signal.set("Contact E-Mail cannot be empty!".to_string());
+    let team_email = team_email_signal.read();
+    if team_email.is_empty() {
+        team_email_error_signal.set("Team E-Mail cannot be empty!".to_string());
         false
-    } else if !contact_email.contains('@') || !contact_email.contains('.') {
-        contact_email_error_signal.set("Please enter a valid email address!".to_string());
+    } else if !team_email.contains('@') || !team_email.contains('.') {
+        team_email_error_signal.set("Please enter a valid email address!".to_string());
         false
     } else {
-        contact_email_error_signal.set("".to_string());
+        team_email_error_signal.set("".to_string());
         true
     }
 }
 
-fn check_contact_tel(
-    contact_tel_signal: Signal<String>,
-    mut contact_tel_error_signal: Signal<String>,
+fn check_team_tel(
+    team_tel_signal: Signal<String>,
+    mut team_tel_error_signal: Signal<String>,
 ) -> bool {
-    let contact_tel = contact_tel_signal.read();
-    if contact_tel.is_empty() {
-        contact_tel_error_signal.set("Contact phone number cannot be empty!".to_string());
+    let team_tel = team_tel_signal.read();
+    if team_tel.is_empty() {
+        team_tel_error_signal.set("Team phone number cannot be empty!".to_string());
         false
     } else {
-        contact_tel_error_signal.set("".to_string());
+        team_tel_error_signal.set("".to_string());
         true
     }
 }

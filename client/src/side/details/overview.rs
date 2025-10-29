@@ -1,25 +1,19 @@
-use std::sync::{Arc, Mutex};
-
 use chrono::NaiveDate;
 use dioxus::prelude::*;
 use uuid::Uuid;
 use web_sys::wasm_bindgen::{JsCast, JsValue};
 use web_sys::{console, js_sys, Blob, HtmlAnchorElement, Url};
 
-use crate::side::{Headline1, Headline2, InputDate, InputMultirow, Text};
-use crate::storage::{CookAndRunData, LocalStorage, StorageR};
+use crate::side::{Headline1, InputDate, InputMultirow};
+use crate::storage::{CookAndRunData, CookAndRunMetaData, StorageManager};
 
 use crate::{
-    side::{
-        CloseButton, ConfirmButton, Input, InputError, RedHollowButton, SecondaryButton, WarnButton,
-    },
-    storage::StorageW,
+    side::{CloseButton, ConfirmButton, Input, InputError, SecondaryButton, WarnButton},
     Route,
 };
 
 fn delete_cook_and_run_project(id: Uuid) -> Result<(), String> {
-    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-    let mut storage = storage.lock().expect("Expected storage lock");
+    let mut storage = StorageManager::get_lock()?;
     let result = storage.delete_cook_and_run(id);
     result
 }
@@ -37,16 +31,16 @@ fn update_meta_of_cook_and_run(
         Some(new_plan_text.to_string())
     };
 
-    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-    let mut storage = storage.lock().expect("Expected storage lock");
-    let result = storage.update_meta_of_cook_and_run(id, new_name, plan_text, occur);
+    let mut storage = StorageManager::get_lock()?;
+
+    let result = storage.update_meta_of_cook_and_run(&CookAndRunMetaData::new(id, new_name));
     result
 }
 
 fn select_cook_and_run_json(id: Uuid) -> Result<String, String> {
-    let storage = use_context::<Arc<Mutex<LocalStorage>>>();
-    let storage = storage.lock().expect("Expected storage lock");
-    storage.select_cook_and_run_json(id)
+    let storage = StorageManager::get_lock()?;
+    let cook_and_run = storage.select_cook_and_run(id)?;
+    cook_and_run.to_json()
 }
 
 pub fn download_file(filename: &str, contents: &str) {

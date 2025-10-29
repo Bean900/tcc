@@ -1,112 +1,491 @@
-use std::{collections::HashMap, hash::Hash};
+mod cloud;
+mod local;
+pub mod mapper;
 
-use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
+use core::str;
+use std::{
+    collections::HashMap,
+    hash::Hash,
+    sync::{Arc, Mutex},
+};
+
+use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+use dioxus::hooks::use_context;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-mod local_storage;
-pub mod mapper;
-pub use local_storage::LocalStorage;
+
+use web_sys::console;
 
 use std::f64::consts::PI;
 
-pub trait StorageW {
-    fn insert_auth_data(&mut self, auth_data: AuthData) -> Result<(), String>;
+use crate::auth0::AuthState;
+use crate::storage::{cloud::CloudStorage, local::LocalStorage}; // Add this at the top with other imports
 
-    fn create_cook_and_run_json(&mut self, uuid: Uuid, json: String) -> Result<(), String>;
-    fn create_cook_and_run(&mut self, uuid: Uuid, name: String) -> Result<(), String>;
-    fn delete_cook_and_run(&mut self, id: Uuid) -> Result<(), String>;
-    fn update_meta_of_cook_and_run(
+#[derive(Debug, Clone)]
+pub struct StorageManager {
+    local: LocalStorage,
+    cloud: CloudStorage,
+}
+
+impl StorageManager {
+    pub fn get_lock() -> Result<Self, String> {
+        let storage = use_context::<Arc<Mutex<StorageManager>>>();
+        let storage_manager = storage
+            .lock()
+            .map_err(|e| format!("Failed to lock storage: {}", e))?;
+        Ok(storage_manager.clone())
+    }
+
+    pub fn new() -> Result<Self, String> {
+        Ok(StorageManager {
+            local: LocalStorage::new()?,
+            cloud: CloudStorage::new(),
+        })
+    }
+
+    pub async fn upload_to_cloud(&mut self, cook_and_run_id: Uuid) -> Result<(), String> {
+        let cook_and_run = self.local.select_cook_and_run(cook_and_run_id).await?;
+        self.cloud.create_cook_and_run(&cook_and_run).await?;
+        self.local.delete_cook_and_run(cook_and_run_id).await?;
+        Ok(())
+    }
+
+    pub async fn delete_from_cloud(&mut self, cook_and_run_id: Uuid) -> Result<(), String> {
+        let cook_and_run = self.cloud.select_cook_and_run(cook_and_run_id).await?;
+        self.local.create_cook_and_run(&cook_and_run).await?;
+        self.cloud.delete_cook_and_run(cook_and_run_id).await?;
+        Ok(())
+    }
+
+    pub async fn create_cook_and_run(
         &mut self,
-        id: Uuid,
-        new_name: String,
-        new_plan_text: Option<String>,
-        occur: NaiveDate,
-    ) -> Result<(), String>;
-    fn add_team_to_cook_and_run(&mut self, id: Uuid, team: ContactData) -> Result<(), String>;
-    fn update_team_in_cook_and_run(&mut self, id: Uuid, team: ContactData) -> Result<(), String>;
-    fn create_team_note_in_cook_and_run(
+        cook_and_run: &CookAndRunData,
+    ) -> Result<(), String> {
+        self.local.create_cook_and_run(cook_and_run).await
+    }
+
+    pub async fn delete_cook_and_run(&mut self, cook_and_run_id: Uuid) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local.delete_cook_and_run(cook_and_run_id).await
+        } else {
+            self.cloud.delete_cook_and_run(cook_and_run_id).await
+        }
+    }
+
+    pub async fn update_meta_of_cook_and_run(
         &mut self,
-        id: Uuid,
+        cook_and_run_meta: &CookAndRunMetaData,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_meta.id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .update_meta_of_cook_and_run(cook_and_run_meta)
+                .await
+        } else {
+            self.cloud
+                .update_meta_of_cook_and_run(cook_and_run_meta)
+                .await
+        }
+    }
+
+    pub async fn update_plan_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        plan: &PlanData,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .update_plan_of_cook_and_run(cook_and_run_id, plan)
+                .await
+        } else {
+            self.cloud
+                .update_plan_of_cook_and_run(cook_and_run_id, plan)
+                .await
+        }
+    }
+
+    pub async fn create_course_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        course: &CourseData,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .create_course_of_cook_and_run(cook_and_run_id, course)
+                .await
+        } else {
+            self.cloud
+                .create_course_of_cook_and_run(cook_and_run_id, course)
+                .await
+        }
+    }
+
+    pub async fn update_course_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        course: &CourseData,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .update_course_of_cook_and_run(cook_and_run_id, course)
+                .await
+        } else {
+            self.cloud
+                .update_course_of_cook_and_run(cook_and_run_id, course)
+                .await
+        }
+    }
+
+    pub async fn delete_course_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        course_id: Uuid,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .delete_course_of_cook_and_run(cook_and_run_id, course_id)
+                .await
+        } else {
+            self.cloud
+                .delete_course_of_cook_and_run(cook_and_run_id, course_id)
+                .await
+        }
+    }
+
+    pub async fn update_course_with_more_hosts_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        course_id: Uuid,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .update_course_with_more_hosts_of_cook_and_run(cook_and_run_id, course_id)
+                .await
+        } else {
+            self.cloud
+                .update_course_with_more_hosts_of_cook_and_run(cook_and_run_id, course_id)
+                .await
+        }
+    }
+
+    pub async fn create_team_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        team: &TeamData,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .create_team_of_cook_and_run(cook_and_run_id, team)
+                .await
+        } else {
+            self.cloud
+                .create_team_of_cook_and_run(cook_and_run_id, team)
+                .await
+        }
+    }
+
+    pub async fn update_team_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        team: &TeamData,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .update_team_of_cook_and_run(cook_and_run_id, team)
+                .await
+        } else {
+            self.cloud
+                .update_team_of_cook_and_run(cook_and_run_id, team)
+                .await
+        }
+    }
+
+    pub async fn delete_team_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
         team_id: Uuid,
-        headline: String,
-        description: String,
-    ) -> Result<(), String>;
-    fn update_team_needs_ckeck_in_cook_and_run(
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .delete_team_of_cook_and_run(cook_and_run_id, team_id)
+                .await
+        } else {
+            self.cloud
+                .delete_team_of_cook_and_run(cook_and_run_id, team_id)
+                .await
+        }
+    }
+
+    pub async fn create_team_note_of_cook_and_run(
         &mut self,
-        id: Uuid,
+        cook_and_run_id: Uuid,
         team_id: Uuid,
-        needs_check: bool,
-    ) -> Result<(), String>;
-    fn delete_team_in_cook_and_run(&mut self, id: Uuid, team_id: Uuid) -> Result<(), String>;
-    fn update_start_point_in_cook_and_run(
-        &mut self,
-        id: Uuid,
-        start_point: Option<MeetingPointData>,
-    ) -> Result<(), String>;
-    fn update_goal_point_in_cook_and_run(
-        &mut self,
-        id: Uuid,
-        goal_point: Option<MeetingPointData>,
-    ) -> Result<(), String>;
-    fn add_course_in_cook_and_run(
-        &mut self,
-        id: Uuid,
-        course_data: CourseData,
-    ) -> Result<(), String>;
-    fn update_course_in_cook_and_run(
-        &mut self,
-        id: Uuid,
-        course_data: CourseData,
-    ) -> Result<(), String>;
-    fn delete_course_in_cook_and_run(
-        &mut self,
-        id: Uuid,
-        course_data_id: Uuid,
-    ) -> Result<(), String>;
+        note_data: &NoteData,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
 
-    fn update_course_with_more_hosts_in_cook_and_run(
-        &mut self,
-        id: Uuid,
-        course_data_id: Uuid,
-    ) -> Result<(), String>;
+        if exists_local {
+            self.local
+                .create_team_note_of_cook_and_run(cook_and_run_id, team_id, note_data)
+                .await
+        } else {
+            self.cloud
+                .create_team_note_of_cook_and_run(cook_and_run_id, team_id, note_data)
+                .await
+        }
+    }
 
-    fn update_top_plan_in_cook_and_run(
+    pub async fn delete_team_note_of_cook_and_run(
         &mut self,
-        id: Uuid,
-        top_plan: Option<PlanData>,
-    ) -> Result<(), String>;
+        cook_and_run_id: Uuid,
+        team_id: Uuid,
+        note_id: Uuid,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .delete_team_note_of_cook_and_run(cook_and_run_id, team_id, note_id)
+                .await
+        } else {
+            self.cloud
+                .delete_team_note_of_cook_and_run(cook_and_run_id, team_id, note_id)
+                .await
+        }
+    }
+
+    pub async fn select_cook_and_run(&self, id: Uuid) -> Result<CookAndRunData, String> {
+        match self.local.select_cook_and_run(id).await {
+            Ok(data) => Ok(data),
+            Err(e_local) => match self.cloud.select_cook_and_run(id).await {
+                Ok(data) => Ok(data),
+                Err(e_cloud) => Err(format!(
+                    "Cook and run with id {} not found in local or cloud storage: {} | {}",
+                    id, e_local, e_cloud
+                )),
+            },
+        }
+    }
+
+    pub async fn select_cook_and_run_meta_list(&self) -> Result<Vec<CookAndRunMetaData>, String> {
+        let local_data = self.local.select_cook_and_run_meta_list().await?;
+
+        let cloud_data = match self.cloud.select_cook_and_run_meta_list().await {
+            Ok(data) => data,
+            Err(e) => {
+                console::error_1(
+                    &format!(
+                        "Error when loading all cook and run projects from cloud: {}",
+                        e
+                    )
+                    .into(),
+                );
+                Vec::new()
+            }
+        };
+
+        let mut combined_data = HashMap::new();
+        for data in cloud_data {
+            combined_data.insert(data.id, data);
+        }
+        for data in local_data {
+            combined_data.entry(data.id).or_insert(data);
+        }
+
+        Ok(combined_data.into_values().collect())
+    }
+
+    pub async fn update_start_point_in_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        start_point: &Option<MeetingPointData>,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .update_start_point_in_cook_and_run(cook_and_run_id, start_point)
+                .await
+        } else {
+            self.cloud
+                .update_start_point_in_cook_and_run(cook_and_run_id, start_point)
+                .await
+        }
+    }
+
+    pub async fn update_end_point_in_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        end_point: &Option<MeetingPointData>,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .update_end_point_in_cook_and_run(cook_and_run_id, end_point)
+                .await
+        } else {
+            self.cloud
+                .update_end_point_in_cook_and_run(cook_and_run_id, end_point)
+                .await
+        }
+    }
 }
 
-pub trait StorageR {
-    fn select_auth_data(&self) -> Result<AuthData, String>;
+pub trait Storage {
+    async fn create_cook_and_run(
+        &mut self,
+        cook_and_rund_data: &CookAndRunData,
+    ) -> Result<(), String>;
+    async fn delete_cook_and_run(&mut self, id: Uuid) -> Result<(), String>;
+    async fn update_meta_of_cook_and_run(
+        &mut self,
+        cook_and_run_meta: &CookAndRunMetaData,
+    ) -> Result<(), String>;
+    async fn update_plan_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        plan: &PlanData,
+    ) -> Result<(), String>;
+    async fn create_course_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        course: &CourseData,
+    ) -> Result<(), String>;
+    async fn update_course_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        course: &CourseData,
+    ) -> Result<(), String>;
+    async fn delete_course_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        course_id: Uuid,
+    ) -> Result<(), String>;
+    async fn update_course_with_more_hosts_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        course_id: Uuid,
+    ) -> Result<(), String>;
+    async fn create_team_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        team: &TeamData,
+    ) -> Result<(), String>;
+    async fn update_team_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        team: &TeamData,
+    ) -> Result<(), String>;
+    async fn delete_team_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        team_id: Uuid,
+    ) -> Result<(), String>;
 
-    fn select_all_cook_and_run_minimal(&self) -> Result<Vec<CookAndRunMinimalData>, String>;
-    fn select_cook_and_run(&self, id: Uuid) -> Result<CookAndRunData, String>;
-    fn select_cook_and_run_json(&self, id: Uuid) -> Result<String, String>; // Returns JSON string of CookAndRunData
-}
+    async fn create_team_note_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        team_id: Uuid,
+        note_data: &NoteData,
+    ) -> Result<(), String>;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct UserData {
-    pub sub: String,
-}
+    async fn delete_team_note_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        team_id: Uuid,
+        note_id: Uuid,
+    ) -> Result<(), String>;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct AuthData {
-    pub session_data: Option<SessionData>,
-    pub process_data: Option<ProcessData>,
-}
+    async fn update_start_point_in_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        start_point: &Option<MeetingPointData>,
+    ) -> Result<(), String>;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct SessionData {
-    pub access_token: String,
-    pub id_token: String,
-    pub user: UserData,
-}
+    async fn update_end_point_in_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        end_point: &Option<MeetingPointData>,
+    ) -> Result<(), String>;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ProcessData {
-    pub code_verifier: String,
-    pub state: String,
+    async fn select_cook_and_run_meta_list(&self) -> Result<Vec<CookAndRunMetaData>, String>;
+    async fn select_cook_and_run(&self, id: Uuid) -> Result<CookAndRunData, String>;
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -120,12 +499,12 @@ pub struct CourseData {
 pub struct HostingData {
     pub id: Uuid,
     pub name: Uuid, /*Course ID*/
-    pub host: Uuid, /*Contact ID */
-    pub guest_list: Vec<Uuid /*Contact ID */>,
+    pub host: Uuid, /*Team ID */
+    pub guest_list: Vec<Uuid /*Team ID */>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
-pub struct ContactData {
+pub struct TeamData {
     pub id: Uuid,
     pub team_name: String,
     pub address: AddressData,
@@ -134,7 +513,7 @@ pub struct ContactData {
     pub members: u32,
     pub diets: Vec<String>,
     pub needs_check: bool,
-    pub notes: Vec<NoteData>,
+    pub note_list: Vec<NoteData>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -189,6 +568,17 @@ pub struct NoteData {
     pub created: DateTime<Utc>,
 }
 
+impl NoteData {
+    pub fn new(headline: String, description: String) -> Self {
+        NoteData {
+            id: Uuid::new_v4(),
+            headline,
+            description,
+            created: Utc::now(),
+        }
+    }
+}
+
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MeetingPointData {
     pub name: String,
@@ -200,7 +590,7 @@ pub struct MeetingPointData {
 pub struct PlanData {
     pub id: Uuid,
     pub hosting_list: Vec<HostingData>,
-    pub walking_path: HashMap<Uuid /*Contact ID */, Vec<Uuid /*Hosting ID */>>,
+    pub walking_path: HashMap<Uuid /*Team ID */, Vec<Uuid /*Hosting ID */>>,
     pub greatest_distance: f64,
 }
 
@@ -208,11 +598,11 @@ pub struct PlanData {
 pub struct CookAndRunData {
     pub id: Uuid,
     pub name: String,
-    pub created: DateTime<Utc>,
-    pub edited: DateTime<Utc>,
-    pub occur: NaiveDate,
+    pub created: NaiveDateTime,
+    pub edited: NaiveDateTime,
+    pub occur: NaiveDateTime,
     pub is_in_cloud: bool,
-    pub contact_list: Vec<ContactData>,
+    pub team_list: Vec<TeamData>,
     pub course_list: Vec<CourseData>,
     pub course_with_more_hosts: Option<Uuid>,
     pub start_point: Option<MeetingPointData>,
@@ -224,23 +614,15 @@ pub struct CookAndRunData {
 }
 
 impl CookAndRunData {
-    pub fn to_minimal(&self) -> CookAndRunMinimalData {
-        CookAndRunMinimalData {
-            id: self.id,
-            name: self.name.clone(),
-            created: self.created,
-            edited: self.edited,
-        }
-    }
     pub fn new(id: Uuid, name: String) -> Self {
         CookAndRunData {
             id,
             name,
-            created: Utc::now(),
-            edited: Utc::now(),
-            occur: Utc::now().date_naive(),
+            created: Utc::now().naive_utc(),
+            edited: Utc::now().naive_utc(),
+            occur: Utc::now().naive_utc(),
             is_in_cloud: false,
-            contact_list: vec![],
+            team_list: vec![],
             course_list: vec![],
             course_with_more_hosts: None,
             start_point: None,
@@ -251,12 +633,63 @@ impl CookAndRunData {
             invite_text: None,
         }
     }
+
+    pub fn to_meta(&self) -> CookAndRunMetaData {
+        CookAndRunMetaData {
+            id: self.id,
+            name: self.name.clone(),
+            created: self.created,
+            edited: self.edited,
+            occur: self.occur,
+            is_in_cloud: self.is_in_cloud,
+        }
+    }
+
+    pub fn update_meta(&mut self, cook_and_run_meta: &CookAndRunMetaData) -> &Self {
+        if self.id != cook_and_run_meta.id {
+            console::error_1(
+                &format!(
+                    "CookAndRunMetaData ID does not match CookAndRunData ID: {} != {}",
+                    self.id, cook_and_run_meta.id
+                )
+                .into(),
+            );
+            return self;
+        }
+        self.name = cook_and_run_meta.name.clone();
+        return self;
+    }
+
+    pub fn to_json(&self) -> Result<String, String> {
+        serde_json::to_string(self)
+            .map_err(|e| format!("Failed to serialize CookAndRunData: {}", e))
+    }
+
+    pub fn from_json(json: &str) -> Result<Self, String> {
+        serde_json::from_str(json)
+            .map_err(|e| format!("Failed to deserialize CookAndRunData: {}", e))
+    }
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CookAndRunMinimalData {
+pub struct CookAndRunMetaData {
     pub id: Uuid,
     pub name: String,
-    pub created: DateTime<Utc>,
-    pub edited: DateTime<Utc>,
+    pub created: NaiveDateTime,
+    pub edited: NaiveDateTime,
+    pub occur: NaiveDateTime,
+    pub is_in_cloud: bool,
+}
+
+impl CookAndRunMetaData {
+    pub fn new(id: Uuid, name: String) -> Self {
+        CookAndRunMetaData {
+            id,
+            name,
+            created: Utc::now().naive_utc(),
+            edited: Utc::now().naive_utc(),
+            occur: Utc::now().naive_utc(),
+            is_in_cloud: false,
+        }
+    }
 }

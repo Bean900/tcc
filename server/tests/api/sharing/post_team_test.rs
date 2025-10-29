@@ -489,7 +489,7 @@ pub fn execute_create(
         .json(&payload);
 
     if let Some(t) = token {
-        request.header("Authorization", format!("Bearer {}", t))
+        request.header("authorization", format!("Bearer {}", t))
     } else {
         request
     }

@@ -18,12 +18,12 @@ pub struct CourseData {
 pub struct HostingData {
     pub id: Uuid,
     pub name: Uuid, /*Course ID*/
-    pub host: Uuid, /*Contact ID */
-    pub guest_list: Vec<Uuid /*Contact ID */>,
+    pub host: Uuid, /*Team ID */
+    pub guest_list: Vec<Uuid /*Team ID */>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ContactData {
+pub struct TeamData {
     pub id: Uuid,
     pub address: AddressData,
 }
@@ -60,14 +60,14 @@ pub struct MeetingPointData {
 pub struct PlanData {
     pub id: Uuid,
     pub hosting_list: Vec<HostingData>,
-    pub walking_path: HashMap<Uuid /*Contact ID */, Vec<Uuid /*Hosting ID */>>,
+    pub walking_path: HashMap<Uuid /*Team ID */, Vec<Uuid /*Hosting ID */>>,
     pub greatest_distance: f64,
 }
 
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct CookAndRunData {
     pub id: Uuid,
-    pub contact_list: Vec<ContactData>,
+    pub team_list: Vec<TeamData>,
     pub course_list: Vec<CourseData>,
     pub course_with_more_hosts: Option<Uuid>,
     pub start_point: Option<MeetingPointData>,
