@@ -2,7 +2,7 @@ use uuid::Uuid;
 
 use super::{CookAndRunData, CookAndRunMetaData};
 
-use crate::storage::{CourseData, MeetingPointData, PlanData, Storage, TeamData};
+use crate::storage::{CourseData, MeetingPointData, PlanData, Storage, TeamCreate, TeamData};
 
 const DATA_KEY: &str = "tcc_data";
 
@@ -10,6 +10,25 @@ const DATA_KEY: &str = "tcc_data";
 pub struct LocalStorage {
     storage: web_sys::Storage,
     cook_and_run_data: Vec<CookAndRunData>,
+}
+
+impl TeamCreate {
+    pub fn to_local(&self, team_id: Uuid) -> TeamData {
+        TeamData {
+            id: team_id,
+            team_name: self.name.clone(),
+            address: self.address.clone(),
+            mail: self.mail.clone().unwrap_or("".to_string()),
+            phone_number: self.phone.clone().unwrap_or("".to_string()),
+            members: self.members.unwrap_or(0),
+            diets: self.diets.as_ref().map_or_else(
+                || vec![],
+                |v| v.split(',').map(|element| element.to_string()).collect(),
+            ),
+            needs_check: self.needs_check,
+            note_list: vec![],
+        }
+    }
 }
 
 impl LocalStorage {
@@ -168,6 +187,13 @@ impl Storage for LocalStorage {
             None => Err(format!("Cook and run project with ID {} not found", id)),
         }
     }
+    async fn select_cook_and_run_meta(&self, id: Uuid) -> Result<CookAndRunMetaData, String> {
+        let result = self.get_cook_and_run_data_by_id(id);
+        match result {
+            Some(data) => Ok(data.to_meta()),
+            None => Err(format!("Cook and run project with ID {} not found", id)),
+        }
+    }
 
     async fn select_cook_and_run_meta_list(&self) -> Result<Vec<CookAndRunMetaData>, String> {
         Ok(self.cook_and_run_data.iter().map(|x| x.to_meta()).collect())
@@ -293,20 +319,21 @@ impl Storage for LocalStorage {
     async fn create_team_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
-        team: &TeamData,
+        team_id: Uuid,
+        team: &TeamCreate,
     ) -> Result<(), String> {
         let mut cook_and_run = self
             .get_cook_and_run_data_by_id(cook_and_run_id)
             .ok_or_else(|| format!("Cook and run project with ID {} not found", cook_and_run_id))?;
 
-        if cook_and_run.team_list.iter().any(|t| t.id == team.id) {
+        if cook_and_run.team_list.iter().any(|t| t.id == team_id) {
             return Err(format!(
                 "Team with ID {} already exists in Cook and Run project {}",
-                team.id, cook_and_run_id
+                team_id, cook_and_run_id
             ));
         }
 
-        cook_and_run.team_list.push(team.clone());
+        cook_and_run.team_list.push(team.to_local(team_id));
         self.update_cook_and_run_data(&cook_and_run)
     }
 
@@ -449,5 +476,13 @@ impl Storage for LocalStorage {
 
         cook_and_run.end_point = end_point.clone();
         self.update_cook_and_run_data(&cook_and_run)
+    }
+
+    async fn select_cook_and_run_team_list(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Vec<TeamData>, String> {
+        let cook_and_run = self.select_cook_and_run(cook_and_run_id).await?;
+        Ok(cook_and_run.team_list)
     }
 }

@@ -3,13 +3,16 @@ use dioxus::{
     hooks::use_context,
     signals::{Readable, Signal},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use web_sys::console;
 
 use crate::{
-    auth0::AuthState,
-    storage::{CookAndRunData, CookAndRunMetaData, MeetingPointData, Storage},
+    auth0::{AuthState, SessionData},
+    storage::{
+        AddressData, CookAndRunData, CookAndRunMetaData, MeetingPointData, Storage, TeamCreate,
+        TeamData,
+    },
 };
 
 #[derive(PartialEq, Clone, Debug)]
@@ -44,6 +47,39 @@ impl CookAndRunMetaDataResponse {
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct TeamListResponse {
+    pub data: Vec<TeamData>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TeamCreateRequest {
+    pub name: String,
+    #[serde(rename = "userId")]
+    pub user_id: Option<String>,
+    pub address: AddressData,
+    pub mail: Option<String>,
+    pub phone: Option<String>,
+    pub members: Option<u32>,
+    pub diets: Option<String>,
+    pub needs_check: bool,
+}
+
+impl TeamCreateRequest {
+    fn from(from: &TeamCreate, user_id: Option<String>) -> Self {
+        TeamCreateRequest {
+            name: from.name.clone(),
+            user_id,
+            address: from.address.clone(),
+            mail: from.mail.clone(),
+            phone: from.phone.clone(),
+            members: from.members,
+            diets: from.diets.clone(),
+            needs_check: from.needs_check,
+        }
+    }
+}
+
 impl CloudStorage {
     pub fn new() -> Self {
         CloudStorage {
@@ -52,17 +88,28 @@ impl CloudStorage {
     }
 }
 
-fn get_access_token() -> String {
-    "dummy_access_token".to_string()
+fn get_access_token() -> Result<SessionData, ()> {
+    let auth_state = use_context::<Signal<AuthState>>();
+    let auth_state = auth_state.read();
+
+    match auth_state.clone() {
+        AuthState::LoggedIn(session_data) => Ok(session_data),
+        _ => Err(()),
+    }
 }
 
 impl Storage for CloudStorage {
     async fn create_cook_and_run(&mut self, cook_and_run: &CookAndRunData) -> Result<(), String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+
         let url = format!("{}/cook_and_run/{}", self.base_url, cook_and_run.id);
         let client = reqwest::Client::new();
         let res = client
             .post(&url)
-            .bearer_auth(get_access_token())
+            .bearer_auth(session_data.access_token)
             .json(&cook_and_run)
             .send()
             .await;
@@ -75,11 +122,16 @@ impl Storage for CloudStorage {
     }
 
     async fn delete_cook_and_run(&mut self, id: Uuid) -> Result<(), String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+
         let url = format!("{}/cook_and_run/{}", self.base_url, id);
         let client = reqwest::Client::new();
         let res = client
             .delete(&url)
-            .bearer_auth(get_access_token())
+            .bearer_auth(session_data.access_token)
             .send()
             .await;
 
@@ -91,11 +143,16 @@ impl Storage for CloudStorage {
     }
 
     async fn select_cook_and_run(&self, id: Uuid) -> Result<CookAndRunData, String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+
         let url = format!("{}/cook_and_run/{}", self.base_url, id);
         let client = reqwest::Client::new();
         let res = client
             .get(&url)
-            .bearer_auth(get_access_token())
+            .bearer_auth(session_data.access_token)
             .send()
             .await;
 
@@ -109,17 +166,37 @@ impl Storage for CloudStorage {
         }
     }
 
+    async fn select_cook_and_run_meta(&self, id: Uuid) -> Result<CookAndRunMetaData, String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+
+        let url = format!("{}/cook_and_run/{}/metadata", self.base_url, id);
+        let client = reqwest::Client::new();
+        let res = client
+            .get(&url)
+            .bearer_auth(&session_data.access_token)
+            .send()
+            .await;
+
+        match res {
+            Ok(response) if response.status().is_success() => response
+                .json::<CookAndRunMetaDataResponse>()
+                .await
+                .map_err(|e| e.to_string())
+                .map(|data| data.to_cook_and_run_meta_data()),
+            Ok(response) => Err(format!("Request failed: {}", response.status())),
+            Err(e) => Err(format!("Request error: {}", e)),
+        }
+    }
+
     async fn select_cook_and_run_meta_list(
         &self,
     ) -> Result<Vec<super::CookAndRunMetaData>, String> {
-        let auth_state = use_context::<Signal<AuthState>>();
-        let auth_state = auth_state.read();
-
-        let session_data = match auth_state.clone() {
-            AuthState::LoggedIn(session_data) => session_data,
-            _ => {
-                return Ok(vec![]);
-            }
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
         };
 
         let url = format!(
@@ -159,6 +236,11 @@ impl Storage for CloudStorage {
         &mut self,
         cook_and_run_meta: &CookAndRunMetaData,
     ) -> Result<(), String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+
         let url = format!(
             "{}/cook_and_run/{}/meta",
             self.base_url, cook_and_run_meta.id
@@ -166,7 +248,7 @@ impl Storage for CloudStorage {
         let client = reqwest::Client::new();
         let res = client
             .patch(&url)
-            .bearer_auth(get_access_token())
+            .bearer_auth(session_data.access_token)
             .json(cook_and_run_meta)
             .send()
             .await;
@@ -183,11 +265,16 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         plan: &super::PlanData,
     ) -> Result<(), String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+
         let url = format!("{}/cook_and_run/{}/plan", self.base_url, cook_and_run_id);
         let client = reqwest::Client::new();
         let res = client
             .patch(&url)
-            .bearer_auth(get_access_token())
+            .bearer_auth(session_data.access_token)
             .json(plan)
             .send()
             .await;
@@ -203,6 +290,10 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         course: &super::CourseData,
     ) -> Result<(), String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
         let url = format!(
             "{}/cook_and_run/{}/course/{}",
             self.base_url, cook_and_run_id, course.id
@@ -210,7 +301,7 @@ impl Storage for CloudStorage {
         let client = reqwest::Client::new();
         let res = client
             .post(&url)
-            .bearer_auth(get_access_token())
+            .bearer_auth(session_data.access_token)
             .json(course)
             .send()
             .await;
@@ -227,6 +318,10 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         course: &super::CourseData,
     ) -> Result<(), String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
         let url = format!(
             "{}/cook_and_run/{}/course/{}",
             self.base_url, cook_and_run_id, course.id
@@ -234,7 +329,7 @@ impl Storage for CloudStorage {
         let client = reqwest::Client::new();
         let res = client
             .patch(&url)
-            .bearer_auth(get_access_token())
+            .bearer_auth(session_data.access_token)
             .json(course)
             .send()
             .await;
@@ -251,6 +346,10 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         course_id: Uuid,
     ) -> Result<(), String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
         let url = format!(
             "{}/cook_and_run/{}/course/{}",
             self.base_url, cook_and_run_id, course_id
@@ -258,7 +357,7 @@ impl Storage for CloudStorage {
         let client = reqwest::Client::new();
         let res = client
             .delete(&url)
-            .bearer_auth(get_access_token())
+            .bearer_auth(session_data.access_token)
             .send()
             .await;
 
@@ -274,6 +373,10 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         course_id: Uuid,
     ) -> Result<(), String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
         let url = format!(
             "{}/cook_and_run/{}/course/{}/with_more_hosts",
             self.base_url, cook_and_run_id, course_id
@@ -281,7 +384,7 @@ impl Storage for CloudStorage {
         let client = reqwest::Client::new();
         let res = client
             .patch(&url)
-            .bearer_auth(get_access_token())
+            .bearer_auth(session_data.access_token)
             .send()
             .await;
 
@@ -295,17 +398,25 @@ impl Storage for CloudStorage {
     async fn create_team_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
-        team: &super::TeamData,
+        team_id: Uuid,
+        team: &TeamCreate,
     ) -> Result<(), String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+
+        let request_data = TeamCreateRequest::from(team, Some(session_data.user.sub));
+
         let url = format!(
             "{}/cook_and_run/{}/team/{}",
-            self.base_url, cook_and_run_id, team.id
+            self.base_url, cook_and_run_id, team_id
         );
         let client = reqwest::Client::new();
         let res = client
             .post(&url)
-            .bearer_auth(get_access_token())
-            .json(team)
+            .bearer_auth(session_data.access_token)
+            .json(&request_data)
             .send()
             .await;
 
@@ -321,6 +432,10 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         team: &super::TeamData,
     ) -> Result<(), String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
         let url = format!(
             "{}/cook_and_run/{}/team/{}",
             self.base_url, cook_and_run_id, team.id
@@ -328,7 +443,7 @@ impl Storage for CloudStorage {
         let client = reqwest::Client::new();
         let res = client
             .patch(&url)
-            .bearer_auth(get_access_token())
+            .bearer_auth(session_data.access_token)
             .json(team)
             .send()
             .await;
@@ -345,6 +460,10 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         team_id: Uuid,
     ) -> Result<(), String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
         let url = format!(
             "{}/cook_and_run/{}/team/{}",
             self.base_url, cook_and_run_id, team_id
@@ -352,7 +471,7 @@ impl Storage for CloudStorage {
         let client = reqwest::Client::new();
         let res = client
             .delete(&url)
-            .bearer_auth(get_access_token())
+            .bearer_auth(session_data.access_token)
             .send()
             .await;
 
@@ -369,6 +488,10 @@ impl Storage for CloudStorage {
         team_id: Uuid,
         note_data: &super::NoteData,
     ) -> Result<(), String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
         let url = format!(
             "{}/cook_and_run/{}/team/{}/note/{}",
             self.base_url, cook_and_run_id, team_id, note_data.id
@@ -376,7 +499,7 @@ impl Storage for CloudStorage {
         let client = reqwest::Client::new();
         let res = client
             .post(&url)
-            .bearer_auth(get_access_token())
+            .bearer_auth(session_data.access_token)
             .json(note_data)
             .send()
             .await;
@@ -394,6 +517,10 @@ impl Storage for CloudStorage {
         team_id: Uuid,
         note_id: Uuid,
     ) -> Result<(), String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
         let url = format!(
             "{}/cook_and_run/{}/team/{}/note/{}",
             self.base_url, cook_and_run_id, team_id, note_id
@@ -401,7 +528,7 @@ impl Storage for CloudStorage {
         let client = reqwest::Client::new();
         let res = client
             .delete(&url)
-            .bearer_auth(get_access_token())
+            .bearer_auth(session_data.access_token)
             .send()
             .await;
 
@@ -417,6 +544,10 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         start_point: &Option<MeetingPointData>,
     ) -> Result<(), String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
         let url = format!(
             "{}/cook_and_run/{}/start_point",
             self.base_url, cook_and_run_id
@@ -424,7 +555,7 @@ impl Storage for CloudStorage {
         let client = reqwest::Client::new();
         let res = client
             .patch(&url)
-            .bearer_auth(get_access_token())
+            .bearer_auth(session_data.access_token)
             .json(start_point)
             .send()
             .await;
@@ -441,6 +572,10 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         end_point: &Option<MeetingPointData>,
     ) -> Result<(), String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
         let url = format!(
             "{}/cook_and_run/{}/end_point",
             self.base_url, cook_and_run_id
@@ -448,13 +583,43 @@ impl Storage for CloudStorage {
         let client = reqwest::Client::new();
         let res = client
             .patch(&url)
-            .bearer_auth(get_access_token())
+            .bearer_auth(session_data.access_token)
             .json(end_point)
             .send()
             .await;
 
         match res {
             Ok(response) if response.status().is_success() => Ok(()),
+            Ok(response) => Err(format!("Request failed: {}", response.status())),
+            Err(e) => Err(format!("Request error: {}", e)),
+        }
+    }
+
+    async fn select_cook_and_run_team_list(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Vec<super::TeamData>, String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+
+        let url = format!("{}/cook_and_run/{}/teams", self.base_url, cook_and_run_id);
+
+        console::log_1(&format!("Fetching Teamdata from URL: {}", url).into());
+        let client = reqwest::Client::new();
+        let res = client
+            .get(&url)
+            .bearer_auth(&session_data.access_token)
+            .send()
+            .await;
+
+        match res {
+            Ok(response) if response.status().is_success() => response
+                .json::<TeamListResponse>()
+                .await
+                .map_or_else(|e| Err(e.to_string()), |data| Ok(data.data)),
+
             Ok(response) => Err(format!("Request failed: {}", response.status())),
             Err(e) => Err(format!("Request error: {}", e)),
         }

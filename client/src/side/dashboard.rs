@@ -1,5 +1,3 @@
-use std::sync::{Arc, Mutex};
-
 use dioxus::prelude::*;
 use uuid::Uuid;
 use web_sys::{console, wasm_bindgen::JsCast, HtmlInputElement};
@@ -7,14 +5,13 @@ use web_sys::{console, wasm_bindgen::JsCast, HtmlInputElement};
 use crate::{
     side::{CloseButton, ConfirmButton, ErrorSVG, Input, InputError, SecondaryButton},
     storage::{CookAndRunData, StorageManager},
-    Route,
 };
 
 #[component]
 pub fn Dashboard() -> Element {
     let cook_and_run_list = use_resource(move || async move {
-        let mut storage = use_context::<Signal<StorageManager>>();
-        let mut storage = storage.write();
+        let storage = use_context::<Signal<StorageManager>>();
+        let storage = storage.read();
         match storage.select_cook_and_run_meta_list().await {
             Ok(list) => return Ok(list),
             Err(err) => {
@@ -88,7 +85,7 @@ struct DashboardCardProps {
 fn DashboardCard(props: DashboardCardProps) -> Element {
     rsx! {
         a {
-            href: format!("/cook-and-run/{}", props.id),
+            href: format!("/cook-and-run/{}/overview", props.id),
             class: "relative bg-[#fdfaf6] shadow-md rounded-xl p-6 h-36 hover:shadow-lg transition-all cursor-pointer hover:scale-105",
 
             div { key: {props.id},
@@ -189,6 +186,7 @@ fn LoadingCard() -> Element {
 fn CreateProjectDialog(create_project_signal: Signal<bool>) -> Element {
     let mut project_name_signal = use_signal(|| "".to_string());
     let mut error_signal = use_signal(|| "".to_string());
+    let mut loading_signal = use_signal(|| false);
 
     rsx! {
         div { class: "backdrop-blur fixed inset-0 flex h-screen w-screen justify-center items-center",
@@ -302,23 +300,21 @@ fn CreateProjectDialog(create_project_signal: Signal<bool>) -> Element {
                                 error_signal.set("Project name cannot be empty!".to_string());
                                 return;
                             }
+                            loading_signal.set(true);
                             let project_id = Uuid::new_v4();
                             let mut storage = use_context::<Signal<StorageManager>>();
                             let mut storage = storage.write();
                             let project_name = project_name_signal.read().to_string();
                             let cook_and_run = CookAndRunData::new(project_id, project_name);
                             let result = storage.create_cook_and_run(&cook_and_run).await;
-                            if result.is_err() {
-                                console::error_1(
-                                    &format!(
-                                        "Error creating project: {}",
-                                        result.err().expect("Expected error"),
-                                    )
-                                        .into(),
-                                );
+                            if let Err(e) = result {
+                                console::error_1(&format!("Error creating project: {}", e).into());
+                                error_signal.set("Creating project failed!".to_string());
+                                loading_signal.set(false);
+                                return;
                             }
                             create_project_signal.set(false);
-                            todo!();
+                            loading_signal.set(true);
                         },
                     }
                 }

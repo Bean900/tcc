@@ -2,14 +2,13 @@ mod cloud;
 mod local;
 pub mod mapper;
 
-use core::str;
 use std::{
     collections::HashMap,
     hash::Hash,
     sync::{Arc, Mutex},
 };
 
-use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+use chrono::{DateTime, NaiveDateTime, NaiveTime, Utc};
 use dioxus::hooks::use_context;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -18,7 +17,6 @@ use web_sys::console;
 
 use std::f64::consts::PI;
 
-use crate::auth0::AuthState;
 use crate::storage::{cloud::CloudStorage, local::LocalStorage}; // Add this at the top with other imports
 
 #[derive(Debug, Clone)]
@@ -28,14 +26,6 @@ pub struct StorageManager {
 }
 
 impl StorageManager {
-    pub fn get_lock() -> Result<Self, String> {
-        let storage = use_context::<Arc<Mutex<StorageManager>>>();
-        let storage_manager = storage
-            .lock()
-            .map_err(|e| format!("Failed to lock storage: {}", e))?;
-        Ok(storage_manager.clone())
-    }
-
     pub fn new() -> Result<Self, String> {
         Ok(StorageManager {
             local: LocalStorage::new()?,
@@ -212,7 +202,8 @@ impl StorageManager {
     pub async fn create_team_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
-        team: &TeamData,
+        team_id: Uuid,
+        team: &TeamCreate,
     ) -> Result<(), String> {
         let exists_local = self
             .local
@@ -222,11 +213,11 @@ impl StorageManager {
 
         if exists_local {
             self.local
-                .create_team_of_cook_and_run(cook_and_run_id, team)
+                .create_team_of_cook_and_run(cook_and_run_id, team_id, team)
                 .await
         } else {
             self.cloud
-                .create_team_of_cook_and_run(cook_and_run_id, team)
+                .create_team_of_cook_and_run(cook_and_run_id, team_id, team)
                 .await
         }
     }
@@ -272,6 +263,30 @@ impl StorageManager {
             self.cloud
                 .delete_team_of_cook_and_run(cook_and_run_id, team_id)
                 .await
+        }
+    }
+
+    pub async fn select_cook_and_run_team_list(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Vec<TeamData>, String> {
+        match self
+            .local
+            .select_cook_and_run_team_list(cook_and_run_id)
+            .await
+        {
+            Ok(data) => Ok(data),
+            Err(e_local) => match self
+                .cloud
+                .select_cook_and_run_team_list(cook_and_run_id)
+                .await
+            {
+                Ok(data) => Ok(data),
+                Err(e_cloud) => Err(format!(
+                    "Cook and run with id {} not found in local or cloud storage: {} | {}",
+                    cook_and_run_id, e_local, e_cloud
+                )),
+            },
         }
     }
 
@@ -325,6 +340,19 @@ impl StorageManager {
         match self.local.select_cook_and_run(id).await {
             Ok(data) => Ok(data),
             Err(e_local) => match self.cloud.select_cook_and_run(id).await {
+                Ok(data) => Ok(data),
+                Err(e_cloud) => Err(format!(
+                    "Cook and run with id {} not found in local or cloud storage: {} | {}",
+                    id, e_local, e_cloud
+                )),
+            },
+        }
+    }
+
+    pub async fn select_cook_and_run_meta(&self, id: Uuid) -> Result<CookAndRunMetaData, String> {
+        match self.local.select_cook_and_run_meta(id).await {
+            Ok(data) => Ok(data),
+            Err(e_local) => match self.cloud.select_cook_and_run_meta(id).await {
                 Ok(data) => Ok(data),
                 Err(e_cloud) => Err(format!(
                     "Cook and run with id {} not found in local or cloud storage: {} | {}",
@@ -445,7 +473,8 @@ pub trait Storage {
     async fn create_team_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
-        team: &TeamData,
+        team_id: Uuid,
+        team: &TeamCreate,
     ) -> Result<(), String>;
     async fn update_team_of_cook_and_run(
         &mut self,
@@ -457,6 +486,11 @@ pub trait Storage {
         cook_and_run_id: Uuid,
         team_id: Uuid,
     ) -> Result<(), String>;
+
+    async fn select_cook_and_run_team_list(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Vec<TeamData>, String>;
 
     async fn create_team_note_of_cook_and_run(
         &mut self,
@@ -486,6 +520,7 @@ pub trait Storage {
 
     async fn select_cook_and_run_meta_list(&self) -> Result<Vec<CookAndRunMetaData>, String>;
     async fn select_cook_and_run(&self, id: Uuid) -> Result<CookAndRunData, String>;
+    async fn select_cook_and_run_meta(&self, id: Uuid) -> Result<CookAndRunMetaData, String>;
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -514,6 +549,17 @@ pub struct TeamData {
     pub diets: Vec<String>,
     pub needs_check: bool,
     pub note_list: Vec<NoteData>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TeamCreate {
+    pub name: String,
+    pub address: AddressData,
+    pub mail: Option<String>,
+    pub phone: Option<String>,
+    pub members: Option<u32>,
+    pub diets: Option<String>,
+    pub needs_check: bool,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -678,17 +724,18 @@ pub struct CookAndRunMetaData {
     pub created: NaiveDateTime,
     pub edited: NaiveDateTime,
     pub occur: NaiveDateTime,
+    #[serde(default)]
     pub is_in_cloud: bool,
 }
 
 impl CookAndRunMetaData {
-    pub fn new(id: Uuid, name: String) -> Self {
+    pub fn new(id: Uuid, name: String, occur: NaiveDateTime) -> Self {
         CookAndRunMetaData {
             id,
             name,
             created: Utc::now().naive_utc(),
             edited: Utc::now().naive_utc(),
-            occur: Utc::now().naive_utc(),
+            occur,
             is_in_cloud: false,
         }
     }

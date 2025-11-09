@@ -1,11 +1,15 @@
 mod dashboard;
-//mod details;
+mod details;
 //mod run_schedule;
 
 pub use dashboard::Dashboard;
+pub use details::overview::Overview;
+pub use details::teams::Teams;
+pub use details::Menu;
+//pub use details::ProjectOverviewPage;
 /*pub use details::ProjectCalculationPage;
 pub use details::ProjectCoursesPage;
-pub use details::ProjectOverviewPage;
+
 pub use details::ProjectStartEndPage;
 pub use details::ProjectTeamsPage;
 pub use details::ShareTeam;
@@ -14,6 +18,7 @@ pub use run_schedule::RunSchedule;*/
 use dioxus::prelude::*;
 use dioxus::signals::{Readable, Signal};
 use gloo_timers::future::TimeoutFuture;
+use web_sys::console;
 
 const DISABLED_BUTTON: &str = "bg-gray-300 text-gray-500 rounded-lg px-2 py-2 cursor-not-allowed";
 const ENABLED_BUTTON_SECONDARY: &str =
@@ -38,7 +43,6 @@ pub(crate) fn SecondaryButton(
     text: String,
     error_signal: Option<Signal<String>>,
     onclick: Option<EventHandler<MouseEvent>>,
-    loading_signal: Option<Signal<bool>>,
 ) -> Element {
     rsx! {
         CustomButton {
@@ -46,7 +50,6 @@ pub(crate) fn SecondaryButton(
             text: text.clone(),
             error_signal: error_signal.clone(),
             onclick: onclick.clone(),
-            loading_signal: loading_signal.clone(),
         }
     }
 }
@@ -56,7 +59,6 @@ pub(crate) fn ConfirmButton(
     text: String,
     error_signal: Option<Signal<String>>,
     onclick: Option<EventHandler<MouseEvent>>,
-    loading_signal: Option<Signal<bool>>,
 ) -> Element {
     rsx! {
         CustomButton {
@@ -64,7 +66,6 @@ pub(crate) fn ConfirmButton(
             text: text.clone(),
             error_signal: error_signal.clone(),
             onclick: onclick.clone(),
-            loading_signal: loading_signal.clone(),
         }
     }
 }
@@ -74,7 +75,6 @@ pub(crate) fn WarnButton(
     text: String,
     error_signal: Option<Signal<String>>,
     onclick: Option<EventHandler<MouseEvent>>,
-    loading_signal: Option<Signal<bool>>,
 ) -> Element {
     rsx! {
         CustomButton {
@@ -82,7 +82,6 @@ pub(crate) fn WarnButton(
             text: text.clone(),
             error_signal: error_signal.clone(),
             onclick: onclick.clone(),
-            loading_signal: loading_signal.clone(),
         }
     }
 }
@@ -92,7 +91,6 @@ pub(crate) fn RedHollowButton(
     text: String,
     error_signal: Option<Signal<String>>,
     onclick: Option<EventHandler<MouseEvent>>,
-    loading_signal: Option<Signal<bool>>,
 ) -> Element {
     rsx! {
         CustomButton {
@@ -100,7 +98,6 @@ pub(crate) fn RedHollowButton(
             text: text.clone(),
             error_signal: error_signal.clone(),
             onclick: onclick.clone(),
-            loading_signal: loading_signal.clone(),
         }
     }
 }
@@ -111,19 +108,18 @@ fn CustomButton(
     text: String,
     error_signal: Option<Signal<String>>,
     onclick: Option<EventHandler<MouseEvent>>,
-    loading_signal: Option<Signal<bool>>,
 ) -> Element {
+    let mut loading_signal = use_signal(|| false);
     let on_click_function = move |event: Event<MouseData>| {
         if error_signal.map_or(true, |s| s.read().is_empty()) {
             if let Some(onclick) = &onclick {
-                if loading_signal.is_some() {
-                    loading_signal.expect("Expect signal").set(true);
-                }
+                loading_signal.set(true);
 
                 let onclick = onclick.clone();
                 let event = event.clone();
                 spawn(async move {
                     onclick.call(event);
+                    loading_signal.set(false);
                 });
             }
         }
@@ -137,7 +133,7 @@ fn CustomButton(
     };
 
     rsx! {
-        if loading_signal.is_some_and(|s| *s.read()) {
+        if *loading_signal.read() {
             div {
                 role: "status",
                 class: "flex justify-center items-center h-12",
@@ -157,7 +153,6 @@ fn CustomButton(
                 }
             }
         } else {
-
             button {
                 class: if error_signal.is_some() && !error_signal.expect("Expect signal").read().is_empty() { DISABLED_BUTTON } else { enable_button },
                 disabled: error_signal.is_some() && !error_signal.expect("Expect signal").read().is_empty(),

@@ -9,7 +9,7 @@ const AUTH0_DOMAIN: &str = "https://beancode.eu.auth0.com";
 const CLIENT_ID: &str = "KPdjRob3k5SRCqs4wExmQOPrOkqaUJTQ";
 const REDIRECT_URI: &str = "http://localhost:8080";
 const AUDIENCE: &str = "https://home.beancode.de/tcc/backend";
-const SCOPE: &str = "read:cook_and_run openid";
+const SCOPE: &str = "read:cook_and_run delete:cook_and_run update:cook_and_run openid";
 
 #[derive(Debug, Clone)]
 pub enum AuthState {

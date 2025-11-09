@@ -4,24 +4,24 @@ mod calculator;
 mod side;
 mod storage;
 
-use std::sync::Arc;
-use std::sync::Mutex;
-
 use dioxus::prelude::*;
-
-use side::Dashboard; /*
-                     use side::ProjectCalculationPage;
-                     use side::ProjectCoursesPage;
-                     use side::ProjectOverviewPage;
-                     use side::ProjectStartEndPage;
-                     use side::ProjectTeamsPage;
-                     use side::RunSchedule;
-                     use side::ShareTeam;*/
+use side::Dashboard;
+use side::Overview;
+use side::Teams;
 use uuid::Uuid;
+/*
+use side::ProjectCalculationPage;
+use side::ProjectCoursesPage;
+
+use side::ProjectStartEndPage;
+use side::ProjectTeamsPage;
+use side::RunSchedule;
+use side::ShareTeam;*/
 use web_sys::console;
 use web_sys::window;
 
 pub use crate::auth0::AuthState;
+use crate::side::Menu;
 use crate::storage::StorageManager;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
@@ -31,39 +31,52 @@ const LOGO: Asset = asset!("/assets/logo.png");
 fn main() {
     dioxus::launch(App);
 }
-
-#[derive(Routable, Clone)]
+/*    #[route("/:cook_and_run_id")]
+#[route("/:cook_and_run_id/overview")]
+    ProjectOverviewPage { cook_and_run_id: Uuid },
+    #[route("/:cook_and_run_id/teams")]
+    ProjectTeamsPage { cook_and_run_id: Uuid },
+    #[route("/:cook_and_run_id/team-share/:share_id")]
+    ShareTeam { cook_and_run_id: Uuid ,share_id: Uuid},
+    #[route("/:cook_and_run_id/start-end")]
+    ProjectStartEndPage { cook_and_run_id: Uuid },
+    #[route("/:cook_and_run_id/courses")]
+    ProjectCoursesPage { cook_and_run_id: Uuid },
+    #[route("/:cook_and_run_id/calculation")]
+    ProjectCalculationPage { cook_and_run_id: Uuid },
+    #[route("/:cook_and_run_id/run-schedule/:team_id")]
+    RunSchedule {cook_and_run_id:Uuid, team_id: Uuid },*/
+#[derive(Routable, Clone, PartialEq)]
 #[rustfmt::skip]
 enum Route {
     #[layout(Wrapper)]
-    #[route("/")]
-    Home {},
-    #[nest("/cook-and-run")]
         #[route("/")]
-        Dashboard {},
-      //  #[route("/callback?:code&:state&:error")]
-     //   Callback { code:  String, state: String, error: String },
-       /*    #[route("/:cook_and_run_id")]
-      #[route("/:cook_and_run_id/overview")]
-        ProjectOverviewPage { cook_and_run_id: Uuid },
-        #[route("/:cook_and_run_id/teams")]
-        ProjectTeamsPage { cook_and_run_id: Uuid },
-        #[route("/:cook_and_run_id/team-share/:share_id")]
-        ShareTeam { cook_and_run_id: Uuid ,share_id: Uuid},
-        #[route("/:cook_and_run_id/start-end")]
-        ProjectStartEndPage { cook_and_run_id: Uuid },
-        #[route("/:cook_and_run_id/courses")]
-        ProjectCoursesPage { cook_and_run_id: Uuid },
-        #[route("/:cook_and_run_id/calculation")]
-        ProjectCalculationPage { cook_and_run_id: Uuid },
-        #[route("/:cook_and_run_id/run-schedule/:team_id")]
-        RunSchedule {cook_and_run_id:Uuid, team_id: Uuid },*/
-    #[end_nest]
+        Home {},
+        #[nest("/cook-and-run")]
+            #[route("/")]
+            Dashboard {},
+            #[nest("/:cook_and_run_id")]
+                #[layout(Menu)]
+                    #[route("/overview")]
+                    Overview {cook_and_run_id:Uuid},
+                    #[route("/teams")]
+                    Teams {cook_and_run_id:Uuid},
+                  /*   #[route("/startend")]
+                    StartEnd {cook_and_run_id:Uuid},
+                    #[route("/courses")]
+                    Courses {cook_and_run_id:Uuid},
+                    #[route("/plan")]
+                    Plan {cook_and_run_id:Uuid},*/
+                #[end_layout]
+            #[end_nest]
+        #[end_nest]
+    #[end_layout]
     #[route("/:..route")]
     NotFound {
         route: Vec<String>,
     },
 }
+
 #[component]
 fn Home() -> Element {
     rsx! {
@@ -94,15 +107,6 @@ fn NotFound(route: Vec<String>) -> Element {
 
 #[component]
 fn Wrapper() -> Element {
-    let storage = StorageManager::new();
-    if let Err(s) = storage {
-        console::error_1(&format!("Error when loading storage: {}", s).into());
-        return error("Fatal error!", "Error when loading storage!");
-    }
-    let storage = storage.expect("Storage should be loaded correctly here");
-
-    let storage_signal = use_context_provider(|| Signal::new(storage));
-
     let mut auth_signal = use_context_provider(|| Signal::new(AuthState::new()));
 
     use_effect(move || {
@@ -199,6 +203,14 @@ fn Wrapper() -> Element {
 
 #[component]
 fn App() -> Element {
+    let storage = StorageManager::new();
+    if let Err(s) = storage {
+        console::error_1(&format!("Error when loading storage: {}", s).into());
+        return error("Fatal error!", "Error when loading storage!");
+    }
+    let storage = storage.expect("Storage should be loaded correctly here");
+
+    let _ = use_context_provider(|| Signal::new(storage));
     rsx! {
         Router::<Route> {}
     }

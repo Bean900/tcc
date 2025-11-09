@@ -1,78 +1,105 @@
-use std::sync::{Arc, Mutex};
-use std::vec;
-
 use dioxus::prelude::*;
 use uuid::Uuid;
 use web_sys::console;
 
 use crate::side::details::address::{Address, AddressParam};
+use crate::side::details::{ErrorPage, LoadingPage};
 use crate::side::{AddressSVG, Headline1, Headline2, InputPhoneNumber};
-use crate::storage::{AddressData, NoteData, StorageManager, TeamData};
+use crate::storage::{AddressData, NoteData, StorageManager, TeamCreate, TeamData};
 
 use crate::side::{
     CloseButton, ConfirmButton, DeleteButton, Input, InputError, InputMultirow, InputNumber,
 };
 
-fn add_team(
+async fn add_team(
     id: Uuid,
-    team_name: String,
-    diets: Vec<String>,
-    mail: String,
-    tel: String,
-    members: u32,
-    address_data: AddressData,
+    name: String,
+    diets: Option<String>,
+    mail: Option<String>,
+    phone: Option<String>,
+    members: Option<u32>,
+    address: AddressData,
 ) -> Result<(), String> {
-    let mut storage = StorageManager::get_lock()?;
+    let storage = use_context::<Signal<StorageManager>>();
+    let mut storage = storage.read().clone();
 
-    let team = TeamData {
-        id: Uuid::new_v4(),
-        team_name,
-        address: address_data,
-        diets,
+    let team = TeamCreate {
+        name,
+        address,
         mail,
-        phone_number: tel,
+        diets,
+        phone,
         members,
         needs_check: false,
-        note_list: vec![],
     };
-    storage.create_team_of_cook_and_run(id, &team)
+    storage
+        .create_team_of_cook_and_run(id, Uuid::new_v4(), &team)
+        .await
 }
 
-fn update_team(id: Uuid, team: &TeamData) -> Result<(), String> {
-    let mut storage = StorageManager::get_lock()?;
-    storage.update_team_of_cook_and_run(id, team)
+async fn update_team(id: Uuid, team: &TeamData) -> Result<(), String> {
+    let storage = use_context::<Signal<StorageManager>>();
+    let mut storage = storage.read().clone();
+    storage.update_team_of_cook_and_run(id, team).await
 }
 
-fn add_team_note(
+async fn add_team_note(
     id: Uuid,
     team_id: Uuid,
     headline: String,
     description: String,
 ) -> Result<(), String> {
     let note = NoteData::new(headline, description);
-    let mut storage = StorageManager::get_lock()?;
-    storage.create_team_note_of_cook_and_run(id, team_id, &note)
+    let storage = use_context::<Signal<StorageManager>>();
+    let mut storage = storage.read().clone();
+    storage
+        .create_team_note_of_cook_and_run(id, team_id, &note)
+        .await
 }
 
-fn delete_team(id: Uuid, team_id: Uuid) -> Result<(), String> {
-    let mut storage = StorageManager::get_lock()?;
-    storage.delete_team_of_cook_and_run(id, team_id)
-}
-
-pub(crate) struct TeamsProps {
-    pub project_id: Uuid,
-    pub team_list: Vec<TeamData>,
+async fn delete_team(id: Uuid, team_id: Uuid) -> Result<(), String> {
+    let storage = use_context::<Signal<StorageManager>>();
+    let mut storage = storage.read().clone();
+    storage.delete_team_of_cook_and_run(id, team_id).await
 }
 
 #[component]
-pub(crate) fn Teams(props: &TeamsProps) -> Element {
-    let mut team_dialog_signal: Signal<Element> = use_signal(|| rsx!());
-    let add_team_dialog = rsx! {
-        AddTeamDialog {
-            project_id: props.project_id,
-            team_dialog_signal: team_dialog_signal.clone(),
+pub fn Teams(cook_and_run_id: Uuid) -> Element {
+    let storage = use_context::<Signal<StorageManager>>();
+    let team_list: Resource<Result<Vec<TeamData>, String>> = use_resource(move || {
+        let storage = storage.clone();
+        async move {
+            let storage = storage.read().clone();
+            let team_list = storage
+                .select_cook_and_run_team_list(cook_and_run_id)
+                .await?;
+            Ok(team_list)
         }
-    };
+    });
+
+    match &*team_list.read_unchecked() {
+        None => rsx!(
+            LoadingPage {}
+        ),
+        Some(Err(e)) => rsx!(
+            ErrorPage { error_text: e }
+        ),
+        Some(Ok(team_list)) => rsx!(
+            TeamsContent { cook_and_run_id, team_list: team_list.clone() }
+        ),
+    }
+}
+
+enum PopUpWindow {
+    None,
+    AddTeam,
+    EditTeam(TeamData),
+}
+
+#[component]
+pub(crate) fn TeamsContent(cook_and_run_id: Uuid, team_list: Vec<TeamData>) -> Element {
+    let mut team_dialog_signal: Signal<PopUpWindow> = use_signal(|| PopUpWindow::None);
+
     rsx! {
         section {
             Headline1 { headline: "Teams" }
@@ -82,11 +109,9 @@ pub(crate) fn Teams(props: &TeamsProps) -> Element {
 
 
                 {
-                    props
-                        .team_list
+                    team_list
                         .iter()
                         .map(|team| {
-                            let project_id = props.project_id;
                             let team_data = team.clone();
                             let background = if team.needs_check {
                                 "bg-orange-100"
@@ -97,13 +122,7 @@ pub(crate) fn Teams(props: &TeamsProps) -> Element {
                                 a {
                                     key: {team.id},
                                     onclick: move |_| {
-                                        team_dialog_signal.set(rsx! {
-                                            EditTeamDialog {
-                                                team_dialog_signal: team_dialog_signal.clone(),
-                                                project_id,
-                                                team_data: team_data.clone(),
-                                            }
-                                        });
+                                        team_dialog_signal.set(PopUpWindow::EditTeam(team_data.clone()));
                                     },
                                     class: "{background} relative  shadow-md rounded-xl p-6  hover:shadow-lg transition-all cursor-pointer hover:scale-105",
                                     {TeamCard(team.clone())}
@@ -115,7 +134,7 @@ pub(crate) fn Teams(props: &TeamsProps) -> Element {
                 a {
                     class: "border-4 border-dashed border-gray-300 rounded-xl p-6 flex items-center justify-center text-gray-400 hover:bg-[#fdfaf6] hover:text-[#C66741] hover:scale-105 transition-all duration-200 cursor-pointer",
                     onclick: move |_| {
-                        team_dialog_signal.set(add_team_dialog.clone());
+                        team_dialog_signal.set(PopUpWindow::AddTeam);
                     },
                     div {
 
@@ -124,7 +143,24 @@ pub(crate) fn Teams(props: &TeamsProps) -> Element {
                 }
             }
         }
-        {team_dialog_signal}
+        match &*team_dialog_signal.read() {
+            PopUpWindow::None => rsx! {},
+            PopUpWindow::AddTeam => rsx! {
+                AddTeamDialog {
+                    project_id: cook_and_run_id,
+                    team_dialog_signal: team_dialog_signal.clone(),
+                }
+            },
+            PopUpWindow::EditTeam(team_data) => {
+                rsx! {
+                    EditTeamDialog {
+                        team_dialog_signal: team_dialog_signal.clone(),
+                        project_id: cook_and_run_id,
+                        team_data: team_data.clone(),
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -152,7 +188,7 @@ fn TeamCard(props: TeamData) -> Element {
 }
 
 #[component]
-fn AddTeamDialog(team_dialog_signal: Signal<Element>, project_id: Uuid) -> Element {
+fn AddTeamDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Element {
     let team_name_signal = use_signal(|| "".to_string());
     let team_name_error_signal = use_signal(|| "".to_string());
 
@@ -168,6 +204,7 @@ fn AddTeamDialog(team_dialog_signal: Signal<Element>, project_id: Uuid) -> Eleme
     let diets_signal = use_signal(|| "".to_string());
 
     let address_param = AddressParam::default();
+
     rsx! {
 
         div { class: "backdrop-blur fixed inset-0 flex h-screen w-screen justify-center items-center",
@@ -191,7 +228,7 @@ fn AddTeamDialog(team_dialog_signal: Signal<Element>, project_id: Uuid) -> Eleme
                 // Close button
                 CloseButton {
                     onclick: move |_| {
-                        team_dialog_signal.set(rsx! {});
+                        team_dialog_signal.set(PopUpWindow::None);
                     },
                 }
 
@@ -200,40 +237,47 @@ fn AddTeamDialog(team_dialog_signal: Signal<Element>, project_id: Uuid) -> Eleme
                     ConfirmButton {
                         text: "Create Team".to_string(),
                         onclick: move |_| {
-                            if !check_all(
-                                team_name_signal,
-                                team_name_error_signal,
-                                team_email_signal,
-                                team_email_error_signal,
-                                team_tel_signal,
-                                team_tel_error_signal,
-                                members_error_signal,
-                                members_signal,
-                                address_param.clone(),
-                            ) {
-                                return;
-                            }
-                            let result = add_team(
-                                project_id,
-                                team_name_signal.read().trim().to_string(),
-                                diets_signal.read().split(',').map(|s| s.trim().to_string()).collect(),
-                                team_email_signal.read().trim().to_string(),
-                                team_tel_signal.read().trim().to_string(),
-                                members_signal.read().parse::<u32>().unwrap_or(0),
-                                address_param
-                                    .get_address_data()
-                                    .expect("Expext no errors when getting address_data!"),
-                            );
-                            if result.is_err() {
-                                console::error_1(
-                                    &format!(
-                                        "Error creating team: {}",
-                                        result.err().expect("Expected error"),
+                            async move {
+                                if !check_all(
+                                    team_name_signal,
+                                    team_name_error_signal,
+                                    team_email_signal,
+                                    team_email_error_signal,
+                                    team_tel_signal,
+                                    team_tel_error_signal,
+                                    members_error_signal,
+                                    members_signal,
+                                    address_param.clone(),
+                                ) {
+                                    return;
+                                }
+                                let diets = (!diets_signal.read().trim().is_empty())
+                                    .then_some(diets_signal.read().trim().to_string());
+                                let tel = (!team_tel_signal.read().trim().is_empty())
+                                    .then_some(team_tel_signal.read().trim().to_string());
+                                let mail = (!team_email_signal.read().trim().is_empty())
+                                    .then_some(team_email_signal.read().trim().to_string());
+                                let members = members_signal
+                                    .read()
+                                    .parse::<u32>()
+                                    .map_or_else(|_| None, |v| Some(v));
+                                let result = add_team(
+                                        project_id,
+                                        team_name_signal.read().trim().to_string(),
+                                        diets,
+                                        mail,
+                                        tel,
+                                        members,
+                                        address_param
+                                            .get_address_data()
+                                            .expect("Expext no errors when getting address_data!"),
                                     )
-                                        .into(),
-                                );
-                            } else {
-                                team_dialog_signal.set(rsx! {});
+                                    .await;
+                                if let Err(e) = result {
+                                    console::error_1(&format!("Error creating team: {}", e).into());
+                                } else {
+                                    team_dialog_signal.set(PopUpWindow::None);
+                                }
                             }
                         },
                     }
@@ -245,7 +289,7 @@ fn AddTeamDialog(team_dialog_signal: Signal<Element>, project_id: Uuid) -> Eleme
 
 #[component]
 fn EditTeamDialog(
-    team_dialog_signal: Signal<Element>,
+    team_dialog_signal: Signal<PopUpWindow>,
     project_id: Uuid,
     team_data: TeamData,
 ) -> Element {
@@ -270,6 +314,7 @@ fn EditTeamDialog(
     let mut is_edit_team_signal = use_signal(|| true);
 
     let address_param = AddressParam::new(&team_data.address);
+
     use_effect(move || {
         check_all(
             team_name_signal,
@@ -328,17 +373,13 @@ fn EditTeamDialog(
                     }
                     DeleteButton {
                         onclick: move |_| {
-                            let result = delete_team(project_id, team_data.id);
-                            if result.is_err() {
-                                console::error_1(
-                                    &format!(
-                                        "Error deleting team: {}",
-                                        result.err().expect("Expected error"),
-                                    )
-                                        .into(),
-                                );
-                            } else {
-                                team_dialog_signal.set(rsx! {});
+                            async move {
+                                let result = delete_team(project_id, team_data.id).await;
+                                if let Err(e) = result {
+                                    console::error_1(&format!("Error deleting team: {}", e).into());
+                                } else {
+                                    team_dialog_signal.set(PopUpWindow::None);
+                                }
                             }
                         },
                     }
@@ -347,7 +388,7 @@ fn EditTeamDialog(
                 // Close button
                 CloseButton {
                     onclick: move |_| {
-                        team_dialog_signal.set(rsx! {});
+                        team_dialog_signal.set(PopUpWindow::None);
                     },
                 }
 
@@ -374,47 +415,52 @@ fn EditTeamDialog(
                             text: "Update Team".to_string(),
                             error_signal: error_signal.clone(),
                             onclick: move |_| {
-                                if !check_all(
-                                    team_name_signal,
-                                    team_name_error_signal,
-                                    team_email_signal,
-                                    team_email_error_signal,
-                                    team_tel_signal,
-                                    team_tel_error_signal,
-                                    members_error_signal,
-                                    members_signal,
-                                    address_param.clone(),
-                                ) {
-                                    return;
-                                }
-                                let result = update_team(
-                                    project_id,
-                                    &TeamData {
-                                        id: team_data.id,
-                                        team_name: team_name_signal.read().trim().to_string(),
-                                        address: address_param.get_address_data().expect("Expect address data!"),
-                                        mail: team_email_signal.read().trim().to_string(),
-                                        phone_number: team_tel_signal.read().trim().to_string(),
-                                        members: members_signal.read().parse::<u32>().unwrap_or(0),
-                                        diets: diets_signal
-                                            .read()
-                                            .split(',')
-                                            .map(|s| s.trim().to_string())
-                                            .collect(),
-                                        needs_check: *needs_check_signal.read(),
-                                        note_list: vec![],
-                                    },
-                                );
-                                if result.is_err() {
-                                    console::error_1(
-                                        &format!(
-                                            "Error updating team: {}",
-                                            result.err().expect("Expected error"),
+                                async move {
+                                    if !check_all(
+                                        team_name_signal,
+                                        team_name_error_signal,
+                                        team_email_signal,
+                                        team_email_error_signal,
+                                        team_tel_signal,
+                                        team_tel_error_signal,
+                                        members_error_signal,
+                                        members_signal,
+                                        address_param.clone(),
+                                    ) {
+                                        return;
+                                    }
+                                    let result = update_team(
+                                            project_id,
+                                            &TeamData {
+                                                id: team_data.id,
+                                                team_name: team_name_signal.read().trim().to_string(),
+                                                address: address_param
+                                                    .get_address_data()
+                                                    .expect("Expect address data!"),
+                                                mail: team_email_signal.read().trim().to_string(),
+                                                phone_number: team_tel_signal.read().trim().to_string(),
+                                                members: members_signal.read().parse::<u32>().unwrap_or(0),
+                                                diets: diets_signal
+                                                    .read()
+                                                    .split(',')
+                                                    .map(|s| s.trim().to_string())
+                                                    .collect(),
+                                                needs_check: *needs_check_signal.read(),
+                                                note_list: vec![],
+                                            },
                                         )
-                                            .into(),
-                                    );
-                                } else {
-                                    team_dialog_signal.set(rsx! {});
+                                        .await;
+                                    if result.is_err() {
+                                        console::error_1(
+                                            &format!(
+                                                "Error updating team: {}",
+                                                result.err().expect("Expected error"),
+                                            )
+                                                .into(),
+                                        );
+                                    } else {
+                                        team_dialog_signal.set(PopUpWindow::None);
+                                    }
                                 }
                             },
                         }
@@ -433,7 +479,7 @@ fn EditTeamDialog(
 
 #[component]
 fn TeamDialog(
-    team_dialog_signal: Signal<Element>,
+    team_dialog_signal: Signal<PopUpWindow>,
     project_id: Uuid,
     team_name_signal: Signal<String>,
     team_name_error_signal: Signal<String>,
@@ -598,67 +644,70 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                     text: "Post Note".to_string(),
                     error_signal: create_note_error_signal,
                     onclick: move |_| {
-                        if create_note_headline_signal.read().is_empty()
-                            && create_note_description_signal.read().is_empty()
-                        {
-                            create_note_headline_error_signal
-                                .set("Headline cannot be empty!".to_string());
-                            create_note_description_error_signal
-                                .set("Description cannot be empty!".to_string());
-                            create_note_error_signal.set("-".to_string());
-                            return;
-                        } else if create_note_headline_signal.read().is_empty() {
-                            create_note_headline_error_signal
-                                .set("Headline cannot be empty!".to_string());
-                            create_note_error_signal.set("-".to_string());
-                            return;
-                        } else if create_note_description_signal.read().is_empty() {
-                            create_note_description_error_signal
-                                .set("Description cannot be empty!".to_string());
-                            create_note_error_signal.set("-".to_string());
-                            return;
-                        }
-                        let result = add_team_note(
-                            project_id,
-                            team_id,
-                            create_note_headline_signal.read().trim().to_string(),
-                            create_note_description_signal.read().trim().to_string(),
-                        );
-                        if result.is_err() {
-                            console::error_1(
-                                &format!(
-                                    "Error creating note: {}",
-                                    result.err().expect("Expected error"),
+                        async move {
+                            if create_note_headline_signal.read().is_empty()
+                                && create_note_description_signal.read().is_empty()
+                            {
+                                create_note_headline_error_signal
+                                    .set("Headline cannot be empty!".to_string());
+                                create_note_description_error_signal
+                                    .set("Description cannot be empty!".to_string());
+                                create_note_error_signal.set("-".to_string());
+                                return;
+                            } else if create_note_headline_signal.read().is_empty() {
+                                create_note_headline_error_signal
+                                    .set("Headline cannot be empty!".to_string());
+                                create_note_error_signal.set("-".to_string());
+                                return;
+                            } else if create_note_description_signal.read().is_empty() {
+                                create_note_description_error_signal
+                                    .set("Description cannot be empty!".to_string());
+                                create_note_error_signal.set("-".to_string());
+                                return;
+                            }
+                            let result = add_team_note(
+                                    project_id,
+                                    team_id,
+                                    create_note_headline_signal.read().trim().to_string(),
+                                    create_note_description_signal.read().trim().to_string(),
                                 )
-                                    .into(),
-                            );
-                            creating_error_signal.set("Error creating note!".to_string());
-                        } else {
-                            sorted_note_list_signal
-                                .set({
-                                    let mut note_list = vec![
-                                        NoteData {
-                                            id: Uuid::new_v4(),
-                                            headline: create_note_headline_signal
-                                                .read()
-                                                .trim()
-                                                .to_string(),
-                                            description: create_note_description_signal
-                                                .read()
-                                                .trim()
-                                                .to_string(),
-                                            created: chrono::Utc::now(),
-                                        },
-                                    ];
-                                    note_list.extend(sorted_note_list_signal.read().clone());
-                                    note_list
-                                });
-                            create_note_headline_signal.set("".to_string());
-                            create_note_description_signal.set("".to_string());
-                            create_note_headline_error_signal.set("".to_string());
-                            create_note_description_error_signal.set("".to_string());
-                            create_note_error_signal.set("".to_string());
-                            creating_error_signal.set("".to_string());
+                                .await;
+                            if result.is_err() {
+                                console::error_1(
+                                    &format!(
+                                        "Error creating note: {}",
+                                        result.err().expect("Expected error"),
+                                    )
+                                        .into(),
+                                );
+                                creating_error_signal.set("Error creating note!".to_string());
+                            } else {
+                                sorted_note_list_signal
+                                    .set({
+                                        let mut note_list = vec![
+                                            NoteData {
+                                                id: Uuid::new_v4(),
+                                                headline: create_note_headline_signal
+                                                    .read()
+                                                    .trim()
+                                                    .to_string(),
+                                                description: create_note_description_signal
+                                                    .read()
+                                                    .trim()
+                                                    .to_string(),
+                                                created: chrono::Utc::now(),
+                                            },
+                                        ];
+                                        note_list.extend(sorted_note_list_signal.read().clone());
+                                        note_list
+                                    });
+                                create_note_headline_signal.set("".to_string());
+                                create_note_description_signal.set("".to_string());
+                                create_note_headline_error_signal.set("".to_string());
+                                create_note_description_error_signal.set("".to_string());
+                                create_note_error_signal.set("".to_string());
+                                creating_error_signal.set("".to_string());
+                            }
                         }
                     },
                 }
@@ -675,7 +724,7 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                         Note { note_data: note_data.clone() }
                     }
                 }
-
+            
             }
         }
     }
