@@ -215,6 +215,14 @@ pub struct CookAndRunCreate<'a> {
     pub occur: &'a NaiveDateTime,
 }
 
+#[derive(Insertable)]
+#[diesel(table_name = crate::db::schema::cook_and_run)]
+pub struct CookAndRunUpdate<'a> {
+    pub name: &'a str,
+    pub edited: &'a NaiveDateTime,
+    pub occur: &'a NaiveDateTime,
+}
+
 #[derive(Queryable, Selectable, Identifiable)]
 #[diesel(table_name = crate::db::schema::cook_and_run)]
 #[diesel(check_for_backend(diesel::pg::Pg))]

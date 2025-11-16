@@ -2,14 +2,9 @@ mod cloud;
 mod local;
 pub mod mapper;
 
-use std::{
-    collections::HashMap,
-    hash::Hash,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, hash::Hash, result};
 
 use chrono::{DateTime, NaiveDateTime, NaiveTime, Utc};
-use dioxus::hooks::use_context;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -25,6 +20,45 @@ pub struct StorageManager {
     cloud: CloudStorage,
 }
 
+async fn transfere<T: Storage>(storage: &mut T, c_a_r: CookAndRunData) -> Result<Uuid, String> {
+    let cook_and_run_id = Uuid::new_v4();
+    let c_a_r_create = CookAndRunCreate { name: c_a_r.name };
+    let result = storage
+        .create_cook_and_run(cook_and_run_id, &c_a_r_create)
+        .await;
+    if let Err(e) = result {
+        return Err(format!(
+            "Error while loading cook and run from storage: {}",
+            e
+        ));
+    };
+
+    for team in c_a_r.team_list {
+        let team_id = Uuid::new_v4();
+
+        let team_create = TeamCreate {
+            name: team.name,
+            address: team.address,
+            mail: team.mail,
+            phone: team.phone,
+            members: team.members,
+            diets: team.diets,
+            needs_check: team.needs_check,
+        };
+
+        let result = storage
+            .create_team_of_cook_and_run(cook_and_run_id, team_id, &team_create)
+            .await;
+        if let Err(e) = result {
+            return Err(format!(
+                "Error while loading cook and run from storage: {}",
+                e
+            ));
+        };
+    }
+    Ok(cook_and_run_id)
+}
+
 impl StorageManager {
     pub fn new() -> Result<Self, String> {
         Ok(StorageManager {
@@ -33,25 +67,50 @@ impl StorageManager {
         })
     }
 
-    pub async fn upload_to_cloud(&mut self, cook_and_run_id: Uuid) -> Result<(), String> {
-        let cook_and_run = self.local.select_cook_and_run(cook_and_run_id).await?;
-        self.cloud.create_cook_and_run(&cook_and_run).await?;
+    pub async fn upload_to_cloud(&mut self, cook_and_run_id: Uuid) -> Result<Uuid, String> {
+        let result = self.local.select_cook_and_run(cook_and_run_id).await;
+        let result = match result {
+            Ok(c_a_r) => c_a_r,
+            Err(e) => {
+                return Err(format!(
+                    "Error while loading cook and run from cloud: {}",
+                    e
+                ))
+            }
+        };
+        let new_cook_and_run_id = transfere(&mut self.cloud, result).await?;
         self.local.delete_cook_and_run(cook_and_run_id).await?;
-        Ok(())
+        Ok(new_cook_and_run_id)
     }
 
-    pub async fn delete_from_cloud(&mut self, cook_and_run_id: Uuid) -> Result<(), String> {
-        let cook_and_run = self.cloud.select_cook_and_run(cook_and_run_id).await?;
-        self.local.create_cook_and_run(&cook_and_run).await?;
+    pub async fn download_from_cloud(&mut self, cook_and_run_id: Uuid) -> Result<Uuid, String> {
+        let result = self.cloud.select_cook_and_run(cook_and_run_id).await;
+        let result = match result {
+            Ok(c_a_r) => c_a_r,
+            Err(e) => {
+                return Err(format!(
+                    "Error while loading cook and run from cloud: {}",
+                    e
+                ))
+            }
+        };
+        let new_cook_and_run_id = transfere(&mut self.local, result).await?;
         self.cloud.delete_cook_and_run(cook_and_run_id).await?;
-        Ok(())
+        Ok(new_cook_and_run_id)
+    }
+
+    pub async fn create_from_file(&mut self, cook_and_run: CookAndRunData) -> Result<Uuid, String> {
+        transfere(&mut self.local, cook_and_run).await
     }
 
     pub async fn create_cook_and_run(
         &mut self,
-        cook_and_run: &CookAndRunData,
+        cook_and_run_id: Uuid,
+        cook_and_run: &CookAndRunCreate,
     ) -> Result<(), String> {
-        self.local.create_cook_and_run(cook_and_run).await
+        self.local
+            .create_cook_and_run(cook_and_run_id, cook_and_run)
+            .await
     }
 
     pub async fn delete_cook_and_run(&mut self, cook_and_run_id: Uuid) -> Result<(), String> {
@@ -70,21 +129,22 @@ impl StorageManager {
 
     pub async fn update_meta_of_cook_and_run(
         &mut self,
-        cook_and_run_meta: &CookAndRunMetaData,
+        cook_and_run_id: Uuid,
+        cook_and_run_meta: &CookAndRunMetaUpdate,
     ) -> Result<(), String> {
         let exists_local = self
             .local
-            .select_cook_and_run(cook_and_run_meta.id)
+            .select_cook_and_run(cook_and_run_id)
             .await
             .is_ok();
 
         if exists_local {
             self.local
-                .update_meta_of_cook_and_run(cook_and_run_meta)
+                .update_meta_of_cook_and_run(cook_and_run_id, cook_and_run_meta)
                 .await
         } else {
             self.cloud
-                .update_meta_of_cook_and_run(cook_and_run_meta)
+                .update_meta_of_cook_and_run(cook_and_run_id, cook_and_run_meta)
                 .await
         }
     }
@@ -225,7 +285,8 @@ impl StorageManager {
     pub async fn update_team_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
-        team: &TeamData,
+        team_id: Uuid,
+        team: &TeamUpdate,
     ) -> Result<(), String> {
         let exists_local = self
             .local
@@ -235,11 +296,11 @@ impl StorageManager {
 
         if exists_local {
             self.local
-                .update_team_of_cook_and_run(cook_and_run_id, team)
+                .update_team_of_cook_and_run(cook_and_run_id, team_id, team)
                 .await
         } else {
             self.cloud
-                .update_team_of_cook_and_run(cook_and_run_id, team)
+                .update_team_of_cook_and_run(cook_and_run_id, team_id, team)
                 .await
         }
     }
@@ -438,12 +499,14 @@ impl StorageManager {
 pub trait Storage {
     async fn create_cook_and_run(
         &mut self,
-        cook_and_rund_data: &CookAndRunData,
+        cook_and_run_id: Uuid,
+        cook_and_rund_data: &CookAndRunCreate,
     ) -> Result<(), String>;
     async fn delete_cook_and_run(&mut self, id: Uuid) -> Result<(), String>;
     async fn update_meta_of_cook_and_run(
         &mut self,
-        cook_and_run_meta: &CookAndRunMetaData,
+        cook_and_run_id: Uuid,
+        cook_and_run_meta: &CookAndRunMetaUpdate,
     ) -> Result<(), String>;
     async fn update_plan_of_cook_and_run(
         &mut self,
@@ -479,7 +542,8 @@ pub trait Storage {
     async fn update_team_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
-        team: &TeamData,
+        team_id: Uuid,
+        team: &TeamUpdate,
     ) -> Result<(), String>;
     async fn delete_team_of_cook_and_run(
         &mut self,
@@ -541,18 +605,31 @@ pub struct HostingData {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
 pub struct TeamData {
     pub id: Uuid,
-    pub team_name: String,
+    pub name: String,
+    pub created: NaiveDateTime,
+    pub edited: NaiveDateTime,
     pub address: AddressData,
-    pub mail: String,
-    pub phone_number: String,
-    pub members: u32,
-    pub diets: Vec<String>,
+    pub mail: Option<String>,
+    pub phone: Option<String>,
+    pub members: Option<u32>,
+    pub diets: Option<String>,
     pub needs_check: bool,
     pub note_list: Vec<NoteData>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct TeamCreate {
+    pub name: String,
+    pub address: AddressData,
+    pub mail: Option<String>,
+    pub phone: Option<String>,
+    pub members: Option<u32>,
+    pub diets: Option<String>,
+    pub needs_check: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TeamUpdate {
     pub name: String,
     pub address: AddressData,
     pub mail: Option<String>,
@@ -691,21 +768,6 @@ impl CookAndRunData {
         }
     }
 
-    pub fn update_meta(&mut self, cook_and_run_meta: &CookAndRunMetaData) -> &Self {
-        if self.id != cook_and_run_meta.id {
-            console::error_1(
-                &format!(
-                    "CookAndRunMetaData ID does not match CookAndRunData ID: {} != {}",
-                    self.id, cook_and_run_meta.id
-                )
-                .into(),
-            );
-            return self;
-        }
-        self.name = cook_and_run_meta.name.clone();
-        return self;
-    }
-
     pub fn to_json(&self) -> Result<String, String> {
         serde_json::to_string(self)
             .map_err(|e| format!("Failed to serialize CookAndRunData: {}", e))
@@ -728,6 +790,12 @@ pub struct CookAndRunMetaData {
     pub is_in_cloud: bool,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct CookAndRunMetaUpdate {
+    pub name: String,
+    pub occur: NaiveDateTime,
+}
+
 impl CookAndRunMetaData {
     pub fn new(id: Uuid, name: String, occur: NaiveDateTime) -> Self {
         CookAndRunMetaData {
@@ -739,4 +807,9 @@ impl CookAndRunMetaData {
             is_in_cloud: false,
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct CookAndRunCreate {
+    pub name: String,
 }

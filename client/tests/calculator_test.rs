@@ -7,8 +7,8 @@ use std::{
 mod data;
 
 use chrono::NaiveTime;
-use data::{get_team_list, get_course_list};
-use tcc::storage::{mapper::Plan, AddressData, TeamData, CourseData, MeetingPointData};
+use data::{get_course_list, get_team_list};
+use tcc::storage::{mapper::Plan, AddressData, CourseData, MeetingPointData, TeamData};
 use tcc::{calculator::Calculator, storage::mapper::Hosting};
 use uuid::Uuid;
 
@@ -21,10 +21,10 @@ fn print_plan(plan: &Plan) {
     println!("Hostings:");
     for hosting_list in &plan.hosting_list {
         println!("\tCourse: {}", hosting_list.course.name);
-        println!("\tHost: {}", hosting_list.host.team_name);
+        println!("\tHost: {}", hosting_list.host.name);
         println!("\tGuest:");
         for guest in hosting_list.guest_list.iter() {
-            println!("\t\t{}", guest.team_name);
+            println!("\t\t{}", guest.name);
         }
     }
 
@@ -32,17 +32,17 @@ fn print_plan(plan: &Plan) {
     for (team, hosting_list) in &plan.walking_path {
         let mut path_url = "https://routing.openstreetmap.de/?".to_string();
 
-        println!("\tTeam: {}", team.team_name);
+        println!("\tTeam: {}", team.name);
         for host in hosting_list {
             path_url.push_str(&format!(
                 "&loc={}%2C{}",
                 host.host.address.latitude, host.host.address.longitude
             ));
             println!("\t\tCourse: {}", host.course.name);
-            println!("\t\tHost: \t{}", host.host.team_name);
+            println!("\t\tHost: \t{}", host.host.name);
             println!("\t\tGuest:");
             for guest in host.guest_list.iter() {
-                println!("\t\t\t{}", guest.team_name);
+                println!("\t\t\t{}", guest.name);
             }
         }
         println!("URL: {}&loc=50.5500%2C9.6787", path_url);
@@ -54,7 +54,7 @@ fn print_test_params(team_list: &Vec<TeamData>, course_list: &Vec<CourseData>) {
         "Team names: {:?}",
         team_list
             .iter()
-            .map(|c| c.team_name.as_str())
+            .map(|c| c.name.as_str())
             .collect::<Vec<&str>>()
     );
 
@@ -98,7 +98,7 @@ fn assert_number_of_guests_in_course(walkin_path: &HashMap<TeamData, Vec<Hosting
             assert!(
                 guest_count >= base_number_of_guests,
                 "Hosting \"{}\" of {} hostings has fewer guests ({}) than the minimum required ({}) of a total of {} guests",
-                hosting.host.team_name,
+                hosting.host.name,
                 number_of_hosts,
                 guest_count,
                 base_number_of_guests,
@@ -109,7 +109,7 @@ fn assert_number_of_guests_in_course(walkin_path: &HashMap<TeamData, Vec<Hosting
                 assert!(
                     guest_count == base_number_of_guests + 1,
                     "Hosting \"{}\" has too many guests ({})",
-                    hosting.host.team_name,
+                    hosting.host.name,
                     guest_count
                 );
                 current_number_of_overhang += 1;
@@ -175,16 +175,12 @@ fn assert_team_cooks_not_two_times(walkin_path: &HashMap<TeamData, Vec<Hosting>>
                 assert!(
                     !already_cooking,
                     "Team \"{}\" is already hosting one cooking",
-                    team.team_name
+                    team.name
                 );
                 already_cooking = true;
             }
         }
-        assert!(
-            already_cooking,
-            "Team \"{}\" is not hosting",
-            team.team_name
-        );
+        assert!(already_cooking, "Team \"{}\" is not hosting", team.name);
     }
 }
 

@@ -5,42 +5,82 @@ use web_sys::console;
 use crate::side::details::address::{Address, AddressParam};
 use crate::side::details::{ErrorPage, LoadingPage};
 use crate::side::{AddressSVG, Headline1, Headline2, InputPhoneNumber};
-use crate::storage::{AddressData, NoteData, StorageManager, TeamCreate, TeamData};
+use crate::storage::{AddressData, NoteData, StorageManager, TeamCreate, TeamData, TeamUpdate};
 
 use crate::side::{
     CloseButton, ConfirmButton, DeleteButton, Input, InputError, InputMultirow, InputNumber,
 };
 
+fn map_string(value: String) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.to_string())
+    }
+}
+
+fn map_u32(value: String) -> Option<u32> {
+    let value = value.trim();
+    if value.is_empty() {
+        None
+    } else {
+        value.parse::<u32>().map_or_else(|_| None, |v| Some(v))
+    }
+}
+
 async fn add_team(
     id: Uuid,
     name: String,
-    diets: Option<String>,
-    mail: Option<String>,
-    phone: Option<String>,
-    members: Option<u32>,
+    diets: String,
+    mail: String,
+    phone: String,
+    members: String,
     address: AddressData,
 ) -> Result<(), String> {
-    let storage = use_context::<Signal<StorageManager>>();
-    let mut storage = storage.read().clone();
-
     let team = TeamCreate {
         name,
         address,
-        mail,
-        diets,
-        phone,
-        members,
+        mail: map_string(mail),
+        diets: map_string(diets),
+        phone: map_string(phone),
+        members: map_u32(members),
         needs_check: false,
     };
+
+    let mut storage_signal = use_context::<Signal<StorageManager>>();
+    let mut storage = storage_signal.write();
     storage
         .create_team_of_cook_and_run(id, Uuid::new_v4(), &team)
         .await
 }
 
-async fn update_team(id: Uuid, team: &TeamData) -> Result<(), String> {
-    let storage = use_context::<Signal<StorageManager>>();
-    let mut storage = storage.read().clone();
-    storage.update_team_of_cook_and_run(id, team).await
+async fn update_team(
+    id: Uuid,
+    team_id: Uuid,
+    name: String,
+    diets: String,
+    mail: String,
+    phone: String,
+    members: String,
+    address: AddressData,
+    needs_check: bool,
+) -> Result<(), String> {
+    let team = TeamUpdate {
+        name,
+        address,
+        mail: map_string(mail),
+        diets: map_string(diets),
+        phone: map_string(phone),
+        members: map_u32(members),
+        needs_check: needs_check,
+    };
+
+    let mut storage_signal = use_context::<Signal<StorageManager>>();
+    let mut storage = storage_signal.write();
+    storage
+        .update_team_of_cook_and_run(id, team_id, &team)
+        .await
 }
 
 async fn add_team_note(
@@ -50,16 +90,16 @@ async fn add_team_note(
     description: String,
 ) -> Result<(), String> {
     let note = NoteData::new(headline, description);
-    let storage = use_context::<Signal<StorageManager>>();
-    let mut storage = storage.read().clone();
+    let mut storage_signal = use_context::<Signal<StorageManager>>();
+    let mut storage = storage_signal.write();
     storage
         .create_team_note_of_cook_and_run(id, team_id, &note)
         .await
 }
 
 async fn delete_team(id: Uuid, team_id: Uuid) -> Result<(), String> {
-    let storage = use_context::<Signal<StorageManager>>();
-    let mut storage = storage.read().clone();
+    let mut storage_signal = use_context::<Signal<StorageManager>>();
+    let mut storage = storage_signal.write();
     storage.delete_team_of_cook_and_run(id, team_id).await
 }
 
@@ -169,7 +209,7 @@ fn TeamCard(props: TeamData) -> Element {
     rsx! {
         div {
             // Name
-            Headline2 { headline: props.team_name.clone() }
+            Headline2 { headline: props.name.clone() }
             // Address
             div { class: "flex items-center space-x-2 mb-1",
                 AddressSVG {}
@@ -251,23 +291,13 @@ fn AddTeamDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> E
                                 ) {
                                     return;
                                 }
-                                let diets = (!diets_signal.read().trim().is_empty())
-                                    .then_some(diets_signal.read().trim().to_string());
-                                let tel = (!team_tel_signal.read().trim().is_empty())
-                                    .then_some(team_tel_signal.read().trim().to_string());
-                                let mail = (!team_email_signal.read().trim().is_empty())
-                                    .then_some(team_email_signal.read().trim().to_string());
-                                let members = members_signal
-                                    .read()
-                                    .parse::<u32>()
-                                    .map_or_else(|_| None, |v| Some(v));
                                 let result = add_team(
                                         project_id,
-                                        team_name_signal.read().trim().to_string(),
-                                        diets,
-                                        mail,
-                                        tel,
-                                        members,
+                                        team_name_signal.read().to_string(),
+                                        diets_signal.read().clone(),
+                                        team_email_signal.read().clone(),
+                                        team_tel_signal.read().clone(),
+                                        members_signal.read().clone(),
                                         address_param
                                             .get_address_data()
                                             .expect("Expext no errors when getting address_data!"),
@@ -293,21 +323,25 @@ fn EditTeamDialog(
     project_id: Uuid,
     team_data: TeamData,
 ) -> Element {
-    let team_name_signal = use_signal(|| team_data.team_name.clone());
+    let team_name_signal = use_signal(|| team_data.name);
     let team_name_error_signal = use_signal(|| "".to_string());
 
-    let team_email_signal = use_signal(|| team_data.mail.clone());
+    let team_email_signal = use_signal(|| team_data.mail.map_or_else(|| "".to_string(), |v| v));
     let team_email_error_signal = use_signal(|| "".to_string());
 
-    let team_tel_signal = use_signal(|| team_data.phone_number.clone());
+    let team_tel_signal = use_signal(|| team_data.phone.map_or_else(|| "".to_string(), |v| v));
     let team_tel_error_signal = use_signal(|| "".to_string());
 
-    let members_signal = use_signal(|| team_data.members.to_string());
+    let members_signal = use_signal(|| {
+        team_data
+            .members
+            .map_or_else(|| "".to_string(), |v| v.to_string())
+    });
     let members_error_signal = use_signal(|| "".to_string());
 
-    let diets_signal = use_signal(|| team_data.diets.join(", "));
+    let diets_signal = use_signal(|| team_data.diets.map_or_else(|| "".to_string(), |v| v));
 
-    let mut needs_check_signal = use_signal(|| team_data.needs_check);
+    let needs_check_signal = use_signal(|| team_data.needs_check);
 
     let error_signal = use_signal(|| "".to_string());
 
@@ -366,7 +400,6 @@ fn EditTeamDialog(
                                 onclick: move |_| {
                                     let new_value = !*needs_check_signal.read();
                                     team_data.needs_check = new_value;
-                                    todo!();
                                 },
                             }
                         }
@@ -409,7 +442,6 @@ fn EditTeamDialog(
                     }
 
 
-                    // Create team button
                     div { class: "flex justify-center mt-4",
                         ConfirmButton {
                             text: "Update Team".to_string(),
@@ -431,23 +463,16 @@ fn EditTeamDialog(
                                     }
                                     let result = update_team(
                                             project_id,
-                                            &TeamData {
-                                                id: team_data.id,
-                                                team_name: team_name_signal.read().trim().to_string(),
-                                                address: address_param
-                                                    .get_address_data()
-                                                    .expect("Expect address data!"),
-                                                mail: team_email_signal.read().trim().to_string(),
-                                                phone_number: team_tel_signal.read().trim().to_string(),
-                                                members: members_signal.read().parse::<u32>().unwrap_or(0),
-                                                diets: diets_signal
-                                                    .read()
-                                                    .split(',')
-                                                    .map(|s| s.trim().to_string())
-                                                    .collect(),
-                                                needs_check: *needs_check_signal.read(),
-                                                note_list: vec![],
-                                            },
+                                            team_data.id,
+                                            team_name_signal.read().to_string(),
+                                            diets_signal.read().clone(),
+                                            team_email_signal.read().clone(),
+                                            team_tel_signal.read().clone(),
+                                            members_signal.read().clone(),
+                                            address_param
+                                                .get_address_data()
+                                                .expect("Expext no errors when getting address_data!"),
+                                            needs_check_signal.read().clone(),
                                         )
                                         .await;
                                     if result.is_err() {
@@ -788,8 +813,8 @@ fn check_team_email(
 ) -> bool {
     let team_email = team_email_signal.read();
     if team_email.is_empty() {
-        team_email_error_signal.set("Team E-Mail cannot be empty!".to_string());
-        false
+        team_email_error_signal.set("".to_string());
+        true
     } else if !team_email.contains('@') || !team_email.contains('.') {
         team_email_error_signal.set("Please enter a valid email address!".to_string());
         false
@@ -804,20 +829,16 @@ fn check_team_tel(
     mut team_tel_error_signal: Signal<String>,
 ) -> bool {
     let team_tel = team_tel_signal.read();
-    if team_tel.is_empty() {
-        team_tel_error_signal.set("Team phone number cannot be empty!".to_string());
-        false
-    } else {
-        team_tel_error_signal.set("".to_string());
-        true
-    }
+
+    team_tel_error_signal.set("".to_string());
+    true
 }
 
 fn check_members(members_signal: Signal<String>, mut members_error_signal: Signal<String>) -> bool {
     let members = members_signal.read();
     if members.is_empty() {
-        members_error_signal.set("Number of Members cannot be empty!".to_string());
-        false
+        members_error_signal.set("".to_string());
+        true
     } else if members.parse::<u32>().is_err() {
         members_error_signal.set("Please enter a valid number!".to_string());
         false

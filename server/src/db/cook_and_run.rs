@@ -3,7 +3,7 @@ use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHel
 use uuid::Uuid;
 
 use crate::db::address::{create_address, delete_address};
-use crate::db::models::{Address, CookAndRun};
+use crate::db::models::{Address, CookAndRun, CookAndRunUpdate};
 use crate::db::{models::CookAndRunCreate, Database};
 impl Database {
     pub fn create_cook_and_run(
@@ -16,17 +16,21 @@ impl Database {
         Ok(())
     }
 
-    pub fn update_cook_and_run_name(
+    pub fn update_cook_and_run_meta(
         &mut self,
         id_filter: &Uuid,
         user_id_filter: &str,
-        new_name: &str,
+        meta_data: &CookAndRunUpdate,
     ) -> Result<(), diesel::result::Error> {
         let conn = &mut self.get_connection()?;
         use crate::db::schema::cook_and_run::dsl::*;
         let affected = update(cook_and_run.find(id_filter))
             .filter(user_id.eq(user_id_filter))
-            .set(name.eq(new_name))
+            .set((
+                name.eq(meta_data.name),
+                edited.eq(meta_data.edited),
+                occur.eq(meta_data.occur),
+            ))
             .execute(conn)?;
 
         if affected == 0 {

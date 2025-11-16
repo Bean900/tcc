@@ -74,8 +74,8 @@ CREATE TABLE "team" (
     "members" INTEGER NULL,
     "diets" TEXT NULL,
     "needs_check" BOOLEAN NOT NULL,
-    FOREIGN KEY ("cook_and_run_id") REFERENCES "cook_and_run" ("id"),
-    FOREIGN KEY ("address") REFERENCES "address" ("id") ON DELETE CASCADE
+    FOREIGN KEY ("cook_and_run_id") REFERENCES "cook_and_run" ("id") ON DELETE CASCADE,
+    FOREIGN KEY ("address") REFERENCES "address" ("id")
 );
 
 CREATE INDEX idx_team_cook_and_run ON "team" ("cook_and_run_id");

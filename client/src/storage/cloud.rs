@@ -10,8 +10,8 @@ use web_sys::console;
 use crate::{
     auth0::{AuthState, SessionData},
     storage::{
-        AddressData, CookAndRunData, CookAndRunMetaData, MeetingPointData, Storage, TeamCreate,
-        TeamData,
+        AddressData, CookAndRunCreate, CookAndRunData, CookAndRunMetaData, CookAndRunMetaUpdate,
+        MeetingPointData, Storage, TeamCreate, TeamData, TeamUpdate,
     },
 };
 
@@ -43,6 +43,22 @@ impl CookAndRunMetaDataResponse {
             edited: self.edited,
             occur: self.occur,
             is_in_cloud: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct CookAndRunCreateRequest {
+    name: String,
+    #[serde(rename = "userId")]
+    user_id: String,
+}
+
+impl CookAndRunCreateRequest {
+    fn from(c_a_r: &CookAndRunCreate, user_id: String) -> Self {
+        CookAndRunCreateRequest {
+            name: c_a_r.name.clone(),
+            user_id: user_id,
         }
     }
 }
@@ -99,18 +115,25 @@ fn get_access_token() -> Result<SessionData, ()> {
 }
 
 impl Storage for CloudStorage {
-    async fn create_cook_and_run(&mut self, cook_and_run: &CookAndRunData) -> Result<(), String> {
+    async fn create_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        cook_and_run: &CookAndRunCreate,
+    ) -> Result<(), String> {
         let session_data = match get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
 
-        let url = format!("{}/cook_and_run/{}", self.base_url, cook_and_run.id);
+        let url = format!("{}/cook_and_run/{}", self.base_url, cook_and_run_id);
         let client = reqwest::Client::new();
         let res = client
             .post(&url)
             .bearer_auth(session_data.access_token)
-            .json(&cook_and_run)
+            .json(&CookAndRunCreateRequest::from(
+                cook_and_run,
+                session_data.user.sub,
+            ))
             .send()
             .await;
 
@@ -234,7 +257,8 @@ impl Storage for CloudStorage {
 
     async fn update_meta_of_cook_and_run(
         &mut self,
-        cook_and_run_meta: &CookAndRunMetaData,
+        cook_and_run_id: Uuid,
+        cook_and_run_meta: &CookAndRunMetaUpdate,
     ) -> Result<(), String> {
         let session_data = match get_access_token() {
             Ok(sd) => sd,
@@ -242,8 +266,8 @@ impl Storage for CloudStorage {
         };
 
         let url = format!(
-            "{}/cook_and_run/{}/meta",
-            self.base_url, cook_and_run_meta.id
+            "{}/cook_and_run/{}/metadata",
+            self.base_url, cook_and_run_id
         );
         let client = reqwest::Client::new();
         let res = client
@@ -430,7 +454,8 @@ impl Storage for CloudStorage {
     async fn update_team_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
-        team: &super::TeamData,
+        team_id: Uuid,
+        team: &TeamUpdate,
     ) -> Result<(), String> {
         let session_data = match get_access_token() {
             Ok(sd) => sd,
@@ -438,7 +463,7 @@ impl Storage for CloudStorage {
         };
         let url = format!(
             "{}/cook_and_run/{}/team/{}",
-            self.base_url, cook_and_run_id, team.id
+            self.base_url, cook_and_run_id, team_id
         );
         let client = reqwest::Client::new();
         let res = client

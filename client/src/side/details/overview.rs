@@ -6,7 +6,7 @@ use web_sys::{console, js_sys, Blob, HtmlAnchorElement, Url};
 
 use crate::side::details::{ErrorPage, LoadingPage};
 use crate::side::{Headline1, InputDate};
-use crate::storage::{CookAndRunMetaData, StorageManager};
+use crate::storage::{CookAndRunMetaData, CookAndRunMetaUpdate, StorageManager};
 use crate::AuthState;
 
 use crate::{
@@ -15,8 +15,8 @@ use crate::{
 };
 
 async fn delete_cook_and_run_project(id: Uuid) -> Result<(), String> {
-    let storage = use_context::<Signal<StorageManager>>();
-    let mut storage = storage.read().clone();
+    let mut storage = use_context::<Signal<StorageManager>>();
+    let mut storage = storage.write();
     let result = storage.delete_cook_and_run(id).await;
     result
 }
@@ -26,52 +26,33 @@ async fn update_meta_of_cook_and_run(
     new_name: String,
     occur: NaiveDateTime,
 ) -> Result<(), String> {
-    let storage = use_context::<Signal<StorageManager>>();
-    let mut storage = storage.read().clone();
+    let mut storage = use_context::<Signal<StorageManager>>();
+    let mut storage = storage.write();
 
     let result = storage
-        .update_meta_of_cook_and_run(&CookAndRunMetaData::new(id, new_name, occur))
+        .update_meta_of_cook_and_run(
+            id,
+            &CookAndRunMetaUpdate {
+                name: new_name,
+                occur,
+            },
+        )
         .await;
     result
 }
 
+async fn upload_cook_and_run(id: Uuid) -> Result<Uuid, String> {
+    let mut storage: Signal<StorageManager> = use_context::<Signal<StorageManager>>();
+    let mut storage = storage.write();
+
+    storage.upload_to_cloud(id).await
+}
+
 async fn download_cook_and_run(id: Uuid) -> Result<Uuid, String> {
-    let storage: Signal<StorageManager> = use_context::<Signal<StorageManager>>();
-    let mut storage = storage.read().clone();
+    let mut storage: Signal<StorageManager> = use_context::<Signal<StorageManager>>();
+    let mut storage = storage.write();
 
-    let result = storage.select_cook_and_run(id).await;
-    let result = match result {
-        Ok(c_a_r) => c_a_r,
-        Err(e) => {
-            return Err(format!(
-                "Error while loading cook and run from cloud: {}",
-                e
-            ))
-        }
-    };
-
-    let mut new_c_a_r = result.clone();
-    new_c_a_r.id = Uuid::new_v4();
-
-    for mut team in new_c_a_r.team_list {
-        team.id = Uuid::new_v4();
-    }
-
-    for mut course in new_c_a_r.course_list {
-        course.id = Uuid::new_v4();
-    }
-
-    let create_result = storage.create_cook_and_run(&result).await;
-    if let Err(e) = create_result {
-        return Err(format!("Error while creating local cook and run: {}", e));
-    }
-
-    let delete_result = storage.delete_cook_and_run(id).await;
-    if let Err(e) = delete_result {
-        return Err(format!("Error while deleting cloud cook and run: {}", e));
-    }
-
-    Ok(new_c_a_r.id)
+    storage.download_from_cloud(id).await
 }
 
 async fn export_file(id: Uuid) -> Result<(), String> {
@@ -142,7 +123,9 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
 
     let mut delete_dialog_signal = use_signal(|| false);
 
-    let mut error_message = use_signal(|| "".to_string());
+    let mut error_name_signal = use_signal(|| "".to_string());
+
+    let mut error_signal = use_signal(|| "".to_string());
 
     let mut name_signal = use_signal(|| cook_and_run_meta.name.clone());
 
@@ -151,9 +134,9 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
             let current_name = evt.value();
             name_signal.set(current_name.clone());
             if current_name.is_empty() {
-                error_message.set("Project name can not be empty!".to_string());
+                error_name_signal.set("Project name can not be empty!".to_string());
             } else {
-                error_message.set("".to_string());
+                error_name_signal.set("".to_string());
             }
         }
     };
@@ -164,7 +147,7 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
         console::log_1(&format!("Start saving project: {}", current_name).into());
         async move {
             if current_name.is_empty() {
-                error_message.set("Project name can not be empty!".to_string());
+                error_name_signal.set("Project name can not be empty!".to_string());
                 console::log_1(&format!("Project name can not be empty!").into());
             } else {
                 console::log_1(&format!("Writing data to disk.").into());
@@ -177,10 +160,10 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
 
                 if let Err(e) = result {
                     console::error_1(&format!("Error saving project name: {}", e,).into());
-                    error_message.set("Saving failed! Try again later.".to_string());
+                    error_signal.set("Saving failed! Try again later.".to_string());
                 } else {
                     console::log_1(&format!("Project is saved!").into());
-                    error_message.set("".to_string());
+                    error_signal.set("".to_string());
                 }
             }
         }
@@ -199,10 +182,10 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
             Input {
                 place_holer: Some("Project Name".to_string()),
                 value: name_signal.read(),
-                is_error: !error_message.read().is_empty(),
+                is_error: !error_name_signal.read().is_empty(),
                 oninput: on_name_input,
             }
-            InputError { error: error_message.read() }
+            InputError { error: error_name_signal.read() }
 
             label { class: "block font-semibold text-[#3B3B3B]", "Occuring" }
             InputDate {
@@ -227,12 +210,13 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
                 },
             }
 
+            InputError { error: error_signal.read() }
 
             div { class: "flex flex-wrap gap-4 items-center mt-4",
                 ConfirmButton {
                     onclick: on_save,
                     text: "Save".to_string(),
-                    error_signal: error_message.clone(),
+                    error_signal: error_name_signal.clone(),
                 }
 
                 if cook_and_run_meta.is_in_cloud {
@@ -257,7 +241,21 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
                     }
                 } else {
                     SecondaryButton {
-                        onclick: move |_| {},
+                        onclick: move |_| {
+                            async move {
+                                let result = upload_cook_and_run(cook_and_run_meta.id).await;
+                                match result {
+                                    Ok(cook_and_run_id) => {
+                                        use_navigator().push(Route::Overview { cook_and_run_id });
+                                    }
+                                    Err(e) => {
+                                        console::error_1(
+                                            &format!("Error while downloading project: {}", e).into(),
+                                        );
+                                    }
+                                };
+                            }
+                        },
                         text: "Upload".to_string(),
                         error_signal: error_login_signal.clone(),
                     }

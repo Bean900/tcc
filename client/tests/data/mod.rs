@@ -1,12 +1,12 @@
 use chrono::{Local, NaiveTime};
-use tcc::storage::{AddressData, TeamData, CookAndRunData, CourseData, MeetingPointData};
+use tcc::storage::{AddressData, CookAndRunData, CourseData, MeetingPointData, TeamData};
 use uuid::Uuid;
 
 pub fn real_live_data() -> Vec<TeamData> {
     vec![
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "The Snackademics".into(),
+            name: "The Snackademics".into(),
             address: AddressData {
                 address: "Tyroler Küppel 1, 36039 Fulda".into(),
                 latitude: 50.554070,
@@ -21,7 +21,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "SoJa".into(),
+            name: "SoJa".into(),
             address: AddressData {
                 address: "Peterstor 10, 36037 Fulda".into(),
                 latitude: 50.552050,
@@ -36,7 +36,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Schöner Abend & Genuss".into(),
+            name: "Schöner Abend & Genuss".into(),
             address: AddressData {
                 address: "Graveneggstrasse 12, 36037 Fulda".into(),
                 latitude: 50.549760,
@@ -51,7 +51,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Hauben(tal)küche".into(),
+            name: "Hauben(tal)küche".into(),
             address: AddressData {
                 address: "Straßburger Straße 7, 36039 Fulda".into(),
                 latitude: 50.553350,
@@ -66,7 +66,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Die Flotten Pfannen".into(),
+            name: "Die Flotten Pfannen".into(),
             address: AddressData {
                 address: "Bahnhofstraße 19, 36037 Fulda".into(),
                 latitude: 50.551210,
@@ -81,7 +81,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Tajik It Easy, We're Hungary".into(),
+            name: "Tajik It Easy, We're Hungary".into(),
             address: AddressData {
                 address: "Heinrich-von-Bibra-Platz 3, 36037 Fulda".into(),
                 latitude: 50.548820,
@@ -96,7 +96,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "JoSo-United".into(),
+            name: "JoSo-United".into(),
             address: AddressData {
                 address: "Petersberger Str. 37, 36037 Fulda".into(),
                 latitude: 50.546470,
@@ -111,7 +111,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Auf die Gabel fertig los!".into(),
+            name: "Auf die Gabel fertig los!".into(),
             address: AddressData {
                 address: "Kanalstraße 23, 36037 Fulda".into(),
                 latitude: 50.550280,
@@ -126,7 +126,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Salt and Pepper".into(),
+            name: "Salt and Pepper".into(),
             address: AddressData {
                 address: "Fuchsstraße 6, 36041 Fulda".into(),
                 latitude: 50.567850,
@@ -141,7 +141,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Eierlikör & Ernste Gespräche".into(),
+            name: "Eierlikör & Ernste Gespräche".into(),
             address: AddressData {
                 address: "Lichtweg 9, 36039 Fulda".into(),
                 latitude: 50.558690,
@@ -156,7 +156,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Die Krümelmonster".into(),
+            name: "Die Krümelmonster".into(),
             address: AddressData {
                 address: "Pappelweg 9, 36037 Fulda".into(),
                 latitude: 50.544560,
@@ -171,7 +171,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Citygirls".into(),
+            name: "Citygirls".into(),
             address: AddressData {
                 address: "Rhönstraße 22, 36037 Fulda".into(),
                 latitude: 50.545580,
@@ -186,7 +186,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Bier + Schorle".into(),
+            name: "Bier + Schorle".into(),
             address: AddressData {
                 address: "Kapuzinerstraße 27, 36043 Fulda".into(),
                 latitude: 50.546718,
@@ -201,7 +201,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Running Chefs".into(),
+            name: "Running Chefs".into(),
             address: AddressData {
                 address: "Bosestraße 4, 36039 Fulda".into(),
                 latitude: 50.554080,
@@ -216,7 +216,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Perilli 69".into(),
+            name: "Perilli 69".into(),
             address: AddressData {
                 address: "Schlitzer Straße 69, 36039 Fulda".into(),
                 latitude: 50.562290,
@@ -231,7 +231,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Chocas à la Carte".into(),
+            name: "Chocas à la Carte".into(),
             address: AddressData {
                 address: "Maganbertstraße 24, 36041 Fulda".into(),
                 latitude: 50.561363,
@@ -246,7 +246,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Yes, Chef!".into(),
+            name: "Yes, Chef!".into(),
             address: AddressData {
                 address: "Rhönstr. 1A, 36037 Fulda".into(),
                 latitude: 50.547820,
@@ -261,7 +261,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Ja".into(),
+            name: "Ja".into(),
             address: AddressData {
                 address: "Olympiastraße, 36041 Fulda".into(),
                 latitude: 50.571200,
@@ -276,7 +276,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "ESSkalation".into(),
+            name: "ESSkalation".into(),
             address: AddressData {
                 address: "Rangstraße 11, 36043 Fulda".into(),
                 latitude: 50.561250,
@@ -291,7 +291,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team Shangool".into(),
+            name: "Team Shangool".into(),
             address: AddressData {
                 address: "Luckenberg 5, 36037 Fulda".into(),
                 latitude: 50.543400,
@@ -306,7 +306,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Final Foodstation".into(),
+            name: "Final Foodstation".into(),
             address: AddressData {
                 address: "Im Sack 7, 36037 Fulda".into(),
                 latitude: 50.548740,
@@ -321,7 +321,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Holy Aperoly".into(),
+            name: "Holy Aperoly".into(),
             address: AddressData {
                 address: "Goethestraße 1, 36043 Fulda".into(),
                 latitude: 50.558700,
@@ -336,7 +336,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Schaub".into(),
+            name: "Schaub".into(),
             address: AddressData {
                 address: "Von Schildeck Straße 4, 36037 Fulda".into(),
                 latitude: 50.546700,
@@ -351,7 +351,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "JeKi".into(),
+            name: "JeKi".into(),
             address: AddressData {
                 address: "Karlstraße 25, 36037 Fulda".into(),
                 latitude: 50.550100,
@@ -366,7 +366,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Die taffen Giraffen".into(),
+            name: "Die taffen Giraffen".into(),
             address: AddressData {
                 address: "Bahnhofstraße 13, 36037 Fulda".into(),
                 latitude: 50.551300,
@@ -381,7 +381,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Kulinarische Kilometer".into(),
+            name: "Kulinarische Kilometer".into(),
             address: AddressData {
                 address: "Leipziger Straße 25, 36037 Fulda".into(),
                 latitude: 50.542300,
@@ -396,7 +396,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Süß & Salzig".into(),
+            name: "Süß & Salzig".into(),
             address: AddressData {
                 address: "Rhönstraße 5, 36037 Fulda".into(),
                 latitude: 50.547100,
@@ -411,7 +411,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Schnibbel Sisters".into(),
+            name: "Schnibbel Sisters".into(),
             address: AddressData {
                 address: "Heinrichstraße 24, 36037 Fulda".into(),
                 latitude: 50.548900,
@@ -426,7 +426,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Jolina und Jose".into(),
+            name: "Jolina und Jose".into(),
             address: AddressData {
                 address: "Scharnhorststraße 15, 36037 Fulda".into(),
                 latitude: 50.545600,
@@ -441,7 +441,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Teamname".into(),
+            name: "Teamname".into(),
             address: AddressData {
                 address: "In den Auegärten 12, 36037 Fulda".into(),
                 latitude: 50.541200,
@@ -456,7 +456,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "LiLa".into(),
+            name: "LiLa".into(),
             address: AddressData {
                 address: "Leipziger Str. 32A, 36037 Fulda".into(),
                 latitude: 50.542500,
@@ -471,7 +471,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "".into(),
+            name: "".into(),
             address: AddressData {
                 address: "Leipziger Straße 116, 36037 Fulda".into(),
                 latitude: 50.538900,
@@ -486,7 +486,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Brathering Fanclub e.V.".into(),
+            name: "Brathering Fanclub e.V.".into(),
             address: AddressData {
                 address: "Künzeller Straße 15A, 36043 Fulda".into(),
                 latitude: 50.564500,
@@ -501,7 +501,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Johannes Lafer".into(),
+            name: "Johannes Lafer".into(),
             address: AddressData {
                 address: "Maganbertstraße 24, 36041 Fulda".into(),
                 latitude: 50.561363,
@@ -516,7 +516,7 @@ pub fn real_live_data() -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Die Pommes Philosophen".into(),
+            name: "Die Pommes Philosophen".into(),
             address: AddressData {
                 address: "Rhönstraße 7, 36037 Fulda".into(),
                 latitude: 50.547300,
@@ -537,7 +537,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
     let team_data = vec![
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 1".to_string(),
+            name: "Team 1".to_string(),
             address: AddressData {
                 address: "Theodor-Stern-Kai 7, 60596 Frankfurt am Main".to_string(),
                 latitude: 50.09523,
@@ -552,7 +552,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 2".to_string(),
+            name: "Team 2".to_string(),
             address: AddressData {
                 address: "Mainzer Landstraße 50, 60325 Frankfurt am Main".to_string(),
                 latitude: 50.11092,
@@ -567,7 +567,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 3".to_string(),
+            name: "Team 3".to_string(),
             address: AddressData {
                 address: "Zeil 106, 60313 Frankfurt am Main".to_string(),
                 latitude: 50.11552,
@@ -582,7 +582,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 4".to_string(),
+            name: "Team 4".to_string(),
             address: AddressData {
                 address: "Friedrich-Ebert-Anlage 49, 60308 Frankfurt am Main".to_string(),
                 latitude: 50.11222,
@@ -597,7 +597,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 5".to_string(),
+            name: "Team 5".to_string(),
             address: AddressData {
                 address: "Bockenheimer Landstraße 24, 60323 Frankfurt am Main".to_string(),
                 latitude: 50.11667,
@@ -612,7 +612,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 6".to_string(),
+            name: "Team 6".to_string(),
             address: AddressData {
                 address: "Schillerstraße 30, 60313 Frankfurt am Main".to_string(),
                 latitude: 50.11417,
@@ -627,7 +627,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 7".to_string(),
+            name: "Team 7".to_string(),
             address: AddressData {
                 address: "Kaiserstraße 62, 60329 Frankfurt am Main".to_string(),
                 latitude: 50.10722,
@@ -642,7 +642,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 8".to_string(),
+            name: "Team 8".to_string(),
             address: AddressData {
                 address: "Taunusanlage 12, 60325 Frankfurt am Main".to_string(),
                 latitude: 50.11333,
@@ -657,7 +657,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 9".to_string(),
+            name: "Team 9".to_string(),
             address: AddressData {
                 address: "Berliner Straße 72, 60311 Frankfurt am Main".to_string(),
                 latitude: 50.11111,
@@ -672,7 +672,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 10".to_string(),
+            name: "Team 10".to_string(),
             address: AddressData {
                 address: "Konrad-Adenauer-Straße 7, 60313 Frankfurt am Main".to_string(),
                 latitude: 50.11389,
@@ -687,7 +687,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 11".to_string(),
+            name: "Team 11".to_string(),
             address: AddressData {
                 address: "Neue Mainzer Straße 52, 60311 Frankfurt am Main".to_string(),
                 latitude: 50.11028,
@@ -702,7 +702,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 12".to_string(),
+            name: "Team 12".to_string(),
             address: AddressData {
                 address: "Große Eschenheimer Straße 43, 60313 Frankfurt am Main".to_string(),
                 latitude: 50.11611,
@@ -717,7 +717,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 13".to_string(),
+            name: "Team 13".to_string(),
             address: AddressData {
                 address: "Oeder Weg 15, 60318 Frankfurt am Main".to_string(),
                 latitude: 50.12028,
@@ -732,7 +732,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 14".to_string(),
+            name: "Team 14".to_string(),
             address: AddressData {
                 address: "Eschersheimer Landstraße 55, 60322 Frankfurt am Main".to_string(),
                 latitude: 50.11833,
@@ -747,7 +747,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 15".to_string(),
+            name: "Team 15".to_string(),
             address: AddressData {
                 address: "Fahrgasse 89, 60311 Frankfurt am Main".to_string(),
                 latitude: 50.11056,
@@ -762,7 +762,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 16".to_string(),
+            name: "Team 16".to_string(),
             address: AddressData {
                 address: "Hanauer Landstraße 126, 60314 Frankfurt am Main".to_string(),
                 latitude: 50.11083,
@@ -777,7 +777,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 17".to_string(),
+            name: "Team 17".to_string(),
             address: AddressData {
                 address: "Weserstraße 17, 60329 Frankfurt am Main".to_string(),
                 latitude: 50.10639,
@@ -792,7 +792,7 @@ pub fn get_team_list(number_of_teams: usize) -> Vec<TeamData> {
         },
         TeamData {
             id: Uuid::new_v4(),
-            team_name: "Team 18".to_string(),
+            name: "Team 18".to_string(),
             address: AddressData {
                 address: "Schäfergasse 20, 60313 Frankfurt am Main".to_string(),
                 latitude: 50.11583,

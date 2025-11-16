@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{NaiveDateTime, Utc};
 use diesel::result::DatabaseErrorKind;
 use tracing::{error, warn};
 use uuid::Uuid;
@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::{
     address::{self, Address},
     course::{self, Course},
-    db::{self, Database},
+    db::{self, models::CookAndRunUpdate, Database},
     error::{map_not_found_cook_and_run, RestError},
     plan::{self, Plan},
     sharing::{self, ShareTeamConfig},
@@ -33,6 +33,13 @@ impl CookAndRunMeta {
             created: cook_and_run.created,
             edited: cook_and_run.edited,
             occur: cook_and_run.occur,
+        }
+    }
+    fn to_db(&self) -> CookAndRunUpdate {
+        CookAndRunUpdate {
+            name: &self.name,
+            edited: &self.edited,
+            occur: &self.occur,
         }
     }
 }
@@ -247,13 +254,13 @@ pub fn delete_cook_and_run(
         })
 }
 
-pub fn update_cook_and_run_name(
+pub fn update_cook_and_run_meta(
     db: &mut Database,
     cook_and_run_id: &Uuid,
     user_id: &str,
-    new_name: &str,
+    meta: &CookAndRunMeta,
 ) -> Result<(), RestError> {
-    db.update_cook_and_run_name(cook_and_run_id, user_id, new_name)
+    db.update_cook_and_run_meta(cook_and_run_id, user_id, &meta.to_db())
         .map_err(|e| match e {
             diesel::result::Error::NotFound => {
                 map_not_found_cook_and_run(cook_and_run_id, "updating cook and run", e)

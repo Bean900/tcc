@@ -6,6 +6,7 @@ use axum::{
     routing::{delete, get, patch, post},
     Extension, Router,
 };
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -14,7 +15,7 @@ use crate::{
         create_cook_and_run, delete_cook_and_run, delete_cook_and_run_end_point,
         delete_cook_and_run_start_point, get_cook_and_run, get_cook_and_run_meta,
         get_list_of_cook_and_run_meta, set_cook_and_run_end_point, set_cook_and_run_start_point,
-        update_cook_and_run_name,
+        update_cook_and_run_meta,
     },
     error::RestError,
     rest::{
@@ -72,15 +73,22 @@ impl AuthenticatedUser for CookAndRunListResponse {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct UpdateNameRequest {
+pub struct UpdateMetaRequest {
     pub name: String,
+    pub occur: NaiveDateTime,
 }
 
-#[derive(Debug, Serialize)]
-pub struct UpdateNameResponse {
-    pub id: Uuid,
-    pub name: String,
-    pub edited: chrono::DateTime<chrono::Utc>,
+impl UpdateMetaRequest {
+    fn to(&self) -> crate::cook_and_run::CookAndRunMeta {
+        crate::cook_and_run::CookAndRunMeta {
+            id: Uuid::nil(),
+            user_id: "DUMMY".to_string(),
+            name: self.name.clone(),
+            created: chrono::Utc::now().naive_utc(),
+            edited: chrono::Utc::now().naive_utc(),
+            occur: self.occur,
+        }
+    }
 }
 
 pub fn routes(app_state: AppState) -> Router<AppState> {
@@ -121,8 +129,8 @@ pub fn routes(app_state: AppState) -> Router<AppState> {
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/name",
-            patch(patch_cook_and_run_name).layer(from_fn_with_state(
+            "/cook_and_run/:cook_and_run_id/metadata",
+            patch(patch_cook_and_run_meta).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
             )),
@@ -235,18 +243,13 @@ async fn delete_cook_and_run_project(
 }
 
 /// Update cook and run project name
-async fn patch_cook_and_run_name(
+async fn patch_cook_and_run_meta(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-    Json(payload): Json<UpdateNameRequest>,
+    Json(payload): Json<UpdateMetaRequest>,
 ) -> Result<(), RestError> {
-    update_cook_and_run_name(
-        &mut state.db,
-        &cook_and_run_id,
-        &claims.sub,
-        payload.name.as_str(),
-    )
+    update_cook_and_run_meta(&mut state.db, &cook_and_run_id, &claims.sub, &payload.to())
 }
 
 /// Update start point
