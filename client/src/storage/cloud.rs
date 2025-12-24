@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 use dioxus::{
     hooks::use_context,
-    signals::{Readable, Signal},
+    signals::{Readable, ReadableExt, Signal},
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -104,13 +104,15 @@ impl CloudStorage {
     }
 }
 
-fn get_access_token() -> Result<SessionData, ()> {
+fn get_access_token() -> Result<SessionData, String> {
     let auth_state = use_context::<Signal<AuthState>>();
-    let auth_state = auth_state.read();
+    let auth_state = auth_state
+        .try_read()
+        .map_err(|_| "Could not read auth state!".to_string())?;
 
     match auth_state.clone() {
         AuthState::LoggedIn(session_data) => Ok(session_data),
-        _ => Err(()),
+        _ => Err("Could not clone auth state!".to_string()),
     }
 }
 

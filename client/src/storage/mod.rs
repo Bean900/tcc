@@ -429,7 +429,7 @@ impl StorageManager {
         let cloud_data = match self.cloud.select_cook_and_run_meta_list().await {
             Ok(data) => data,
             Err(e) => {
-                console::error_1(
+                console::warn_1(
                     &format!(
                         "Error when loading all cook and run projects from cloud: {}",
                         e

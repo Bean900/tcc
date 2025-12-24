@@ -5,6 +5,7 @@ mod side;
 mod storage;
 
 use dioxus::prelude::*;
+use side::Callback;
 use side::Dashboard;
 use side::Overview;
 use side::Teams;
@@ -52,6 +53,8 @@ enum Route {
     #[layout(Wrapper)]
         #[route("/")]
         Home {},
+        #[route("/callback?:code&:state")]
+        Callback {code: String, state: String},
         #[nest("/cook-and-run")]
             #[route("/")]
             Dashboard {},
@@ -75,6 +78,50 @@ enum Route {
     NotFound {
         route: Vec<String>,
     },
+}
+
+impl Route {
+    fn to_string(&self) -> String {
+        match self {
+            Route::Dashboard {} => "cook-and-run".to_string(),
+            Route::Overview { cook_and_run_id } => format!("overview.{}", cook_and_run_id),
+            Route::Teams { cook_and_run_id } => format!("teams.{}", cook_and_run_id),
+            _ => "-".to_string(),
+        }
+    }
+    fn from_string(s: &str) -> Self {
+        let parts: Vec<&str> = s.split('.').collect();
+        match parts[0] {
+            "cook-and-run" => Route::Dashboard {},
+            "overview" => {
+                if parts.len() == 2 {
+                    if let Ok(uuid) = Uuid::parse_str(parts[1]) {
+                        return Route::Overview {
+                            cook_and_run_id: uuid,
+                        };
+                    }
+                }
+                Route::NotFound {
+                    route: vec![s.to_string()],
+                }
+            }
+            "teams" => {
+                if parts.len() == 2 {
+                    if let Ok(uuid) = Uuid::parse_str(parts[1]) {
+                        return Route::Teams {
+                            cook_and_run_id: uuid,
+                        };
+                    }
+                }
+                Route::NotFound {
+                    route: vec![s.to_string()],
+                }
+            }
+            _ => Route::NotFound {
+                route: vec![s.to_string()],
+            },
+        }
+    }
 }
 
 #[component]
@@ -109,28 +156,6 @@ fn NotFound(route: Vec<String>) -> Element {
 fn Wrapper() -> Element {
     let mut auth_signal = use_context_provider(|| Signal::new(AuthState::new()));
 
-    use_effect(move || {
-        let mut auth_signal = auth_signal.clone();
-        if matches!(*auth_signal.read(), AuthState::Loading(_)) {
-            let window = window().unwrap();
-            let location = window.location();
-            let search = location.search().unwrap();
-            let params = web_sys::UrlSearchParams::new_with_str(&search).unwrap();
-
-            let code = params.get("code");
-            let state = params.get("state");
-
-            spawn(async move {
-                if let (Some(code), Some(state)) = (code, state) {
-                    let auth = AuthState::new().callback(code, state).await;
-                    auth_signal.set(auth);
-                } else {
-                    auth_signal.set(AuthState::LoggedOut);
-                }
-            });
-        }
-    });
-
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: TAILWIND_CSS }
@@ -149,8 +174,15 @@ fn Wrapper() -> Element {
                         div { class: "relative",
                             match *auth_signal.read() {
                                 AuthState::Loading(_) => rsx! {
-                                    div { class: "relative flex items-center gap-2 bg-gray-200 px-3 py-2 rounded-full hover:bg-gray-300 focus:outline-none",
-                                        "Loading..."
+                                    button {
+                                        class: "relative flex items-center gap-2 bg-gray-200 px-3 py-2 rounded-full hover:bg-gray-300 focus:outline-none",
+                                        onclick: move |_| {
+                                            let path = use_route::<Route>();
+                                            let (auth_state, auth_url) = AuthState::login(path.to_string());
+                                            auth_signal.set(auth_state);
+                                            window().unwrap().location().set_href(&auth_url).unwrap();
+                                        },
+                                        "Login.."
                                     }
                                 },
                                 AuthState::LoggedOut => rsx! {
@@ -158,7 +190,7 @@ fn Wrapper() -> Element {
                                         class: "relative flex items-center gap-2 bg-gray-200 px-3 py-2 rounded-full hover:bg-gray-300 focus:outline-none",
                                         onclick: move |_| {
                                             let path = use_route::<Route>();
-                                            let (auth_state, auth_url) = AuthState::login(&path.to_string());
+                                            let (auth_state, auth_url) = AuthState::login(path.to_string());
                                             auth_signal.set(auth_state);
                                             window().unwrap().location().set_href(&auth_url).unwrap();
                                         },
@@ -183,7 +215,7 @@ fn Wrapper() -> Element {
                                         class: "relative flex items-center gap-2 bg-gray-200 px-3 py-2 rounded-full hover:bg-gray-300 focus:outline-none",
                                         onclick: move |_| {
                                             let path = use_route::<Route>();
-                                            let (auth_state, auth_url) = AuthState::login(&path.to_string());
+                                            let (auth_state, auth_url) = AuthState::login(path.to_string());
                                             auth_signal.set(auth_state);
                                             window().unwrap().location().set_href(&auth_url).unwrap();
                                         },
@@ -203,14 +235,17 @@ fn Wrapper() -> Element {
 
 #[component]
 fn App() -> Element {
-    let storage = StorageManager::new();
-    if let Err(s) = storage {
-        console::error_1(&format!("Error when loading storage: {}", s).into());
-        return error("Fatal error!", "Error when loading storage!");
-    }
-    let storage = storage.expect("Storage should be loaded correctly here");
+    use_context_provider(|| {
+        let storage = StorageManager::new();
 
-    let _ = use_context_provider(|| Signal::new(storage));
+        match storage {
+            Ok(s) => Signal::new(s),
+            Err(err) => {
+                console::error_1(&format!("Fatal: {}", err).into());
+                panic!("Storage failed: {}", err);
+            }
+        }
+    });
     rsx! {
         Router::<Route> {}
     }

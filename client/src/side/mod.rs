@@ -1,7 +1,13 @@
+mod callback;
 mod dashboard;
 mod details;
 //mod run_schedule;
 
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+
+pub use callback::Callback;
 pub use dashboard::Dashboard;
 pub use details::overview::Overview;
 pub use details::teams::Teams;
@@ -16,7 +22,7 @@ pub use details::ShareTeam;
 pub use run_schedule::RunSchedule;*/
 
 use dioxus::prelude::*;
-use dioxus::signals::{Readable, Signal};
+use dioxus::signals::Signal;
 use gloo_timers::future::TimeoutFuture;
 use web_sys::console;
 
@@ -30,6 +36,20 @@ const ENABLED_BUTTON_WARN: &str =
 const ENABLED_BUTTON_RED_HOLLOW: &str =
     "border border-red-500 text-red-500 px-4 py-2 rounded hover:bg-red-100 cursor-pointer";
 
+pub type AsyncAction = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = ()>>>>;
+
+#[macro_export]
+macro_rules! async_action {
+    ($logic:expr) => {
+        std::sync::Arc::new(move || {
+            let fut = async move { $logic };
+
+            let boxed = std::boxed::Box::pin(fut);
+            boxed as std::pin::Pin<Box<dyn std::future::Future<Output = ()>>>
+        }) as AsyncAction
+    };
+}
+
 #[derive(Clone, PartialEq)]
 enum ButtonColor {
     Secondary,
@@ -38,94 +58,114 @@ enum ButtonColor {
     RedHollow,
 }
 
-#[component]
-pub(crate) fn SecondaryButton(
+#[derive(Props, Clone)]
+pub struct ButtonProps {
     text: String,
+    #[props(default)]
+    action: Option<AsyncAction>,
+    #[props(default)]
     error_signal: Option<Signal<String>>,
-    onclick: Option<EventHandler<MouseEvent>>,
-) -> Element {
+}
+
+impl PartialEq for ButtonProps {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text
+    }
+}
+
+#[component]
+pub(crate) fn SecondaryButton(props: ButtonProps) -> Element {
     rsx! {
         CustomButton {
             color: ButtonColor::Secondary,
-            text: text.clone(),
-            error_signal: error_signal.clone(),
-            onclick: onclick.clone(),
+            text: props.text.clone(),
+            error_signal: props.error_signal.clone(),
+            action: props.action.clone(),
         }
     }
 }
 
 #[component]
-pub(crate) fn ConfirmButton(
-    text: String,
-    error_signal: Option<Signal<String>>,
-    onclick: Option<EventHandler<MouseEvent>>,
-) -> Element {
+pub(crate) fn ConfirmButton(props: ButtonProps) -> Element {
     rsx! {
         CustomButton {
             color: ButtonColor::Confirm,
-            text: text.clone(),
-            error_signal: error_signal.clone(),
-            onclick: onclick.clone(),
+            text: props.text.clone(),
+            error_signal: props.error_signal.clone(),
+            action: props.action.clone(),
         }
     }
 }
 
 #[component]
-pub(crate) fn WarnButton(
-    text: String,
-    error_signal: Option<Signal<String>>,
-    onclick: Option<EventHandler<MouseEvent>>,
-) -> Element {
+pub(crate) fn WarnButton(props: ButtonProps) -> Element {
     rsx! {
         CustomButton {
             color: ButtonColor::Warn,
-            text: text.clone(),
-            error_signal: error_signal.clone(),
-            onclick: onclick.clone(),
+            text: props.text.clone(),
+            error_signal: props.error_signal.clone(),
+            action: props.action.clone(),
         }
     }
 }
 
 #[component]
-pub(crate) fn RedHollowButton(
-    text: String,
-    error_signal: Option<Signal<String>>,
-    onclick: Option<EventHandler<MouseEvent>>,
-) -> Element {
+pub(crate) fn RedHollowButton(props: ButtonProps) -> Element {
     rsx! {
         CustomButton {
             color: ButtonColor::RedHollow,
-            text: text.clone(),
-            error_signal: error_signal.clone(),
-            onclick: onclick.clone(),
+            text: props.text.clone(),
+            error_signal: props.error_signal.clone(),
+            action: props.action.clone(),
         }
     }
 }
 
-#[component]
-fn CustomButton(
+#[derive(Props, Clone)]
+pub struct CustomButtonProps {
     color: ButtonColor,
     text: String,
+    #[props(default)]
+    action: Option<AsyncAction>,
+    #[props(default)]
     error_signal: Option<Signal<String>>,
-    onclick: Option<EventHandler<MouseEvent>>,
-) -> Element {
-    let mut loading_signal = use_signal(|| false);
-    let on_click_function = move |event: Event<MouseData>| {
-        if error_signal.map_or(true, |s| s.read().is_empty()) {
-            if let Some(onclick) = &onclick {
-                loading_signal.set(true);
+}
 
-                let onclick = onclick.clone();
-                let event = event.clone();
-                spawn(async move {
-                    onclick.call(event);
-                    loading_signal.set(false);
-                });
-            }
+impl PartialEq for CustomButtonProps {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text && self.color == other.color
+    }
+}
+
+#[component]
+fn CustomButton(props: CustomButtonProps) -> Element {
+    let mut is_loading = use_signal(|| false);
+    let on_click_function = move |_| {
+        if is_loading() || props.action.is_none() {
+            return;
+        }
+
+        if props.error_signal.map_or(false, |s| !s.read().is_empty()) {
+            return;
+        }
+
+        if let Some(action_fn) = &props.action {
+            console::log_1(&format!("Setting loading signal to TRUE!").into());
+            is_loading.set(true);
+
+            let action_fn = action_fn.clone();
+
+            console::log_1(&format!("Spawn on click thread!").into());
+            spawn(async move {
+                console::log_1(&format!("Starting thread!").into());
+                (action_fn)().await;
+                console::log_1(&format!("Setting loading signal to FALSE!").into());
+                is_loading.set(false);
+            });
         }
     };
 
-    let enable_button = match color {
+    let enable_button = match props.color {
         ButtonColor::Secondary => ENABLED_BUTTON_SECONDARY,
         ButtonColor::Confirm => ENABLED_BUTTON_CONFIRM,
         ButtonColor::Warn => ENABLED_BUTTON_WARN,
@@ -133,7 +173,7 @@ fn CustomButton(
     };
 
     rsx! {
-        if *loading_signal.read() {
+        if *is_loading.read() {
             div {
                 role: "status",
                 class: "flex justify-center items-center h-12",
@@ -154,10 +194,12 @@ fn CustomButton(
             }
         } else {
             button {
-                class: if error_signal.is_some() && !error_signal.expect("Expect signal").read().is_empty() { DISABLED_BUTTON } else { enable_button },
-                disabled: error_signal.is_some() && !error_signal.expect("Expect signal").read().is_empty(),
+                class: if props.error_signal.is_some()
+    && !props.error_signal.expect("Expect signal").read().is_empty() { DISABLED_BUTTON } else { enable_button },
+                disabled: props.error_signal.is_some()
+                    && !props.error_signal.expect("Expect signal").read().is_empty(),
                 onclick: on_click_function,
-                "{text}"
+                "{props.text}"
             }
         }
     }

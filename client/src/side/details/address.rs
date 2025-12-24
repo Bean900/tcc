@@ -1,12 +1,13 @@
 use crate::{
     address_connector::get_address,
-    side::{AddressSVG, Headline3, InfoSVG},
+    async_action,
+    side::{AddressSVG, AsyncAction, Headline3, InfoSVG, SecondaryButton},
 };
 use dioxus::prelude::*;
 use web_sys::console;
 
 use crate::{
-    side::{Input, InputError, SecondaryButton},
+    side::{Input, InputError},
     storage::AddressData,
 };
 
@@ -74,10 +75,6 @@ impl AddressParam {
             address_error: use_signal(|| "".to_string()),
             general_error: use_signal(|| "".to_string()),
         }
-    }
-
-    pub(crate) fn get_data_signals(&self) -> (Signal<String>, Signal<String>, Signal<String>) {
-        (self.latitude, self.longitude, self.address)
     }
 
     pub(crate) fn check_address_data(&self) -> Result<(), String> {
@@ -172,6 +169,44 @@ fn AutoAddress(mut param: AddressParam) -> Element {
     let mut address_search_signal = use_signal(|| "".to_string());
     let address_search_error_signal = use_signal(|| "".to_string());
     let mut address_search_response_error_signal = use_signal(|| "".to_string());
+
+    let search_action: AsyncAction = async_action!({
+        console::log_1(&format!("Start async searching for address!").into());
+        if !check_addr_input(address_search_signal, address_search_error_signal) {
+            is_searching_signal.set(false);
+            return;
+        }
+        let search_address = address_search_signal.read().to_string();
+        match get_address(&search_address).await {
+            Ok(address) => {
+                let addr_data = format!(
+                    "{} {}, {} {}",
+                    address.address.clone().road.unwrap_or("-".to_string()),
+                    address
+                        .address
+                        .clone()
+                        .house_number
+                        .unwrap_or("-".to_string()),
+                    address.address.clone().postcode.unwrap_or("-".to_string()),
+                    address.address.clone().get_city(),
+                );
+                param.address.set(addr_data);
+                param.address_error.set("".to_string());
+                param.latitude.set(address.lat.to_string());
+                param.latitude_error.set("".to_string());
+                param.longitude.set(address.lon.to_string());
+                param.longitude_error.set("".to_string());
+                address_search_response_error_signal.set("".to_string());
+            }
+            Err(e) => {
+                console::error_1(&format!("Error getting coordinates: {}", e).into());
+                address_search_response_error_signal.set("No address found!".to_string());
+            }
+        }
+        is_searching_signal.set(false);
+        console::log_1(&format!("Finished searching for address!").into());
+    });
+
     rsx!(
         // Search Address
         div { id: "address-search",
@@ -201,54 +236,7 @@ fn AutoAddress(mut param: AddressParam) -> Element {
 
             InputError { error: address_search_error_signal.read() }
 
-            SecondaryButton {
-                text: "Search".to_string(),
-                onclick: move |_| {
-                    async move {
-                        if !check_addr_input(address_search_signal, address_search_error_signal) {
-                            is_searching_signal.set(false);
-                            return;
-                        }
-                        let search_address = address_search_signal.read().to_string();
-                        let result = get_address(&search_address).await;
-                        if result.is_err() {
-                            console::error_1(
-                                &format!(
-                                    "Error getting coordinates: {}",
-                                    result.err().expect("Expected error"),
-                                )
-                                    .into(),
-                            );
-                            address_search_response_error_signal
-                                .set("No address found!".to_string());
-                        } else {
-                            let address = result.expect("Expected coordinates");
-                            param
-                                .address
-                                .set(
-                                    format!(
-                                        "{} {}, {} {}",
-                                        address.address.clone().road.unwrap_or("-".to_string()),
-                                        address
-                                            .address
-                                            .clone()
-                                            .house_number
-                                            .unwrap_or("-".to_string()),
-                                        address.address.clone().postcode.unwrap_or("-".to_string()),
-                                        address.address.clone().get_city(),
-                                    ),
-                                );
-                            param.address_error.set("".to_string());
-                            param.latitude.set(address.lat.to_string());
-                            param.latitude_error.set("".to_string());
-                            param.longitude.set(address.lon.to_string());
-                            param.longitude_error.set("".to_string());
-                            address_search_response_error_signal.set("".to_string());
-                        }
-                        is_searching_signal.set(false);
-                    }
-                },
-            }
+            SecondaryButton { text: "Search".to_string(), action: search_action }
 
             // Show Found Address
             p { class: "mt-2 text-sm text-gray-700",

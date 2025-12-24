@@ -3,20 +3,23 @@ use uuid::Uuid;
 use web_sys::{console, wasm_bindgen::JsCast, HtmlInputElement};
 
 use crate::{
-    side::{CloseButton, ConfirmButton, ErrorSVG, Input, InputError, SecondaryButton},
+    async_action,
+    side::{AsyncAction, CloseButton, ConfirmButton, ErrorSVG, Input, InputError, SecondaryButton},
     storage::{CookAndRunCreate, CookAndRunData, StorageManager},
 };
 
 #[component]
 pub fn Dashboard() -> Element {
+    console::debug_1(&"Rendering Dashboard...".into());
+    let storage = use_context::<Signal<StorageManager>>();
     let cook_and_run_list = use_resource(move || async move {
-        let storage = use_context::<Signal<StorageManager>>();
+        console::debug_1(&"Loading cook and run list...".into());
         let storage = storage.read();
         match storage.select_cook_and_run_meta_list().await {
             Ok(list) => return Ok(list),
             Err(err) => {
                 console::error_1(&format!("Failed to load cook and run list: {}", err).into());
-                return Err("Failed to load data!");
+                return Err("Failed to load data!".to_string());
             }
         };
     });
@@ -31,7 +34,7 @@ pub fn Dashboard() -> Element {
                 match &*cook_and_run_list.read_unchecked() {
                     Some(Err(err)) => rsx! {
                         ErrorSVG {}
-                        div { class: "col-span-full text-red-500", {err} }
+                        div { class: "col-span-full text-red-500", {err.clone()} }
                     },
                     Some(Ok(list)) => rsx! {
                         {
@@ -229,35 +232,38 @@ fn CreateProjectDialog(create_project_signal: Signal<bool>) -> Element {
                     multiple: false,
                     onchange: move |evt| {
                         async move {
-                            if let Some(file_engine) = evt.files() {
-                                let files = file_engine.files();
-                                for file_name in &files {
-                                    if let Some(file) = file_engine.read_file_to_string(file_name).await
-                                    {
-                                        let mut storage = use_context::<Signal<StorageManager>>();
-                                        let mut storage = storage.write();
-                                        let cook_and_run = match CookAndRunData::from_json(&file) {
-                                            Ok(c_a_r) => c_a_r,
-                                            Err(e) => {
-                                                console::error_1(
-                                                    &format!("Error parsing project file: {}", e).into(),
-                                                );
-                                                error_signal.set("Error parsing project file!".to_string());
-                                                continue;
-                                            }
-                                        };
-                                        let result = storage.create_from_file(cook_and_run).await;
-                                        if let Err(e) = result {
-                                            console::error_1(
-                                                &format!("Error creating project from file: {}", e).into(),
-                                            );
-                                            error_signal
-                                                .set("Error creating project from file!".to_string());
-                                        } else {
-                                            create_project_signal.set(false);
-                                            todo!();
-                                        }
+                            for file_name in &evt.files() {
+                                let file_content = match file_name.read_string().await {
+                                    Ok(c) => c,
+                                    Err(e) => {
+                                        console::error_1(
+                                            &format!("Error reading project file: {}", e).into(),
+                                        );
+                                        error_signal.set("Error reading project file!".to_string());
+                                        continue;
                                     }
+                                };
+                                let mut storage = use_context::<Signal<StorageManager>>();
+                                let mut storage = storage.write();
+                                let cook_and_run = match CookAndRunData::from_json(&file_content) {
+                                    Ok(c_a_r) => c_a_r,
+                                    Err(e) => {
+                                        console::error_1(
+                                            &format!("Error parsing project file: {}", e).into(),
+                                        );
+                                        error_signal.set("Error parsing project file!".to_string());
+                                        continue;
+                                    }
+                                };
+                                let result = storage.create_from_file(cook_and_run).await;
+                                if let Err(e) = result {
+                                    console::error_1(
+                                        &format!("Error creating project from file: {}", e).into(),
+                                    );
+                                    error_signal.set("Error creating project from file!".to_string());
+                                } else {
+                                    create_project_signal.set(false);
+                                    todo!();
                                 }
                             }
                         }
@@ -271,41 +277,28 @@ fn CreateProjectDialog(create_project_signal: Signal<bool>) -> Element {
 
                     SecondaryButton {
                         text: "Upload Project".to_string(),
-                        onclick: move |_| {
-                            if let Some(doc) = web_sys::window().and_then(|w| w.document()) {
-                                if let Some(el) = doc.get_element_by_id("project_upload") {
-                                    if let Ok(input) = el.dyn_into::<HtmlInputElement>() {
-                                        input.click();
-                                    }
-                                }
-                            }
-                        },
+                        action: async_action!(
+                            { if let Some(doc) = web_sys::window().and_then(| w | w.document()) { if let
+                            Some(el) = doc.get_element_by_id("project_upload") { if let Ok(input) = el
+                            .dyn_into::< HtmlInputElement > () { input.click(); } } } }
+                        ),
                     }
 
 
                     ConfirmButton {
                         text: "Create".to_string(),
                         error_signal: error_signal.clone(),
-                        onclick: move |_| async move {
-                            if project_name_signal.read().trim().is_empty() {
-                                error_name_signal.set("Project name cannot be empty!".to_string());
-                                return;
-                            }
-                            let project_id = Uuid::new_v4();
-                            let mut storage = use_context::<Signal<StorageManager>>();
-                            let mut storage = storage.write();
-                            let project_name = project_name_signal.read().to_string();
-                            let cook_and_run = CookAndRunCreate {
-                                name: project_name,
-                            };
-                            let result = storage.create_cook_and_run(project_id, &cook_and_run).await;
-                            if let Err(e) = result {
-                                console::error_1(&format!("Error creating project: {}", e).into());
-                                error_signal.set("Creating project failed!".to_string());
-                                return;
-                            }
-                            create_project_signal.set(false);
-                        },
+                        action: async_action!(
+                            { if project_name_signal.read().trim().is_empty() { error_name_signal
+                            .set("Project name cannot be empty!".to_string()); return; } let project_id =
+                            Uuid::new_v4(); let mut storage = use_context::< Signal < StorageManager >> ();
+                            let mut storage = storage.write(); let project_name = project_name_signal.read()
+                            .to_string(); let cook_and_run = CookAndRunCreate { name : project_name, }; let
+                            result = storage.create_cook_and_run(project_id, & cook_and_run). await; if let
+                            Err(e) = result { console::error_1(& format!("Error creating project: {}", e)
+                            .into()); error_signal.set("Creating project failed!".to_string()); return; }
+                            create_project_signal.set(false); }
+                        ),
                     }
                 }
             }

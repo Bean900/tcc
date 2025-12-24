@@ -136,10 +136,10 @@ impl AuthState {
         AuthState::LoggedOut
     }
 
-    pub fn login(redirect_uri: &str) -> (Self, String) {
+    pub fn login(state: String) -> (Self, String) {
+        console::debug_1(&"Starting login process...".into());
         let code_verifier = generate_random_string(128);
         let code_challenge = generate_code_challenge(&code_verifier);
-        let state = generate_random_string(32);
 
         let process_data = ProcessData {
             code_verifier: code_verifier.clone(),
@@ -158,16 +158,20 @@ impl AuthState {
             AUTH0_DOMAIN,
             CLIENT_ID,
             urlencoding::encode(REDIRECT_URI),
-            urlencoding::encode(redirect_uri),
+            urlencoding::encode("/callback"),
             urlencoding::encode(SCOPE),
             urlencoding::encode(AUDIENCE),
             state,
             code_challenge
         );
+        console::debug_1(&format!("Auth URL: {}", auth_url).into());
         (AuthState::Loading(process_data), auth_url)
     }
 
-    pub async fn callback(&self, code: String, state: String) -> Self {
+    pub async fn callback(&self, code: &str, state: &str) -> Self {
+        console::debug_1(
+            &format!("Handling callback with code: {} and state: {}", code, state).into(),
+        );
         let process_data = match self {
             AuthState::Loading(data) => data,
             _ => return AuthState::Error("Invalid auth state for callback".to_string()),
@@ -195,6 +199,7 @@ impl AuthState {
     }
 
     pub fn logout(&self, return_to_path: &str) -> (Self, String) {
+        console::debug_1(&"Starting logout process...".into());
         if !matches!(self, AuthState::LoggedIn(_)) {
             console::error_1(&"Cannot logout when not logged in".into());
             return (self.clone(), "".to_string());
@@ -208,6 +213,7 @@ impl AuthState {
             urlencoding::encode(return_to_path)
         );
         let _ = SessionData::clear();
+        console::debug_1(&format!("Logout URL: {}", logout_url).into());
         (AuthState::LoggedOut, logout_url)
     }
 }
