@@ -1,4 +1,4 @@
-use chrono::{NaiveDateTime, Utc};
+use chrono::NaiveDateTime;
 use diesel::result::DatabaseErrorKind;
 use tracing::{error, warn};
 use uuid::Uuid;
@@ -280,6 +280,33 @@ pub fn update_cook_and_run_meta(
         })
 }
 
+pub fn get_cook_and_run_start_point(
+    db: &mut Database,
+    cook_and_run_id: &Uuid,
+    user_id: &str,
+) -> Result<Option<Address>, RestError> {
+    db.select_cook_and_run_start_point_id(cook_and_run_id, user_id)
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => {
+                map_not_found_cook_and_run(cook_and_run_id, "loading cook and run", e)
+            }
+            _ => {
+                error!(
+                    "Could not get cook and run project with id {} from database: {}",
+                    cook_and_run_id, e
+                );
+                RestError::InternalServer {
+                    message: format!(
+                        "Could not get cook and run project with id {} from database",
+                        cook_and_run_id
+                    ),
+                }
+            }
+        })?
+        .map(|addr_id| address::get_by_id(db, &addr_id))
+        .transpose()
+}
+
 pub fn set_cook_and_run_start_point(
     db: &mut Database,
     cook_and_run_id: &Uuid,
@@ -304,6 +331,33 @@ pub fn set_cook_and_run_start_point(
                 }
             }
         })
+}
+
+pub fn get_cook_and_run_end_point(
+    db: &mut Database,
+    cook_and_run_id: &Uuid,
+    user_id: &str,
+) -> Result<Option<Address>, RestError> {
+    db.select_cook_and_run_end_point_id(cook_and_run_id, user_id)
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => {
+                map_not_found_cook_and_run(cook_and_run_id, "loading cook and run", e)
+            }
+            _ => {
+                error!(
+                    "Could not get cook and run project with id {} from database: {}",
+                    cook_and_run_id, e
+                );
+                RestError::InternalServer {
+                    message: format!(
+                        "Could not get cook and run project with id {} from database",
+                        cook_and_run_id
+                    ),
+                }
+            }
+        })?
+        .map(|addr_id| address::get_by_id(db, &addr_id))
+        .transpose()
 }
 
 pub fn set_cook_and_run_end_point(

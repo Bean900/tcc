@@ -94,6 +94,20 @@ impl Database {
         })
     }
 
+    pub fn select_cook_and_run_start_point_id(
+        &mut self,
+        id_filter: &Uuid,
+        user_id_filter: &str,
+    ) -> Result<Option<Uuid>, diesel::result::Error> {
+        let conn = &mut self.get_connection()?;
+        use crate::db::schema::cook_and_run::dsl::*;
+        cook_and_run
+            .find(id_filter)
+            .filter(user_id.eq(user_id_filter))
+            .select(start_point)
+            .first(conn)
+    }
+
     pub fn set_cook_and_run_start_point(
         &mut self,
         id_filter: &Uuid,
@@ -115,6 +129,20 @@ impl Database {
 
             Ok(())
         })
+    }
+
+    pub fn select_cook_and_run_end_point_id(
+        &mut self,
+        id_filter: &Uuid,
+        user_id_filter: &str,
+    ) -> Result<Option<Uuid>, diesel::result::Error> {
+        let conn = &mut self.get_connection()?;
+        use crate::db::schema::cook_and_run::dsl::*;
+        cook_and_run
+            .find(id_filter)
+            .filter(user_id.eq(user_id_filter))
+            .select(end_point)
+            .first(conn)
     }
 
     pub fn set_cook_and_run_end_point(

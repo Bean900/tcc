@@ -17,6 +17,7 @@ pub enum RestError {
     Conflict { message: String },
     Forbidden { message: String },
     Unprocessable { message: String },
+    NoContent,
 }
 
 impl RestError {
@@ -58,6 +59,7 @@ impl ErrorBody {
             RestError::NotFound { message } => (StatusCode::NOT_FOUND, message),
             RestError::Forbidden { message } => (StatusCode::FORBIDDEN, message),
             RestError::Unprocessable { message } => (StatusCode::UNPROCESSABLE_ENTITY, message),
+            RestError::NoContent => (StatusCode::NO_CONTENT, &"".to_string()),
         };
         ErrorBody {
             status: status,

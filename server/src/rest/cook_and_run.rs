@@ -13,9 +13,9 @@ use uuid::Uuid;
 use crate::{
     cook_and_run::{
         create_cook_and_run, delete_cook_and_run, delete_cook_and_run_end_point,
-        delete_cook_and_run_start_point, get_cook_and_run, get_cook_and_run_meta,
-        get_list_of_cook_and_run_meta, set_cook_and_run_end_point, set_cook_and_run_start_point,
-        update_cook_and_run_meta,
+        delete_cook_and_run_start_point, get_cook_and_run, get_cook_and_run_end_point,
+        get_cook_and_run_meta, get_cook_and_run_start_point, get_list_of_cook_and_run_meta,
+        set_cook_and_run_end_point, set_cook_and_run_start_point, update_cook_and_run_meta,
     },
     error::RestError,
     rest::{
@@ -137,6 +137,13 @@ pub fn routes(app_state: AppState) -> Router<AppState> {
         )
         .route(
             "/cook_and_run/:cook_and_run_id/start_point",
+            get(get_start_point).layer(from_fn_with_state(
+                app_state.clone(),
+                require_permission(READ_PERMISSION),
+            )),
+        )
+        .route(
+            "/cook_and_run/:cook_and_run_id/start_point",
             patch(patch_start_point).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
@@ -147,6 +154,13 @@ pub fn routes(app_state: AppState) -> Router<AppState> {
             delete(delete_start_point).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(DELETE_PERMISSION),
+            )),
+        )
+        .route(
+            "/cook_and_run/:cook_and_run_id/end_point",
+            get(get_end_point).layer(from_fn_with_state(
+                app_state.clone(),
+                require_permission(READ_PERMISSION),
             )),
         )
         .route(
@@ -252,6 +266,19 @@ async fn patch_cook_and_run_meta(
     update_cook_and_run_meta(&mut state.db, &cook_and_run_id, &claims.sub, &payload.to())
 }
 
+/// Get start point
+async fn get_start_point(
+    Extension(claims): Extension<Claims>,
+    State(mut state): State<AppState>,
+    Path(cook_and_run_id): Path<Uuid>,
+) -> Result<Address, RestError> {
+    let addr = get_cook_and_run_start_point(&mut state.db, &cook_and_run_id, &claims.sub)?;
+    match addr {
+        Some(addr) => Ok(Address::from(addr)),
+        None => Err(RestError::NoContent {}),
+    }
+}
+
 /// Update start point
 async fn patch_start_point(
     Extension(claims): Extension<Claims>,
@@ -261,6 +288,19 @@ async fn patch_start_point(
 ) -> Result<(), RestError> {
     let addr = payload.to();
     set_cook_and_run_start_point(&mut state.db, &cook_and_run_id, &claims.sub, &addr)
+}
+
+/// Get end point
+async fn get_end_point(
+    Extension(claims): Extension<Claims>,
+    State(mut state): State<AppState>,
+    Path(cook_and_run_id): Path<Uuid>,
+) -> Result<Address, RestError> {
+    let addr = get_cook_and_run_end_point(&mut state.db, &cook_and_run_id, &claims.sub)?;
+    match addr {
+        Some(addr) => Ok(Address::from(addr)),
+        None => Err(RestError::NoContent {}),
+    }
 }
 
 /// Update end point
