@@ -9,6 +9,16 @@ CREATE TABLE "address" (
 );
 
 -- ========================================
+-- Point
+-- ========================================
+CREATE TABLE "point" (
+    "id" UUID PRIMARY KEY,
+    "address" UUID NOT NULL REFERENCES "address" ("id"),
+    "name" TEXT NOT NULL,
+    "time" TEXT NOT NULL
+);
+
+-- ========================================
 -- Plan
 -- ========================================
 CREATE TYPE access as enum(
@@ -50,8 +60,8 @@ CREATE TABLE "cook_and_run" (
     "created" TIMESTAMPTZ NOT NULL,
     "edited" TIMESTAMPTZ NOT NULL,
     "occur" TIMESTAMPTZ NOT NULL,
-    "start_point" UUID NULL REFERENCES "address" ("id") ON DELETE SET NULL,
-    "end_point" UUID NULL REFERENCES "address" ("id") ON DELETE SET NULL,
+    "start_point" UUID NULL REFERENCES "point" ("id") ON DELETE SET NULL,
+    "end_point" UUID NULL REFERENCES "point" ("id") ON DELETE SET NULL,
     "share_team_config" UUID NULL REFERENCES "share" ("id") ON DELETE SET NULL,
     "plan" UUID NULL REFERENCES "plan" ("id") ON DELETE SET NULL        
 );

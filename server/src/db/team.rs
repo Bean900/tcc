@@ -19,8 +19,7 @@ impl Database {
         address_data: &Address,
     ) -> Result<(), diesel::result::Error> {
         self.get_connection()?.transaction(|t| {
-            create_address(t, address_data)
-                .map_err(|_| diesel::result::Error::RollbackTransaction)?;
+            create_address(t, address_data)?;
             insert_into(team::dsl::team).values(data).execute(t)?;
 
             Ok(())

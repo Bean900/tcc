@@ -1,3 +1,4 @@
+use chrono::NaiveTime;
 use reqwest::StatusCode;
 use serde_json::json;
 use uuid::Uuid;
@@ -33,8 +34,8 @@ fn test_patch_combinded_point() {
     let (cook_and_run_id, payload) = get_cook_and_run_create_json(&user_id);
     create_cook_and_run(&cook_and_run_id, payload, &token);
 
-    let (addr_start, payload_start) = get_address_create_json();
-    let (addr_end, payload_end) = get_address_create_json();
+    let (addr_start, payload_start) = get_point_create_json();
+    let (addr_end, payload_end) = get_point_create_json();
 
     let res = execute_patch_start_point(&cook_and_run_id, &token, &payload_start);
     assert!(res.status().is_success(), "Response: {:#?}", res);
@@ -67,7 +68,7 @@ fn test_patch_start_point_wrong_user() {
     let (cook_and_run_id, payload) = get_cook_and_run_create_json(&user_id_1);
     create_cook_and_run(&cook_and_run_id, payload, &token_1);
 
-    let (_, payload) = get_address_create_json();
+    let (_, payload) = get_point_create_json();
     let res = execute_patch_start_point(&cook_and_run_id, &token_2, &payload);
     assert_eq!(res.status(), StatusCode::NOT_FOUND, "Response: {:#?}", res);
 
@@ -82,7 +83,7 @@ fn test_patch_end_point_wrong_user() {
     let (cook_and_run_id, payload) = get_cook_and_run_create_json(&user_id_1);
     create_cook_and_run(&cook_and_run_id, payload, &token_1);
 
-    let (_, payload) = get_address_create_json();
+    let (_, payload) = get_point_create_json();
     let res = execute_patch_end_point(&cook_and_run_id, &token_2, &payload);
     assert_eq!(res.status(), StatusCode::NOT_FOUND, "Response: {:#?}", res);
 
@@ -124,7 +125,7 @@ fn execute_patch_end_point(
 }
 
 pub fn patch_start_point_cook_and_run(cook_and_run_id: &Uuid, token: &str) -> String {
-    let (addr, payload) = get_address_create_json();
+    let (addr, payload) = get_point_create_json();
     let res = execute_patch_start_point(cook_and_run_id, token, &payload);
     assert!(res.status().is_success(), "Response: {:#?}", res);
 
@@ -139,7 +140,7 @@ pub fn patch_start_point_cook_and_run(cook_and_run_id: &Uuid, token: &str) -> St
 }
 
 pub fn patch_end_point_cook_and_run(cook_and_run_id: &Uuid, token: &str) -> String {
-    let (addr, payload) = get_address_create_json();
+    let (addr, payload) = get_point_create_json();
     let res = execute_patch_end_point(cook_and_run_id, token, &payload);
     assert!(res.status().is_success(), "Response: {:#?}", res);
 
@@ -186,25 +187,81 @@ pub fn assert_cook_and_run_json(
 
     if let Some(expected_start_point) = expected_start_point {
         let start_point = start_point.expect("Expect start point");
-        assert_eq!(
-            start_point
-                .get("address")
-                .expect("Except address to be set"),
-            expected_start_point,
-            "Start point does not match. Response: {}",
-            json
-        );
+        assert_point_json(start_point, expected_start_point);
     }
 
     if let Some(expected_end_point) = expected_end_point {
         let end_point = end_point.expect("Expect start point");
-        assert_eq!(
-            end_point.get("address").expect("Except address to be set"),
-            expected_end_point,
-            "End point does not match. Response: {}",
-            json
-        );
+        assert_point_json(end_point, expected_end_point);
     }
+}
+
+pub fn assert_point_json(json: &serde_json::Value, expected_address: &str) {
+    let name = json
+        .get("name")
+        .and_then(|v| v.as_str())
+        .expect("Missing name");
+    let time = json
+        .get("time")
+        .and_then(|v| v.as_str())
+        .expect("Missing time");
+    let addr = json
+        .get("address")
+        .and_then(|v| v.as_object())
+        .expect("Missing address");
+    let address = addr
+        .get("address")
+        .and_then(|v| v.as_str())
+        .expect("Missing address field in address");
+    let latitude = addr
+        .get("latitude")
+        .and_then(|v| v.as_f64())
+        .expect("Missing latitude");
+    let longitude = addr
+        .get("longitude")
+        .and_then(|v| v.as_f64())
+        .expect("Missing longitude");
+
+    assert_eq!(
+        name, "Test Point",
+        "Point name does not match. Response: {}",
+        json
+    );
+
+    assert!(
+        NaiveTime::parse_from_str(time, "%H:%M:%S").is_ok()
+            || NaiveTime::parse_from_str(time, "%H:%M:%S%.f").is_ok(),
+        "Time is not a valid NaiveTime: {}",
+        time
+    );
+
+    assert_eq!(
+        address, expected_address,
+        "Address does not match. Response: {}",
+        json
+    );
+
+    assert_eq!(
+        latitude, 48.137154,
+        "Latitude does not match. Response: {}",
+        json
+    );
+
+    assert_eq!(
+        longitude, 11.57549,
+        "Longitude does not match. Response: {}",
+        json
+    );
+}
+
+pub fn get_point_create_json() -> (String, serde_json::Value) {
+    let (address, addr_obj) = get_address_create_json();
+    let point_obj = json!({
+      "name": "Test Point",
+      "time": "12:00:00",
+      "address": addr_obj
+    });
+    (address, point_obj)
 }
 
 pub fn get_address_create_json() -> (String, serde_json::Value) {

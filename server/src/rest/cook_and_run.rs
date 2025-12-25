@@ -23,7 +23,7 @@ use crate::{
             is_user_authenticated, require_permission, AuthUser, AuthenticatedUser, Claims,
             CREATE_PERMISSION, DELETE_PERMISSION, READ_PERMISSION, UPDATE_PERMISSION,
         },
-        models::{Address, CookAndRun, CookAndRunCreateData, CookAndRunMeta, PaginationInfo},
+        models::{CookAndRun, CookAndRunCreateData, CookAndRunMeta, PaginationInfo, Point},
     },
     AppState,
 };
@@ -271,10 +271,10 @@ async fn get_start_point(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-) -> Result<Address, RestError> {
-    let addr = get_cook_and_run_start_point(&mut state.db, &cook_and_run_id, &claims.sub)?;
-    match addr {
-        Some(addr) => Ok(Address::from(addr)),
+) -> Result<Point, RestError> {
+    let point = get_cook_and_run_start_point(&mut state.db, &cook_and_run_id, &claims.sub)?;
+    match point {
+        Some(point) => Ok(Point::from(point)),
         None => Err(RestError::NoContent {}),
     }
 }
@@ -284,10 +284,10 @@ async fn patch_start_point(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-    Json(payload): Json<Address>,
+    Json(payload): Json<Point>,
 ) -> Result<(), RestError> {
-    let addr = payload.to();
-    set_cook_and_run_start_point(&mut state.db, &cook_and_run_id, &claims.sub, &addr)
+    let point = payload.to();
+    set_cook_and_run_start_point(&mut state.db, &cook_and_run_id, &claims.sub, &point)
 }
 
 /// Get end point
@@ -295,10 +295,10 @@ async fn get_end_point(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-) -> Result<Address, RestError> {
-    let addr = get_cook_and_run_end_point(&mut state.db, &cook_and_run_id, &claims.sub)?;
-    match addr {
-        Some(addr) => Ok(Address::from(addr)),
+) -> Result<Point, RestError> {
+    let point = get_cook_and_run_end_point(&mut state.db, &cook_and_run_id, &claims.sub)?;
+    match point {
+        Some(point) => Ok(Point::from(point)),
         None => Err(RestError::NoContent {}),
     }
 }
@@ -308,10 +308,10 @@ async fn patch_end_point(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-    Json(payload): Json<Address>,
+    Json(payload): Json<Point>,
 ) -> Result<(), RestError> {
-    let addr = payload.to();
-    set_cook_and_run_end_point(&mut state.db, &cook_and_run_id, &claims.sub, &addr)
+    let point = payload.to();
+    set_cook_and_run_end_point(&mut state.db, &cook_and_run_id, &claims.sub, &point)
 }
 
 // Delete start point

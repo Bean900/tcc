@@ -1,9 +1,9 @@
 use diesel::dsl::insert_into;
 use diesel::{
-    update, Connection, ExpressionMethods, JoinOnDsl, NullableExpressionMethods,
-    PgExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper,
+    update, Connection, ExpressionMethods, NullableExpressionMethods, QueryDsl, RunQueryDsl,
+    SelectableHelper,
 };
-use tracing::{debug, info};
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::db::models::Share;

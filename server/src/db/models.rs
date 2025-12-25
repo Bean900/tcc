@@ -15,6 +15,19 @@ pub struct Address {
 }
 
 // ========================================
+// Point
+// ========================================
+#[derive(Queryable, Selectable, Insertable)]
+#[diesel(belongs_to(CookAndRun))]
+#[diesel(table_name = crate::db::schema::point)]
+pub struct Point {
+    pub id: Uuid,
+    pub address: Uuid,
+    pub name: String,
+    pub time: String,
+}
+
+// ========================================
 // Team
 // ========================================
 #[derive(Queryable, Selectable, Insertable, Associations, Identifiable)]

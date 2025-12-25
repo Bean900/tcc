@@ -1,6 +1,5 @@
 use axum::{
     extract::{Path, Query, State},
-    http::HeaderMap,
     middleware::from_fn_with_state,
     response::{IntoResponse, Json, Response},
     routing::{delete, get, patch, post},
@@ -9,8 +8,8 @@ use axum::{
 use axum_extra::TypedHeader;
 use headers::{authorization::Bearer, Authorization};
 use reqwest::StatusCode;
-use serde::{de, Deserialize, Serialize};
-use tracing::{debug, warn};
+use serde::{Deserialize, Serialize};
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::{

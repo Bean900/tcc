@@ -1,10 +1,11 @@
+use chrono::NaiveTime;
 use reqwest::StatusCode;
 use uuid::Uuid;
 
 use crate::{
     auth::{get_auth0_1, get_auth0_2},
     cook_and_run::patch_location_test::{
-        patch_end_point_cook_and_run, patch_start_point_cook_and_run,
+        assert_point_json, patch_end_point_cook_and_run, patch_start_point_cook_and_run,
     },
     create_cook_and_run, get_client,
 };
@@ -16,7 +17,7 @@ fn test_get_start_point_cook_and_run() {
     let start_addr = patch_start_point_cook_and_run(&cook_and_run_id, &token);
     let res = execute_get_start_point(&cook_and_run_id, &token);
     assert!(res.status().is_success(), "Response: {:#?}", res);
-    assert_address_json(res.json().expect("Failed to parse JSON"), &start_addr);
+    assert_point_json(&res.json().expect("Failed to parse JSON"), &start_addr);
 }
 
 #[test]
@@ -55,7 +56,7 @@ fn test_get_end_point_cook_and_run() {
     let end_addr = patch_end_point_cook_and_run(&cook_and_run_id, &token);
     let res = execute_get_end_point(&cook_and_run_id, &token);
     assert!(res.status().is_success(), "Response: {:#?}", res);
-    assert_address_json(res.json().expect("Failed to parse JSON"), &end_addr);
+    assert_point_json(&res.json().expect("Failed to parse JSON"), &end_addr);
 }
 
 #[test]
@@ -109,33 +110,4 @@ pub fn execute_get_end_point(cook_and_run_id: &Uuid, token: &str) -> reqwest::bl
         .header("authorization", format!("Bearer {}", token))
         .send()
         .expect("Failed to send request")
-}
-
-pub fn assert_address_json(json: serde_json::Value, addr: &str) {
-    let address = json
-        .get("address")
-        .and_then(|v| v.as_str())
-        .expect("Missing id");
-    let latitude = json
-        .get("latitude")
-        .and_then(|v| v.as_f64())
-        .expect("Missing latitude");
-    let longitude = json
-        .get("longitude")
-        .and_then(|v| v.as_f64())
-        .expect("Missing longitude");
-
-    assert_eq!(address, addr, "Address does not match. Response: {}", json);
-
-    assert_eq!(
-        latitude, 48.137154,
-        "Latitude does not match. Response: {}",
-        json
-    );
-
-    assert_eq!(
-        longitude, 11.57549,
-        "Longitude does not match. Response: {}",
-        json
-    );
 }

@@ -1,5 +1,5 @@
 use diesel::result::DatabaseErrorKind;
-use tracing::{error, event, warn};
+use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{

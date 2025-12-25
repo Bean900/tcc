@@ -4,6 +4,7 @@ mod course;
 pub mod models;
 mod note;
 mod plan;
+mod point;
 mod schema;
 mod sharing;
 mod team;

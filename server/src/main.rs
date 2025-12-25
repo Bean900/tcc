@@ -5,6 +5,7 @@ mod db;
 pub mod error;
 mod note;
 mod plan;
+mod point;
 mod rest;
 mod sharing;
 mod team;

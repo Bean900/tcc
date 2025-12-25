@@ -67,6 +67,39 @@ impl IntoResponse for Address {
     }
 }
 
+// Point model
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Point {
+    pub address: Address,
+    pub name: String,
+    pub time: String,
+}
+
+impl Point {
+    pub fn from(point: crate::point::Point) -> Self {
+        Point {
+            address: Address::from(point.address),
+            name: point.name,
+            time: point.time,
+        }
+    }
+
+    pub fn to(&self) -> crate::point::Point {
+        crate::point::Point {
+            id: Uuid::new_v4(),
+            address: self.address.to(),
+            name: self.name.clone(),
+            time: self.time.clone(),
+        }
+    }
+}
+
+impl IntoResponse for Point {
+    fn into_response(self) -> Response {
+        (StatusCode::OK, Json(self)).into_response()
+    }
+}
+
 // Cook and Run models
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CookAndRunMeta {
@@ -138,8 +171,8 @@ pub struct CookAndRun {
     pub team_list: Vec<Team>,
     pub course_list: Vec<Course>,
 
-    pub start_point: Option<Address>,
-    pub end_point: Option<Address>,
+    pub start_point: Option<Point>,
+    pub end_point: Option<Point>,
     pub share_team_config: Option<ShareTeamConfig>,
     pub plan: Option<Plan>,
 }
@@ -159,8 +192,8 @@ impl CookAndRun {
                 .into_iter()
                 .map(Course::from)
                 .collect(),
-            start_point: cook_and_run.start_point.map(Address::from),
-            end_point: cook_and_run.end_point.map(Address::from),
+            start_point: cook_and_run.start_point.map(Point::from),
+            end_point: cook_and_run.end_point.map(Point::from),
             share_team_config: cook_and_run.share_team_config.map(ShareTeamConfig::from),
             plan: cook_and_run.plan.map(Plan::from),
         }
