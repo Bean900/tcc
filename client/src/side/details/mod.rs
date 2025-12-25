@@ -3,79 +3,13 @@ mod address;
 //mod courses;
 pub mod overview;
 //mod share_team;
-//mod startend;
+pub mod startend;
 pub mod teams;
 
 use dioxus::prelude::*;
 use uuid::Uuid;
-use web_sys::console;
 
 use crate::Route;
-
-/*
-#[component]
-fn ProjectDetailPage(cook_and_run_id: Uuid, menu: MenuPage) -> Element {
-    let cook_and_run = get_cook_and_run_data(cook_and_run_id);
-    if cook_and_run.is_err() {
-        console::error_1(
-            &format!(
-                "Error loading cook and run data: {}",
-                cook_and_run.err().expect("Expected error")
-            )
-            .into(),
-        );
-        return rsx! {
-            div { "Error loading data" }
-        };
-    }
-
-    let cook_and_run = cook_and_run.expect("Expected cook and run data");
-    let cook_and_run_overview = cook_and_run.clone();
-
-    let team_props = TeamsProps {
-        project_id: cook_and_run_id,
-        team_list: cook_and_run.team_list,
-    };
-
-    let start_end_param = StartEndParam::new(
-        cook_and_run_id,
-        &cook_and_run.start_point,
-        &cook_and_run.end_point,
-    );
-
-    let courses_param = CoursesParam::new(
-        cook_and_run_id,
-        cook_and_run.course_list,
-        cook_and_run.course_with_more_hosts,
-    );
-
-    let current_page = use_signal(|| menu.clone());
-
-    rsx! {
-        div { class: "flex h-screen w-full",
-            // Sidebar
-            {get_side_bar(current_page)}
-            // Main Content
-            div { class: "flex justify-center w-full",
-                div { class: "py-4",
-                    match current_page() {
-                        MenuPage::Overview => Overview(cook_and_run_overview),
-                        MenuPage::Teams => Teams(&team_props),
-                        MenuPage::StartEnd => rsx! {
-                            StartEnd { param: start_end_param }
-                        },
-                        MenuPage::Courses => rsx! {
-                            courses::Courses { param: courses_param }
-                        },
-                        MenuPage::Calculation => rsx! {
-                            calculate::Calculate { id: cook_and_run.id }
-                        },
-                    }
-                }
-            }
-        }
-    }
-}*/
 
 #[component]
 pub fn Menu(cook_and_run_id: Uuid) -> Element {
@@ -102,7 +36,7 @@ pub fn Menu(cook_and_run_id: Uuid) -> Element {
                 }
                 SidebarButton {
                     label: "Start & End",
-                    target_route: Route::Overview { cook_and_run_id },
+                    target_route: Route::StartEnd { cook_and_run_id },
                     current_route: current_route.clone(),
                 }
                 SidebarButton {
@@ -143,10 +77,26 @@ fn SidebarButton(label: String, target_route: Route, current_route: Route) -> El
 
 #[component]
 fn LoadingPage() -> Element {
-    rsx! { "Loading..." }
+    rsx! {
+        div { class: "flex items-center justify-center h-screen w-full",
+            div { class: "text-center",
+                div { class: "inline-block",
+                    div { class: "animate-spin rounded-full h-12 w-12 border-4 border-[#F1E7D7] border-t-[#D67229]" }
+                }
+                p { class: "mt-4 text-[#70513E] text-lg font-semibold", "Loading..." }
+            }
+        }
+    }
 }
 
 #[component]
 fn ErrorPage(error_text: String) -> Element {
-    rsx! { "Error: {error_text}" }
+    rsx! {
+        div { class: "flex items-center justify-center h-screen w-full",
+            div { class: "text-center",
+                h2 { class: "text-2xl font-semibold text-red-600", "Oops!" }
+                p { class: "mt-4 text-lg text-[#70513E]", "Error: {error_text}" }
+            }
+        }
+    }
 }

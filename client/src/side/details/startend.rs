@@ -1,5 +1,3 @@
-use std::sync::{Arc, Mutex};
-
 use chrono::NaiveTime;
 use dioxus::prelude::*;
 use uuid::Uuid;
@@ -7,268 +5,95 @@ use web_sys::console;
 
 use crate::{
     side::{
-        debounce, details::address::Address, EndSVG, Headline1, Headline2, Input, InputError,
-        InputTime, SavingIcon, StartSVG,
+        debounce,
+        details::{address::Address, ErrorPage, LoadingPage},
+        EndSVG, Headline1, Headline2, Input, InputError, InputTime, StartSVG,
     },
     storage::{MeetingPointData, StorageManager},
 };
 
 use super::address::AddressParam;
 
-fn update_start_point_in_cook_and_run(
-    id: Uuid,
-    start_signal: Signal<Option<MeetingPointData>>,
-    start_saving_signal: Signal<bool>,
-    start_saving_error_signal: Signal<String>,
-    start_data: Result<Option<MeetingPointData>, String>,
-) {
-    start_saving_error_signal.clone().set("".to_string());
-    if start_data.is_err() {
-        start_saving_error_signal
-            .clone()
-            .set(start_data.expect_err("Expect error"));
-        return;
-    }
-    let start_data = start_data.expect("Expact data");
-    start_signal.clone().set(start_data.clone());
-    debounce(start_signal, start_saving_signal, move |data| {
-        let storage = StorageManager::get_lock();
-        if let Err(e) = storage {
-            console::error_1(&format!("Error while getting storage lock: {}", e).into());
-            start_saving_error_signal
-                .clone()
-                .set("Error while saving data!".to_string());
-            return;
-        }
-        let mut storage = storage.expect("Expected storage lock");
-        let result = storage.update_start_point_in_cook_and_run(id, &data);
-        if let Err(e) = result {
-            console::error_1(&format!("Error while saving data: {}", e,).into());
-            start_saving_error_signal
-                .clone()
-                .set("Error while saving data!".to_string());
-        } else {
-            start_saving_error_signal.clone().set("".to_string());
-        }
-    });
-}
+#[component]
+pub fn StartEnd(cook_and_run_id: Uuid) -> Element {
+    let storage = use_context::<Signal<StorageManager>>();
+    let team_list: Resource<Result<(Option<MeetingPointData>, Option<MeetingPointData>), String>> =
+        use_resource(move || {
+            let storage = storage.clone();
+            async move {
+                let storage = storage.read().clone();
+                let start_point = storage.select_cook_and_run_start_point(cook_and_run_id);
+                let end_point = storage.select_cook_and_run_end_point(cook_and_run_id);
+                let start_point = start_point.await?;
+                let end_point = end_point.await?;
+                Ok((start_point, end_point))
+            }
+        });
 
-fn update_end_point_in_cook_and_run(
-    id: Uuid,
-    end_signal: Signal<Option<MeetingPointData>>,
-    end_saving_signal: Signal<bool>,
-    end_saving_error_signal: Signal<String>,
-    end_data: Result<Option<MeetingPointData>, String>,
-) {
-    end_saving_error_signal.clone().set("".to_string());
-    if end_data.is_err() {
-        end_saving_error_signal
-            .clone()
-            .set(end_data.expect_err("Expect error"));
-        return;
-    }
-    let end_data = end_data.expect("Expact data");
-    end_signal.clone().set(end_data.clone());
-    debounce(end_signal, end_saving_signal, move |data| {
-        let storage = StorageManager::get_lock();
-        if let Err(e) = storage {
-            console::error_1(&format!("Error while getting storage lock: {}", e).into());
-            end_saving_error_signal
-                .clone()
-                .set("Error while saving data!".to_string());
-            return;
-        }
-        let mut storage = storage.expect("Expected storage lock");
-        let result = storage.update_end_point_in_cook_and_run(id, &data);
-        if let Err(e) = result {
-            console::error_1(&format!("Error while saving data: {}", e,).into());
-            end_saving_error_signal
-                .clone()
-                .set("Error while saving data!".to_string());
-        } else {
-            end_saving_error_signal.clone().set("".to_string());
-        }
-    });
-}
-
-#[derive(PartialEq, Clone, Copy)]
-pub struct StartEndParam {
-    project_id: Uuid,
-    start_signal: Signal<NaiveTime>,
-    start_error_signal: Signal<String>,
-    start_name_signal: Signal<String>,
-    start_name_error_signal: Signal<String>,
-    end_signal: Signal<NaiveTime>,
-    end_error_signal: Signal<String>,
-    end_name_signal: Signal<String>,
-    end_name_error_signal: Signal<String>,
-    start_address: AddressParam,
-    end_address: AddressParam,
-    is_start: Signal<bool>,
-    is_end: Signal<bool>,
-    start_data_signal: Signal<Option<MeetingPointData>>,
-    end_data_signal: Signal<Option<MeetingPointData>>,
-
-    start_saving_signal: Signal<bool>,
-    start_saving_error_signal: Signal<String>,
-    end_saving_signal: Signal<bool>,
-    end_saving_error_signal: Signal<String>,
-}
-
-impl StartEndParam {
-    pub fn new(
-        project_id: Uuid,
-        start_point: &Option<MeetingPointData>,
-        end_point: &Option<MeetingPointData>,
-    ) -> Self {
-        let (start_signal, start_name_signal, start_address, is_start) =
-            if let Some(start_point) = start_point {
-                (
-                    use_signal(|| start_point.time),
-                    use_signal(|| start_point.name.to_string()),
-                    AddressParam::new(&start_point.address),
-                    use_signal(|| true),
-                )
-            } else {
-                (
-                    use_signal(|| NaiveTime::from_hms_opt(00, 00, 00).expect("Expect time!")),
-                    use_signal(|| "".to_string()),
-                    AddressParam::default(),
-                    use_signal(|| false),
-                )
-            };
-        let (end_signal, end_name_signal, end_address, is_end) = if let Some(end_point) = end_point
-        {
-            (
-                use_signal(|| end_point.time),
-                use_signal(|| end_point.name.to_string()),
-                AddressParam::new(&end_point.address),
-                use_signal(|| true),
-            )
-        } else {
-            (
-                use_signal(|| NaiveTime::from_hms_opt(00, 00, 00).expect("Expect time!")),
-                use_signal(|| "".to_string()),
-                AddressParam::default(),
-                use_signal(|| false),
-            )
-        };
-
-        let start_error_signal = use_signal(|| "".to_string());
-        let end_error_signal = use_signal(|| "".to_string());
-
-        let start_name_error_signal = use_signal(|| "".to_string());
-        let end_name_error_signal = use_signal(|| "".to_string());
-
-        let start_data_signal = use_signal(|| start_point.clone());
-        let end_data_signal = use_signal(|| end_point.clone());
-
-        let start_saving_signal = use_signal(|| false);
-        let start_saving_error_signal = use_signal(|| "".to_string());
-        let end_saving_signal = use_signal(|| false);
-        let end_saving_error_signal = use_signal(|| "".to_string());
-
-        Self {
-            project_id,
-            start_signal,
-            start_error_signal,
-            start_name_signal,
-            start_name_error_signal,
-            end_signal,
-            end_error_signal,
-            end_name_signal,
-            end_name_error_signal,
-            start_address,
-            end_address,
-            is_start,
-            is_end,
-            start_data_signal,
-            end_data_signal,
-
-            start_saving_signal,
-            start_saving_error_signal,
-            end_saving_signal,
-            end_saving_error_signal,
-        }
-    }
-    fn to_start_data(&self) -> Result<Option<MeetingPointData>, String> {
-        if !*self.is_start.read() {
-            return Ok(None);
-        }
-        let address = self.start_address.get_address_data();
-        if address.is_err() {
-            return Err("Data is incomplete".to_string());
-        }
-
-        return Ok(Some(MeetingPointData {
-            name: self.start_name_signal.read().clone(),
-            time: self.start_signal.read().clone(),
-            address: address.expect("Expect address to be set!"),
-        }));
-    }
-
-    fn to_end_data(&self) -> Result<Option<MeetingPointData>, String> {
-        if !*self.is_end.read() {
-            return Ok(None);
-        }
-        let address = self.end_address.get_address_data();
-        if address.is_err() {
-            return Err("Data is incomplete".to_string());
-        }
-
-        return Ok(Some(MeetingPointData {
-            name: self.end_name_signal.read().clone(),
-            time: self.end_signal.read().clone(),
-            address: address.expect("Expect address to be set!"),
-        }));
+    match &*team_list.read_unchecked() {
+        None => rsx!(
+            LoadingPage {}
+        ),
+        Some(Err(e)) => rsx!(
+            ErrorPage { error_text: e }
+        ),
+        Some(Ok(point_data)) => rsx!(
+            StartEndContent {
+                cook_and_run_id,
+                start_point: point_data.0.clone(),
+                end_point: point_data.1.clone(),
+            }
+        ),
     }
 }
 
 #[component]
-pub fn StartEnd(param: StartEndParam) -> Element {
-    {
-        let (latitude_start_addr_signal, longitude_start_addr_signal, address_start_addr_signal) =
-            param.start_address.get_data_signals();
+pub fn StartEndContent(
+    cook_and_run_id: Uuid,
+    start_point: Option<MeetingPointData>,
+    end_point: Option<MeetingPointData>,
+) -> Element {
+    let mut start_has_point_signal = use_signal(|| start_point.is_some());
+    let mut end_has_point_signal = use_signal(|| end_point.is_some());
 
-        use_effect(move || {
-            to_owned![
-                latitude_start_addr_signal,
-                longitude_start_addr_signal,
-                address_start_addr_signal
-            ];
+    let mut start_name_signal = use_signal(|| {
+        start_point
+            .as_ref()
+            .map_or("".to_string(), |p| p.name.clone())
+    });
+    let mut end_name_signal = use_signal(|| {
+        end_point
+            .as_ref()
+            .map_or("".to_string(), |p| p.name.clone())
+    });
 
-            let data = param.to_start_data();
-            update_start_point_in_cook_and_run(
-                param.project_id,
-                param.start_data_signal,
-                param.start_saving_signal,
-                param.start_saving_error_signal,
-                data,
-            );
-        });
-    }
+    let mut start_name_error_signal = use_signal(|| "".to_string());
+    let mut end_name_error_signal = use_signal(|| "".to_string());
 
-    {
-        let (latitude_end_addr_signal, longitude_end_addr_signal, address_end_addr_signal) =
-            param.end_address.get_data_signals();
+    let mut start_time_signal = use_signal(|| {
+        start_point
+            .as_ref()
+            .map_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap(), |p| {
+                p.time.clone()
+            })
+    });
+    let mut end_time_signal = use_signal(|| {
+        end_point
+            .as_ref()
+            .map_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap(), |p| {
+                p.time.clone()
+            })
+    });
 
-        use_effect(move || {
-            to_owned![
-                latitude_end_addr_signal,
-                longitude_end_addr_signal,
-                address_end_addr_signal
-            ];
+    let start_adress_param = start_point
+        .as_ref()
+        .map(|point| AddressParam::new(&point.address))
+        .unwrap_or_default();
 
-            let data = param.to_end_data();
-            update_end_point_in_cook_and_run(
-                param.project_id,
-                param.end_data_signal,
-                param.end_saving_signal,
-                param.end_saving_error_signal,
-                data,
-            );
-        });
-    }
+    let end_adress_param = end_point
+        .as_ref()
+        .map(|point| AddressParam::new(&point.address))
+        .unwrap_or_default();
 
     rsx! {
         section {
@@ -284,24 +109,18 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                             StartSVG {}
                             Headline2 { headline: "Start Point".to_string() }
                         }
+                    
 
-                        // Loading or Error Icon
-                        div { class: "flex items-center space-x-2",
-                            SavingIcon {
-                                saving: *param.start_saving_signal.read(),
-                                error: param.start_saving_error_signal.read(),
-                            }
-                        }
                     }
 
                     label { class: "inline-flex items-center space-x-2 text-[#3B3B3B] font-sans leading-relaxed text-base mb-4",
                         input {
                             r#type: "checkbox",
-                            checked: param.is_start,
+                            checked: start_has_point_signal,
                             class: "rounded",
                             onclick: move |_| {
-                                let checkbox_state = !*param.is_start.read();
-                                param.is_start.set(checkbox_state);
+                                let checkbox_state = !*start_has_point_signal.read();
+                                start_has_point_signal.set(checkbox_state);
                             },
                         }
                         span { "Use start point" }
@@ -311,25 +130,28 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                         class: {
                             format!(
                                 "mb-3 {}",
-                                if *param.is_start.read() { "" } else { "opacity-50 pointer-events-none" },
+                                if *start_has_point_signal.read() {
+                                    ""
+                                } else {
+                                    "opacity-50 pointer-events-none"
+                                },
                             )
                         },
                         Input {
-                            value: param.start_name_signal,
+                            value: start_name_signal,
                             place_holer: "Start".to_string(),
-                            is_error: !param.start_name_error_signal.read().is_empty(),
+                            is_error: !start_name_error_signal.read().is_empty(),
                             oninput: move |event: Event<FormData>| {
                                 let name = &event.value();
-                                param.start_name_signal.set(name.clone());
+                                start_name_signal.set(name.clone());
                                 if name.trim().is_empty() {
-                                    param.start_name_error_signal.set("Name can not be empty!".to_string());
+                                    start_name_error_signal.set("Name can not be empty!".to_string());
                                 }
                             },
                         }
-                        InputError { error: param.start_name_error_signal.read() }
-
+                        InputError { error: start_name_error_signal.read() }
                         InputTime {
-                            value: param.start_signal,
+                            value: start_time_signal,
                             is_error: false,
                             oninput: move |event: Event<FormData>| {
                                 let time = NaiveTime::parse_from_str(&event.value(), "%H:%M");
@@ -344,7 +166,7 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                                     return;
                                 }
                                 let time = time.expect("Expect time");
-                                param.start_signal.set(time);
+                                start_time_signal.set(time);
                             },
                         }
                     }
@@ -353,10 +175,14 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                         class: {
                             format!(
                                 "{}",
-                                if *param.is_start.read() { "" } else { "opacity-50 pointer-events-none" },
+                                if *start_has_point_signal.read() {
+                                    ""
+                                } else {
+                                    "opacity-50 pointer-events-none"
+                                },
                             )
                         },
-                        Address { param: param.start_address }
+                        Address { param: start_adress_param }
                     }
                 }
 
@@ -370,25 +196,18 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                             EndSVG {}
                             Headline2 { headline: "End Point".to_string() }
                         }
-
-                        // Loading or Error Icon
-                        div { class: "flex items-center space-x-2",
-                            SavingIcon {
-                                saving: *param.end_saving_signal.read(),
-                                error: param.end_saving_error_signal.read(),
-                            }
-                        }
+                    
                     }
 
 
                     label { class: "inline-flex items-center space-x-2 text-[#3B3B3B] font-sans leading-relaxed text-base mb-4",
                         input {
                             r#type: "checkbox",
-                            checked: param.is_end,
+                            checked: end_has_point_signal,
                             class: "rounded",
                             onclick: move |_| {
-                                let checkbox_state = !*param.is_end.read();
-                                param.is_end.set(checkbox_state);
+                                let checkbox_state = !*end_has_point_signal.read();
+                                end_has_point_signal.set(checkbox_state);
                             },
                         }
                         span { "Use end point" }
@@ -398,26 +217,29 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                         class: {
                             format!(
                                 "mb-3 {}",
-                                if *param.is_end.read() { "" } else { "opacity-50 pointer-events-none" },
+                                if *end_has_point_signal.read() {
+                                    ""
+                                } else {
+                                    "opacity-50 pointer-events-none"
+                                },
                             )
                         },
 
                         Input {
-                            value: param.end_name_signal,
+                            value: end_name_signal,
                             place_holer: "End".to_string(),
-                            is_error: !param.end_name_error_signal.read().is_empty(),
+                            is_error: !end_name_error_signal.read().is_empty(),
                             oninput: move |event: Event<FormData>| {
                                 let name = &event.value();
-                                param.end_name_signal.set(name.clone());
+                                end_name_signal.set(name.clone());
                                 if name.trim().is_empty() {
-                                    param.end_name_error_signal.set("Name can not be empty!".to_string());
+                                    end_name_error_signal.set("Name can not be empty!".to_string());
                                 }
                             },
                         }
-                        InputError { error: param.end_name_error_signal.read() }
-
+                        InputError { error: end_name_error_signal.read() }
                         InputTime {
-                            value: param.end_signal,
+                            value: end_time_signal,
                             is_error: false,
                             oninput: move |event: Event<FormData>| {
                                 let time = NaiveTime::parse_from_str(&event.value(), "%H:%M");
@@ -432,7 +254,7 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                                     return;
                                 }
                                 let time = time.expect("Expect time");
-                                param.end_signal.set(time);
+                                end_time_signal.set(time);
                             },
                         }
                     }
@@ -441,10 +263,14 @@ pub fn StartEnd(param: StartEndParam) -> Element {
                         class: {
                             format!(
                                 "{}",
-                                if *param.is_end.read() { "" } else { "opacity-50 pointer-events-none" },
+                                if *end_has_point_signal.read() {
+                                    ""
+                                } else {
+                                    "opacity-50 pointer-events-none"
+                                },
                             )
                         },
-                        Address { param: param.end_address }
+                        Address { param: end_adress_param }
                     }
                 }
             }

@@ -1,12 +1,11 @@
 use chrono::{NaiveDateTime, Utc};
 use uuid::Uuid;
-use web_sys::console;
 
 use super::{CookAndRunData, CookAndRunMetaData};
 
 use crate::storage::{
-    CookAndRunCreate, CookAndRunMetaUpdate, CourseData, MeetingPointData, PlanData, Storage,
-    TeamCreate, TeamData, TeamUpdate,
+    CookAndRunCreate, CookAndRunMetaUpdate, CourseData, MeetingPointData, NoteCreate, PlanData,
+    Storage, TeamCreate, TeamData, TeamUpdate,
 };
 
 const DATA_KEY: &str = "tcc_data";
@@ -432,7 +431,8 @@ impl Storage for LocalStorage {
         &mut self,
         cook_and_run_id: Uuid,
         team_id: Uuid,
-        note_data: &super::NoteData,
+        note_id: Uuid,
+        note_data: &NoteCreate,
     ) -> Result<(), String> {
         let mut cook_and_run = self
             .get_cook_and_run_data_by_id(cook_and_run_id)
@@ -449,14 +449,14 @@ impl Storage for LocalStorage {
                 )
             })?;
 
-        if team.note_list.iter().any(|n| n.id == note_data.id) {
+        if team.note_list.iter().any(|n| n.id == note_id) {
             return Err(format!(
                 "Note with ID {} already exists in Team {} of Cook and Run project {}",
-                note_data.id, team_id, cook_and_run_id
+                note_id, team_id, cook_and_run_id
             ));
         }
 
-        team.note_list.push(note_data.clone());
+        team.note_list.push(note_data.to_note(note_id));
         cook_and_run.edited = Utc::now().naive_utc();
         self.update_cook_and_run_data(&cook_and_run)
     }
@@ -530,6 +530,22 @@ impl Storage for LocalStorage {
     ) -> Result<Vec<TeamData>, String> {
         let cook_and_run = self.select_cook_and_run(cook_and_run_id).await?;
         Ok(cook_and_run.team_list)
+    }
+
+    async fn select_cook_and_run_start_point(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Option<MeetingPointData>, String> {
+        let cook_and_run = self.select_cook_and_run(cook_and_run_id).await?;
+        Ok(cook_and_run.start_point)
+    }
+
+    async fn select_cook_and_run_end_point(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Option<MeetingPointData>, String> {
+        let cook_and_run = self.select_cook_and_run(cook_and_run_id).await?;
+        Ok(cook_and_run.end_point)
     }
 }
 fn update_meta(

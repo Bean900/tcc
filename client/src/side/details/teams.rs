@@ -1,3 +1,4 @@
+use chrono::{Local, NaiveDateTime, TimeZone, Utc};
 use dioxus::prelude::*;
 use uuid::Uuid;
 use web_sys::console;
@@ -6,7 +7,9 @@ use crate::async_action;
 use crate::side::details::address::{Address, AddressParam};
 use crate::side::details::{ErrorPage, LoadingPage};
 use crate::side::{AddressSVG, AsyncAction, Headline1, Headline2, InputPhoneNumber};
-use crate::storage::{AddressData, NoteData, StorageManager, TeamCreate, TeamData, TeamUpdate};
+use crate::storage::{
+    AddressData, NoteCreate, NoteData, StorageManager, TeamCreate, TeamData, TeamUpdate,
+};
 
 use crate::side::{
     CloseButton, ConfirmButton, DeleteButton, Input, InputError, InputMultirow, InputNumber,
@@ -88,13 +91,13 @@ async fn add_team_note(
     id: Uuid,
     team_id: Uuid,
     headline: String,
-    description: String,
+    content: String,
 ) -> Result<(), String> {
-    let note = NoteData::new(headline, description);
+    let note = NoteCreate { headline, content };
     let mut storage_signal = use_context::<Signal<StorageManager>>();
     let mut storage = storage_signal.write();
     storage
-        .create_team_note_of_cook_and_run(id, team_id, &note)
+        .create_team_note_of_cook_and_run(id, team_id, Uuid::new_v4(), &note)
         .await
 }
 
@@ -318,7 +321,7 @@ fn EditTeamDialog(
 
     let diets_signal = use_signal(|| team_data.diets.map_or_else(|| "".to_string(), |v| v));
 
-    let needs_check_signal = use_signal(|| team_data.needs_check);
+    let mut needs_check_signal = use_signal(|| team_data.needs_check);
 
     let error_signal = use_signal(|| "".to_string());
 
@@ -377,6 +380,7 @@ fn EditTeamDialog(
                                 onclick: move |_| {
                                     let new_value = !*needs_check_signal.read();
                                     team_data.needs_check = new_value;
+                                    needs_check_signal.set(new_value);
                                 },
                             }
                         }
@@ -552,8 +556,8 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
     let mut create_note_headline_signal = use_signal(|| "".to_string());
     let mut create_note_headline_error_signal = use_signal(|| "".to_string());
 
-    let mut create_note_description_signal = use_signal(|| "".to_string());
-    let mut create_note_description_error_signal = use_signal(|| "".to_string());
+    let mut create_note_content_signal = use_signal(|| "".to_string());
+    let mut create_note_content_error_signal = use_signal(|| "".to_string());
 
     let mut create_note_error_signal = use_signal(|| "".to_string());
 
@@ -581,7 +585,7 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                         if headline.is_empty() {
                             create_note_headline_error_signal
                                 .set("Headline cannot be empty!".to_string());
-                        } else if create_note_description_error_signal.read().is_empty() {
+                        } else if create_note_content_error_signal.read().is_empty() {
                             create_note_headline_error_signal.set("".to_string());
                             create_note_error_signal.set("".to_string());
                         } else {
@@ -593,53 +597,50 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
 
                 InputMultirow {
                     place_holer: Some("e.g. Participation fee is partially paid!".to_string()),
-                    value: create_note_description_signal.clone(),
-                    is_error: !create_note_description_error_signal.read().is_empty(),
+                    value: create_note_content_signal.clone(),
+                    is_error: !create_note_content_error_signal.read().is_empty(),
                     oninput: move |e: Event<FormData>| {
-                        let description = e.value();
-                        create_note_description_signal.set(description.clone());
-                        if description.is_empty() {
-                            create_note_description_error_signal
-                                .set("Description cannot be empty!".to_string());
+                        let content = e.value();
+                        create_note_content_signal.set(content.clone());
+                        if content.is_empty() {
+                            create_note_content_error_signal.set("content cannot be empty!".to_string());
                             create_note_error_signal.set("-".to_string());
                         } else if create_note_headline_error_signal.read().is_empty() {
-                            create_note_description_error_signal.set("".to_string());
+                            create_note_content_error_signal.set("".to_string());
                             create_note_error_signal.set("".to_string());
                         } else {
-                            create_note_description_error_signal.set("".to_string());
+                            create_note_content_error_signal.set("".to_string());
                         }
                     },
                 }
 
-                InputError { error: create_note_description_error_signal.read() }
+                InputError { error: create_note_content_error_signal.read() }
 
                 ConfirmButton {
                     text: "Post Note".to_string(),
                     error_signal: create_note_error_signal,
                     action: async_action!(
-                        { if create_note_headline_signal.read().is_empty() &&
-                        create_note_description_signal.read().is_empty() {
+                        { if create_note_headline_signal.read().is_empty() && create_note_content_signal
+                        .read().is_empty() { create_note_headline_error_signal
+                        .set("Headline cannot be empty!".to_string()); create_note_content_error_signal
+                        .set("content cannot be empty!".to_string()); create_note_error_signal.set("-"
+                        .to_string()); return; } else if create_note_headline_signal.read().is_empty() {
                         create_note_headline_error_signal.set("Headline cannot be empty!".to_string());
-                        create_note_description_error_signal.set("Description cannot be empty!"
-                        .to_string()); create_note_error_signal.set("-".to_string()); return; } else if
-                        create_note_headline_signal.read().is_empty() { create_note_headline_error_signal
-                        .set("Headline cannot be empty!".to_string()); create_note_error_signal.set("-"
-                        .to_string()); return; } else if create_note_description_signal.read().is_empty()
-                        { create_note_description_error_signal.set("Description cannot be empty!"
-                        .to_string()); create_note_error_signal.set("-".to_string()); return; } let
-                        result = add_team_note(project_id, team_id, create_note_headline_signal.read()
-                        .trim().to_string(), create_note_description_signal.read().trim().to_string(),).
-                        await; if result.is_err() { console::error_1(& format!("Error creating note: {}",
-                        result.err().expect("Expected error"),) .into(),); creating_error_signal
-                        .set("Error creating note!".to_string()); } else { sorted_note_list_signal.set({
-                        let mut note_list = vec![NoteData { id : Uuid::new_v4(), headline :
-                        create_note_headline_signal.read().trim().to_string(), description :
-                        create_note_description_signal.read().trim().to_string(), created :
-                        chrono::Utc::now(), },]; note_list.extend(sorted_note_list_signal.read()
+                        create_note_error_signal.set("-".to_string()); return; } else if
+                        create_note_content_signal.read().is_empty() { create_note_content_error_signal
+                        .set("content cannot be empty!".to_string()); create_note_error_signal.set("-"
+                        .to_string()); return; } let result = add_team_note(project_id, team_id,
+                        create_note_headline_signal.read().trim().to_string(), create_note_content_signal
+                        .read().trim().to_string(),). await; if result.is_err() { console::error_1(&
+                        format!("Error creating note: {}", result.err().expect("Expected error"),)
+                        .into(),); creating_error_signal.set("Error creating note!".to_string()); } else
+                        { sorted_note_list_signal.set({ let mut note_list = vec![NoteData { id :
+                        Uuid::new_v4(), headline : create_note_headline_signal.read().trim().to_string(),
+                        content : create_note_content_signal.read().trim().to_string(), created :
+                        Utc::now().naive_utc(), },]; note_list.extend(sorted_note_list_signal.read()
                         .clone()); note_list }); create_note_headline_signal.set("".to_string());
-                        create_note_description_signal.set("".to_string());
-                        create_note_headline_error_signal.set("".to_string());
-                        create_note_description_error_signal.set("".to_string());
+                        create_note_content_signal.set("".to_string()); create_note_headline_error_signal
+                        .set("".to_string()); create_note_content_error_signal.set("".to_string());
                         create_note_error_signal.set("".to_string()); creating_error_signal.set(""
                         .to_string()); } }
                     ),
@@ -665,19 +666,21 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
 
 #[component]
 fn Note(note_data: NoteData) -> Element {
-    let created = note_data
-        .created
-        .with_timezone(&chrono::Local)
+    let created = Local
+        .from_local_datetime(&note_data.created)
+        .single()
+        .unwrap()
         .format("%Y-%m-%d %H:%M")
         .to_string();
+
     rsx!(
         div { class: "bg-white p-3 rounded-md shadow-sm",
             div { class: "flex justify-between items-center",
                 h3 { class: "text-sm font-semibold text-gray-800", "{note_data.headline}" }
                 p { class: "text-xs text-gray-500", "{created}" }
             }
-            // Description below
-            p { class: "text-xs text-gray-600 mt-1", "{note_data.description}" }
+            // content below
+            p { class: "text-xs text-gray-600 mt-1", "{note_data.content}" }
         }
     )
 }

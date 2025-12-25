@@ -11,7 +11,7 @@ use crate::{
     storage::AddressData,
 };
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Default)]
 pub(crate) struct AddressParam {
     latitude: Signal<String>,
     latitude_error: Signal<String>,

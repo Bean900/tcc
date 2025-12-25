@@ -2,9 +2,9 @@ mod cloud;
 mod local;
 pub mod mapper;
 
-use std::{collections::HashMap, hash::Hash, result};
+use std::{collections::HashMap, hash::Hash};
 
-use chrono::{DateTime, NaiveDateTime, NaiveTime, Utc};
+use chrono::{NaiveDateTime, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -355,7 +355,8 @@ impl StorageManager {
         &mut self,
         cook_and_run_id: Uuid,
         team_id: Uuid,
-        note_data: &NoteData,
+        note_id: Uuid,
+        note_data: &NoteCreate,
     ) -> Result<(), String> {
         let exists_local = self
             .local
@@ -365,11 +366,11 @@ impl StorageManager {
 
         if exists_local {
             self.local
-                .create_team_note_of_cook_and_run(cook_and_run_id, team_id, note_data)
+                .create_team_note_of_cook_and_run(cook_and_run_id, team_id, note_id, note_data)
                 .await
         } else {
             self.cloud
-                .create_team_note_of_cook_and_run(cook_and_run_id, team_id, note_data)
+                .create_team_note_of_cook_and_run(cook_and_run_id, team_id, note_id, note_data)
                 .await
         }
     }
@@ -494,6 +495,38 @@ impl StorageManager {
                 .await
         }
     }
+
+    pub async fn select_cook_and_run_start_point(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<MeetingPointData>, String> {
+        match self.local.select_cook_and_run_start_point(id).await {
+            Ok(data) => Ok(data),
+            Err(e_local) => match self.cloud.select_cook_and_run_start_point(id).await {
+                Ok(data) => Ok(data),
+                Err(e_cloud) => Err(format!(
+                    "Cook and run with id {} not found in local or cloud storage: {} | {}",
+                    id, e_local, e_cloud
+                )),
+            },
+        }
+    }
+
+    pub async fn select_cook_and_run_end_point(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<MeetingPointData>, String> {
+        match self.local.select_cook_and_run_end_point(id).await {
+            Ok(data) => Ok(data),
+            Err(e_local) => match self.cloud.select_cook_and_run_end_point(id).await {
+                Ok(data) => Ok(data),
+                Err(e_cloud) => Err(format!(
+                    "Cook and run with id {} not found in local or cloud storage: {} | {}",
+                    id, e_local, e_cloud
+                )),
+            },
+        }
+    }
 }
 
 pub trait Storage {
@@ -551,16 +584,12 @@ pub trait Storage {
         team_id: Uuid,
     ) -> Result<(), String>;
 
-    async fn select_cook_and_run_team_list(
-        &self,
-        cook_and_run_id: Uuid,
-    ) -> Result<Vec<TeamData>, String>;
-
     async fn create_team_note_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
         team_id: Uuid,
-        note_data: &NoteData,
+        note_id: Uuid,
+        note_data: &NoteCreate,
     ) -> Result<(), String>;
 
     async fn delete_team_note_of_cook_and_run(
@@ -585,6 +614,18 @@ pub trait Storage {
     async fn select_cook_and_run_meta_list(&self) -> Result<Vec<CookAndRunMetaData>, String>;
     async fn select_cook_and_run(&self, id: Uuid) -> Result<CookAndRunData, String>;
     async fn select_cook_and_run_meta(&self, id: Uuid) -> Result<CookAndRunMetaData, String>;
+    async fn select_cook_and_run_team_list(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Vec<TeamData>, String>;
+    async fn select_cook_and_run_start_point(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Option<MeetingPointData>, String>;
+    async fn select_cook_and_run_end_point(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Option<MeetingPointData>, String>;
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -683,23 +724,29 @@ impl AddressData {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct NoteCreate {
+    pub headline: String,
+    pub content: String,
+}
+
+impl NoteCreate {
+    pub fn to_note(&self, note_id: Uuid) -> NoteData {
+        NoteData {
+            id: note_id,
+            headline: self.headline.clone(),
+            content: self.content.clone(),
+            created: Utc::now().naive_utc(),
+        }
+    }
+}
+
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
 pub struct NoteData {
     pub id: Uuid,
     pub headline: String,
-    pub description: String,
-    pub created: DateTime<Utc>,
-}
-
-impl NoteData {
-    pub fn new(headline: String, description: String) -> Self {
-        NoteData {
-            id: Uuid::new_v4(),
-            headline,
-            description,
-            created: Utc::now(),
-        }
-    }
+    pub content: String,
+    pub created: NaiveDateTime,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]

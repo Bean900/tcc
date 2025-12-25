@@ -8,16 +8,10 @@ use dioxus::prelude::*;
 use side::Callback;
 use side::Dashboard;
 use side::Overview;
+use side::StartEnd;
 use side::Teams;
 use uuid::Uuid;
-/*
-use side::ProjectCalculationPage;
-use side::ProjectCoursesPage;
 
-use side::ProjectStartEndPage;
-use side::ProjectTeamsPage;
-use side::RunSchedule;
-use side::ShareTeam;*/
 use web_sys::console;
 use web_sys::window;
 
@@ -32,21 +26,7 @@ const LOGO: Asset = asset!("/assets/logo.png");
 fn main() {
     dioxus::launch(App);
 }
-/*    #[route("/:cook_and_run_id")]
-#[route("/:cook_and_run_id/overview")]
-    ProjectOverviewPage { cook_and_run_id: Uuid },
-    #[route("/:cook_and_run_id/teams")]
-    ProjectTeamsPage { cook_and_run_id: Uuid },
-    #[route("/:cook_and_run_id/team-share/:share_id")]
-    ShareTeam { cook_and_run_id: Uuid ,share_id: Uuid},
-    #[route("/:cook_and_run_id/start-end")]
-    ProjectStartEndPage { cook_and_run_id: Uuid },
-    #[route("/:cook_and_run_id/courses")]
-    ProjectCoursesPage { cook_and_run_id: Uuid },
-    #[route("/:cook_and_run_id/calculation")]
-    ProjectCalculationPage { cook_and_run_id: Uuid },
-    #[route("/:cook_and_run_id/run-schedule/:team_id")]
-    RunSchedule {cook_and_run_id:Uuid, team_id: Uuid },*/
+
 #[derive(Routable, Clone, PartialEq)]
 #[rustfmt::skip]
 enum Route {
@@ -64,9 +44,9 @@ enum Route {
                     Overview {cook_and_run_id:Uuid},
                     #[route("/teams")]
                     Teams {cook_and_run_id:Uuid},
-                  /*   #[route("/startend")]
+                     #[route("/startend")]
                     StartEnd {cook_and_run_id:Uuid},
-                    #[route("/courses")]
+                 /*   #[route("/courses")]
                     Courses {cook_and_run_id:Uuid},
                     #[route("/plan")]
                     Plan {cook_and_run_id:Uuid},*/
@@ -223,7 +203,7 @@ fn Wrapper() -> Element {
                                     }
                                 },
                             }
-                        
+
                         }
                     }
                 }

@@ -1,8 +1,9 @@
 use chrono::NaiveDateTime;
 use dioxus::{
     hooks::use_context,
-    signals::{Readable, ReadableExt, Signal},
+    signals::{ReadableExt, Signal},
 };
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use web_sys::console;
@@ -11,7 +12,7 @@ use crate::{
     auth0::{AuthState, SessionData},
     storage::{
         AddressData, CookAndRunCreate, CookAndRunData, CookAndRunMetaData, CookAndRunMetaUpdate,
-        MeetingPointData, Storage, TeamCreate, TeamData, TeamUpdate,
+        MeetingPointData, NoteCreate, Storage, TeamCreate, TeamData, TeamUpdate,
     },
 };
 
@@ -513,7 +514,8 @@ impl Storage for CloudStorage {
         &mut self,
         cook_and_run_id: Uuid,
         team_id: Uuid,
-        note_data: &super::NoteData,
+        note_id: Uuid,
+        note_data: &NoteCreate,
     ) -> Result<(), String> {
         let session_data = match get_access_token() {
             Ok(sd) => sd,
@@ -521,7 +523,7 @@ impl Storage for CloudStorage {
         };
         let url = format!(
             "{}/cook_and_run/{}/team/{}/note/{}",
-            self.base_url, cook_and_run_id, team_id, note_data.id
+            self.base_url, cook_and_run_id, team_id, note_id
         );
         let client = reqwest::Client::new();
         let res = client
@@ -633,7 +635,6 @@ impl Storage for CloudStorage {
 
         let url = format!("{}/cook_and_run/{}/teams", self.base_url, cook_and_run_id);
 
-        console::log_1(&format!("Fetching Teamdata from URL: {}", url).into());
         let client = reqwest::Client::new();
         let res = client
             .get(&url)
@@ -647,6 +648,70 @@ impl Storage for CloudStorage {
                 .await
                 .map_or_else(|e| Err(e.to_string()), |data| Ok(data.data)),
 
+            Ok(response) => Err(format!("Request failed: {}", response.status())),
+            Err(e) => Err(format!("Request error: {}", e)),
+        }
+    }
+
+    async fn select_cook_and_run_start_point(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Option<MeetingPointData>, String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+
+        let url = format!(
+            "{}/cook_and_run/{}/start_point",
+            self.base_url, cook_and_run_id
+        );
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(&url)
+            .bearer_auth(&session_data.access_token)
+            .send()
+            .await;
+
+        match res {
+            Ok(response) if response.status() == StatusCode::OK => response
+                .json::<MeetingPointData>()
+                .await
+                .map_or_else(|e| Err(e.to_string()), |data| Ok(Some(data))),
+            Ok(response) if response.status() == StatusCode::NO_CONTENT => Ok(None),
+            Ok(response) => Err(format!("Request failed: {}", response.status())),
+            Err(e) => Err(format!("Request error: {}", e)),
+        }
+    }
+
+    async fn select_cook_and_run_end_point(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Option<MeetingPointData>, String> {
+        let session_data = match get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+
+        let url = format!(
+            "{}/cook_and_run/{}/end_point",
+            self.base_url, cook_and_run_id
+        );
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(&url)
+            .bearer_auth(&session_data.access_token)
+            .send()
+            .await;
+
+        match res {
+            Ok(response) if response.status() == StatusCode::OK => response
+                .json::<MeetingPointData>()
+                .await
+                .map_or_else(|e| Err(e.to_string()), |data| Ok(Some(data))),
+            Ok(response) if response.status() == StatusCode::NO_CONTENT => Ok(None),
             Ok(response) => Err(format!("Request failed: {}", response.status())),
             Err(e) => Err(format!("Request error: {}", e)),
         }

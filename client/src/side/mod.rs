@@ -10,6 +10,7 @@ use std::sync::Arc;
 pub use callback::Callback;
 pub use dashboard::Dashboard;
 pub use details::overview::Overview;
+pub use details::startend::StartEnd;
 pub use details::teams::Teams;
 pub use details::Menu;
 //pub use details::ProjectOverviewPage;
@@ -24,7 +25,6 @@ pub use run_schedule::RunSchedule;*/
 use dioxus::prelude::*;
 use dioxus::signals::Signal;
 use gloo_timers::future::TimeoutFuture;
-use web_sys::console;
 
 const DISABLED_BUTTON: &str = "bg-gray-300 text-gray-500 rounded-lg px-2 py-2 cursor-not-allowed";
 const ENABLED_BUTTON_SECONDARY: &str =
@@ -150,16 +150,12 @@ fn CustomButton(props: CustomButtonProps) -> Element {
         }
 
         if let Some(action_fn) = &props.action {
-            console::log_1(&format!("Setting loading signal to TRUE!").into());
             is_loading.set(true);
 
             let action_fn = action_fn.clone();
 
-            console::log_1(&format!("Spawn on click thread!").into());
             spawn(async move {
-                console::log_1(&format!("Starting thread!").into());
                 (action_fn)().await;
-                console::log_1(&format!("Setting loading signal to FALSE!").into());
                 is_loading.set(false);
             });
         }
