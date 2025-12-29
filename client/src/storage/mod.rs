@@ -12,7 +12,10 @@ use web_sys::console;
 
 use std::f64::consts::PI;
 
-use crate::storage::{cloud::CloudStorage, local::LocalStorage}; // Add this at the top with other imports
+use crate::{
+    auth0::AuthState,
+    storage::{cloud::CloudStorage, local::LocalStorage},
+}; // Add this at the top with other imports
 
 #[derive(Debug, Clone)]
 pub struct StorageManager {
@@ -60,11 +63,19 @@ async fn transfere<T: Storage>(storage: &mut T, c_a_r: CookAndRunData) -> Result
 }
 
 impl StorageManager {
-    pub fn new() -> Result<Self, String> {
+    pub fn new(auth_state: AuthState) -> Result<Self, String> {
         Ok(StorageManager {
             local: LocalStorage::new()?,
-            cloud: CloudStorage::new(),
+            cloud: CloudStorage::new(auth_state),
         })
+    }
+
+    pub fn get_auth_state(&self) -> AuthState {
+        self.cloud.get_auth_state()
+    }
+
+    pub fn set_auth_state(&mut self, auth_state: AuthState) {
+        self.cloud.set_auth_state(auth_state);
     }
 
     pub async fn upload_to_cloud(&mut self, cook_and_run_id: Uuid) -> Result<Uuid, String> {

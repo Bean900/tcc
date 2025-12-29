@@ -119,7 +119,7 @@ pub fn Overview(cook_and_run_id: Uuid) -> Element {
 
 #[component]
 pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
-    let auth = use_context::<Signal<AuthState>>();
+    let storage_signal = use_context::<Signal<StorageManager>>();
 
     let mut delete_dialog_signal = use_signal(|| false);
 
@@ -168,7 +168,7 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
         }
     });
 
-    let error_login_signal = use_signal(|| match auth.read().clone() {
+    let error_login_signal = use_signal(|| match storage_signal.read().get_auth_state() {
         AuthState::LoggedIn(_) => "".to_string(),
         _ => "Not loged in!".to_string(),
     });

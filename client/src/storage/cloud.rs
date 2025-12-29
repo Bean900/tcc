@@ -1,8 +1,4 @@
 use chrono::NaiveDateTime;
-use dioxus::{
-    hooks::use_context,
-    signals::{ReadableExt, Signal},
-};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -16,9 +12,10 @@ use crate::{
     },
 };
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct CloudStorage {
     base_url: String,
+    auth_state: AuthState,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Deserialize)]
@@ -98,22 +95,26 @@ impl TeamCreateRequest {
 }
 
 impl CloudStorage {
-    pub fn new() -> Self {
+    pub fn new(auth_state: AuthState) -> Self {
         CloudStorage {
             base_url: "http://0.0.0.0:3000".to_string(),
+            auth_state,
         }
     }
-}
 
-fn get_access_token() -> Result<SessionData, String> {
-    let auth_state = use_context::<Signal<AuthState>>();
-    let auth_state = auth_state
-        .try_read()
-        .map_err(|_| "Could not read auth state!".to_string())?;
+    fn get_access_token(&self) -> Result<SessionData, String> {
+        match self.auth_state.clone() {
+            AuthState::LoggedIn(session_data) => Ok(session_data),
+            _ => Err("Could not clone auth state!".to_string()),
+        }
+    }
 
-    match auth_state.clone() {
-        AuthState::LoggedIn(session_data) => Ok(session_data),
-        _ => Err("Could not clone auth state!".to_string()),
+    pub fn get_auth_state(&self) -> AuthState {
+        self.auth_state.clone()
+    }
+
+    pub fn set_auth_state(&mut self, auth_state: AuthState) {
+        self.auth_state = auth_state;
     }
 }
 
@@ -123,7 +124,7 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         cook_and_run: &CookAndRunCreate,
     ) -> Result<(), String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -148,7 +149,7 @@ impl Storage for CloudStorage {
     }
 
     async fn delete_cook_and_run(&mut self, id: Uuid) -> Result<(), String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -169,7 +170,7 @@ impl Storage for CloudStorage {
     }
 
     async fn select_cook_and_run(&self, id: Uuid) -> Result<CookAndRunData, String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -193,7 +194,7 @@ impl Storage for CloudStorage {
     }
 
     async fn select_cook_and_run_meta(&self, id: Uuid) -> Result<CookAndRunMetaData, String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -220,7 +221,7 @@ impl Storage for CloudStorage {
     async fn select_cook_and_run_meta_list(
         &self,
     ) -> Result<Vec<super::CookAndRunMetaData>, String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -263,7 +264,7 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         cook_and_run_meta: &CookAndRunMetaUpdate,
     ) -> Result<(), String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -292,7 +293,7 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         plan: &super::PlanData,
     ) -> Result<(), String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -317,7 +318,7 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         course: &super::CourseData,
     ) -> Result<(), String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -345,7 +346,7 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         course: &super::CourseData,
     ) -> Result<(), String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -373,7 +374,7 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         course_id: Uuid,
     ) -> Result<(), String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -400,7 +401,7 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         course_id: Uuid,
     ) -> Result<(), String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -428,7 +429,7 @@ impl Storage for CloudStorage {
         team_id: Uuid,
         team: &TeamCreate,
     ) -> Result<(), String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -460,7 +461,7 @@ impl Storage for CloudStorage {
         team_id: Uuid,
         team: &TeamUpdate,
     ) -> Result<(), String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -488,7 +489,7 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         team_id: Uuid,
     ) -> Result<(), String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -517,7 +518,7 @@ impl Storage for CloudStorage {
         note_id: Uuid,
         note_data: &NoteCreate,
     ) -> Result<(), String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -546,7 +547,7 @@ impl Storage for CloudStorage {
         team_id: Uuid,
         note_id: Uuid,
     ) -> Result<(), String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -573,7 +574,7 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         start_point: &Option<MeetingPointData>,
     ) -> Result<(), String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -598,6 +599,7 @@ impl Storage for CloudStorage {
         };
         match res {
             Ok(response) if response.status().is_success() => Ok(()),
+            Ok(response) if response.status() == StatusCode::NOT_FOUND => Ok(()),
             Ok(response) => Err(format!("Request failed: {}", response.status())),
             Err(e) => Err(format!("Request error: {}", e)),
         }
@@ -608,8 +610,7 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         end_point: &Option<MeetingPointData>,
     ) -> Result<(), String> {
-        console::log_1(&"Updating end point0...".into());
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -626,18 +627,17 @@ impl Storage for CloudStorage {
                 .send()
                 .await
         } else {
-            console::log_1(&"Updating end point1...".into());
             let res = client
                 .delete(&url)
                 .bearer_auth(session_data.access_token)
                 .send()
                 .await;
-            console::log_1(&"Updating end point2...".into());
             res
         };
 
         match res {
             Ok(response) if response.status().is_success() => Ok(()),
+            Ok(response) if response.status() == StatusCode::NOT_FOUND => Ok(()),
             Ok(response) => Err(format!("Request failed: {}", response.status())),
             Err(e) => Err(format!("Request error: {}", e)),
         }
@@ -647,7 +647,7 @@ impl Storage for CloudStorage {
         &self,
         cook_and_run_id: Uuid,
     ) -> Result<Vec<super::TeamData>, String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -676,7 +676,7 @@ impl Storage for CloudStorage {
         &self,
         cook_and_run_id: Uuid,
     ) -> Result<Option<MeetingPointData>, String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };
@@ -708,7 +708,7 @@ impl Storage for CloudStorage {
         &self,
         cook_and_run_id: Uuid,
     ) -> Result<Option<MeetingPointData>, String> {
-        let session_data = match get_access_token() {
+        let session_data = match self.get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
         };

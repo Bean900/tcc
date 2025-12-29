@@ -134,7 +134,7 @@ fn NotFound(route: Vec<String>) -> Element {
 
 #[component]
 fn Wrapper() -> Element {
-    let mut auth_signal = use_context_provider(|| Signal::new(AuthState::new()));
+    let mut storage_signal = use_context::<Signal<StorageManager>>();
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
@@ -152,14 +152,14 @@ fn Wrapper() -> Element {
                     }
                     div { class: "flex items-center gap-4",
                         div { class: "relative",
-                            match *auth_signal.read() {
+                            match storage_signal.read().get_auth_state() {
                                 AuthState::Loading(_) => rsx! {
                                     button {
                                         class: "relative flex items-center gap-2 bg-gray-200 px-3 py-2 rounded-full hover:bg-gray-300 focus:outline-none",
                                         onclick: move |_| {
                                             let path = use_route::<Route>();
                                             let (auth_state, auth_url) = AuthState::login(path.to_string());
-                                            auth_signal.set(auth_state);
+                                            storage_signal.write().set_auth_state(auth_state);
                                             window().unwrap().location().set_href(&auth_url).unwrap();
                                         },
                                         "Login.."
@@ -171,7 +171,7 @@ fn Wrapper() -> Element {
                                         onclick: move |_| {
                                             let path = use_route::<Route>();
                                             let (auth_state, auth_url) = AuthState::login(path.to_string());
-                                            auth_signal.set(auth_state);
+                                            storage_signal.write().set_auth_state(auth_state);
                                             window().unwrap().location().set_href(&auth_url).unwrap();
                                         },
                                         "Login"
@@ -182,8 +182,11 @@ fn Wrapper() -> Element {
                                         class: "relative flex items-center gap-2 bg-gray-200 px-3 py-2 rounded-full hover:bg-gray-300 focus:outline-none",
                                         onclick: move |_| {
                                             let path = use_route::<Route>();
-                                            let (auth_state, auth_url) = auth_signal.read().logout(&path.to_string());
-                                            auth_signal.set(auth_state);
+                                            let (auth_state, auth_url) = storage_signal
+                                                .read()
+                                                .get_auth_state()
+                                                .logout(&path.to_string());
+                                            storage_signal.write().set_auth_state(auth_state);
                                             window().unwrap().location().set_href(&auth_url).unwrap();
                                         },
                                         img { src: PROVILE, alt: "User Avatar", class: "h-8 w-8 rounded-full" }
@@ -196,14 +199,14 @@ fn Wrapper() -> Element {
                                         onclick: move |_| {
                                             let path = use_route::<Route>();
                                             let (auth_state, auth_url) = AuthState::login(path.to_string());
-                                            auth_signal.set(auth_state);
+                                            storage_signal.write().set_auth_state(auth_state);
                                             window().unwrap().location().set_href(&auth_url).unwrap();
                                         },
                                         "Login..."
                                     }
                                 },
                             }
-
+                        
                         }
                     }
                 }
@@ -216,7 +219,8 @@ fn Wrapper() -> Element {
 #[component]
 fn App() -> Element {
     use_context_provider(|| {
-        let storage = StorageManager::new();
+        let auth_state = AuthState::new();
+        let storage = StorageManager::new(auth_state);
 
         match storage {
             Ok(s) => Signal::new(s),
