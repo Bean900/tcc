@@ -582,13 +582,20 @@ impl Storage for CloudStorage {
             self.base_url, cook_and_run_id
         );
         let client = reqwest::Client::new();
-        let res = client
-            .patch(&url)
-            .bearer_auth(session_data.access_token)
-            .json(start_point)
-            .send()
-            .await;
-
+        let res = if let Some(sp) = start_point {
+            client
+                .patch(&url)
+                .bearer_auth(session_data.access_token)
+                .json(sp)
+                .send()
+                .await
+        } else {
+            client
+                .delete(&url)
+                .bearer_auth(session_data.access_token)
+                .send()
+                .await
+        };
         match res {
             Ok(response) if response.status().is_success() => Ok(()),
             Ok(response) => Err(format!("Request failed: {}", response.status())),
@@ -601,6 +608,7 @@ impl Storage for CloudStorage {
         cook_and_run_id: Uuid,
         end_point: &Option<MeetingPointData>,
     ) -> Result<(), String> {
+        console::log_1(&"Updating end point0...".into());
         let session_data = match get_access_token() {
             Ok(sd) => sd,
             Err(_) => return Err("No auth data!".to_string()),
@@ -610,12 +618,23 @@ impl Storage for CloudStorage {
             self.base_url, cook_and_run_id
         );
         let client = reqwest::Client::new();
-        let res = client
-            .patch(&url)
-            .bearer_auth(session_data.access_token)
-            .json(end_point)
-            .send()
-            .await;
+        let res = if let Some(ep) = end_point {
+            client
+                .patch(&url)
+                .bearer_auth(session_data.access_token)
+                .json(ep)
+                .send()
+                .await
+        } else {
+            console::log_1(&"Updating end point1...".into());
+            let res = client
+                .delete(&url)
+                .bearer_auth(session_data.access_token)
+                .send()
+                .await;
+            console::log_1(&"Updating end point2...".into());
+            res
+        };
 
         match res {
             Ok(response) if response.status().is_success() => Ok(()),

@@ -11,7 +11,7 @@ use crate::{
     storage::AddressData,
 };
 
-#[derive(PartialEq, Clone, Copy, Default)]
+#[derive(PartialEq, Copy)]
 pub(crate) struct AddressParam {
     latitude: Signal<String>,
     latitude_error: Signal<String>,
@@ -24,35 +24,50 @@ pub(crate) struct AddressParam {
 
 impl AddressParam {
     pub(crate) fn new(address: &AddressData) -> Self {
-        let latitude;
-        let latitude_error;
-        if address.latitude.is_nan() || address.latitude == 0.0 {
-            latitude = use_signal(|| "".to_string());
-            latitude_error = use_signal(|| "Invalid latitude!".to_string());
-        } else {
-            latitude = use_signal(|| address.latitude.to_string());
-            latitude_error = use_signal(|| "".to_string());
-        }
+        let latitude = use_signal(|| {
+            if address.latitude.is_nan() || address.latitude == 0.0 {
+                "".to_string()
+            } else {
+                address.latitude.to_string()
+            }
+        });
+        let latitude_error = use_signal(|| {
+            if address.latitude.is_nan() || address.latitude == 0.0 {
+                "Invalid latitude!".to_string()
+            } else {
+                "".to_string()
+            }
+        });
 
-        let longitude;
-        let longitude_error;
-        if address.longitude.is_nan() || address.longitude == 0.0 {
-            longitude = use_signal(|| "".to_string());
-            longitude_error = use_signal(|| "Invalid longitude!".to_string());
-        } else {
-            longitude = use_signal(|| address.longitude.to_string());
-            longitude_error = use_signal(|| "".to_string());
-        }
+        let longitude = use_signal(|| {
+            if address.longitude.is_nan() || address.longitude == 0.0 {
+                "".to_string()
+            } else {
+                address.longitude.to_string()
+            }
+        });
+        let longitude_error = use_signal(|| {
+            if address.longitude.is_nan() || address.longitude == 0.0 {
+                "Invalid longitude!".to_string()
+            } else {
+                "".to_string()
+            }
+        });
 
-        let address_signal;
-        let address_error_signal;
-        if address.address.is_empty() {
-            address_signal = use_signal(|| "".to_string());
-            address_error_signal = use_signal(|| "Address cannot be empty!".to_string());
-        } else {
-            address_signal = use_signal(|| address.address.clone());
-            address_error_signal = use_signal(|| "".to_string());
-        }
+        let address_signal = use_signal(|| {
+            if address.address.is_empty() {
+                "".to_string()
+            } else {
+                address.address.clone()
+            }
+        });
+        let address_error_signal = use_signal(|| {
+            if address.address.is_empty() {
+                "Address cannot be empty!".to_string()
+            } else {
+                "".to_string()
+            }
+        });
 
         Self {
             latitude,
@@ -65,19 +80,8 @@ impl AddressParam {
         }
     }
 
-    pub(crate) fn default() -> Self {
-        Self {
-            latitude: use_signal(|| "".to_string()),
-            latitude_error: use_signal(|| "".to_string()),
-            longitude: use_signal(|| "".to_string()),
-            longitude_error: use_signal(|| "".to_string()),
-            address: use_signal(|| "".to_string()),
-            address_error: use_signal(|| "".to_string()),
-            general_error: use_signal(|| "".to_string()),
-        }
-    }
-
     pub(crate) fn check_address_data(&self) -> Result<(), String> {
+        console::log_1(&"Checking address data...".into());
         if !check_addr_input(self.address, self.address_error) {
             return Err("Address cannot be empty!".to_string());
         }
@@ -103,13 +107,41 @@ impl AddressParam {
                     .latitude
                     .read()
                     .parse::<f64>()
-                    .expect("Expect latitude to be of type f64"),
+                    .map_err(|e| format!("Expect latitude to be of type f64: {}", e))?,
                 longitude: self
                     .longitude
                     .read()
                     .parse::<f64>()
-                    .expect("Expect longitude to be of type f64"),
+                    .map_err(|e| format!("Expect longitude to be of type f64: {}", e))?,
             })
+        }
+    }
+}
+
+impl Clone for AddressParam {
+    fn clone(&self) -> Self {
+        Self {
+            latitude: self.latitude.clone(),
+            latitude_error: self.latitude_error.clone(),
+            longitude: self.longitude.clone(),
+            longitude_error: self.longitude_error.clone(),
+            address: self.address.clone(),
+            address_error: self.address_error.clone(),
+            general_error: self.general_error.clone(),
+        }
+    }
+}
+
+impl Default for AddressParam {
+    fn default() -> Self {
+        Self {
+            latitude: use_signal(|| "".to_string()),
+            latitude_error: use_signal(|| "".to_string()),
+            longitude: use_signal(|| "".to_string()),
+            longitude_error: use_signal(|| "".to_string()),
+            address: use_signal(|| "".to_string()),
+            address_error: use_signal(|| "".to_string()),
+            general_error: use_signal(|| "".to_string()),
         }
     }
 }
@@ -124,7 +156,7 @@ pub(crate) fn Address(param: AddressParam) -> Element {
         div { class: "flex items-center mb-2",
             AddressSVG {}
             Headline3 { headline: "Address" }
-                //
+        
         }
 
         TabBar { tab_signal }

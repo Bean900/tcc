@@ -4,12 +4,13 @@ use uuid::Uuid;
 use web_sys::console;
 
 use crate::{
+    async_action,
     side::{
-        debounce,
         details::{address::Address, ErrorPage, LoadingPage},
-        EndSVG, Headline1, Headline2, Input, InputError, InputTime, StartSVG,
+        AsyncAction, ConfirmButton, EndSVG, Headline1, Headline2, Input, InputError, InputTime,
+        StartSVG,
     },
-    storage::{MeetingPointData, StorageManager},
+    storage::{AddressData, MeetingPointData, StorageManager},
 };
 
 use super::address::AddressParam;
@@ -67,8 +68,8 @@ pub fn StartEndContent(
             .map_or("".to_string(), |p| p.name.clone())
     });
 
-    let mut start_name_error_signal = use_signal(|| "".to_string());
-    let mut end_name_error_signal = use_signal(|| "".to_string());
+    let start_name_error_signal = use_signal(|| "".to_string());
+    let end_name_error_signal = use_signal(|| "".to_string());
 
     let mut start_time_signal = use_signal(|| {
         start_point
@@ -94,6 +95,48 @@ pub fn StartEndContent(
         .as_ref()
         .map(|point| AddressParam::new(&point.address))
         .unwrap_or_default();
+
+    let save_error_signal = use_signal(|| "".to_string());
+
+    let mut save_response_error_signal = use_signal(|| "".to_string());
+
+    let on_save: AsyncAction = async_action!({
+        save_response_error_signal.set("".to_string());
+        let start_has_point = *start_has_point_signal.read();
+        let end_has_point = *end_has_point_signal.read();
+        if check_if_save_possible(
+            start_has_point,
+            &start_name_signal.read(),
+            start_adress_param.clone(),
+            end_has_point,
+            &end_name_signal.read(),
+            end_adress_param.clone(),
+            save_error_signal.clone(),
+        ) {
+            let storage_signal = use_context::<Signal<StorageManager>>();
+            let (start_update, end_update) = save_point_data(
+                storage_signal.clone(),
+                cook_and_run_id,
+                start_has_point,
+                end_has_point,
+                &start_name_signal.read(),
+                &end_name_signal.read(),
+                *start_time_signal.read(),
+                *end_time_signal.read(),
+                start_adress_param.clone(),
+                end_adress_param.clone(),
+            )
+            .await;
+            if let Err(e) = &start_update {
+                console::error_1(&format!("Failed to update start point: {}", e).into());
+                save_response_error_signal.set("Failed to save start/end point data".to_string());
+            }
+            if let Err(e) = &end_update {
+                console::error_1(&format!("Failed to update end point: {}", e).into());
+                save_response_error_signal.set("Failed to save start/end point data".to_string());
+            }
+        }
+    });
 
     rsx! {
         section {
@@ -121,6 +164,15 @@ pub fn StartEndContent(
                             onclick: move |_| {
                                 let checkbox_state = !*start_has_point_signal.read();
                                 start_has_point_signal.set(checkbox_state);
+                                check_if_save_possible(
+                                    *start_has_point_signal.read(),
+                                    &start_name_signal.read(),
+                                    start_adress_param.clone(),
+                                    *end_has_point_signal.read(),
+                                    &end_name_signal.read(),
+                                    end_adress_param.clone(),
+                                    save_error_signal.clone(),
+                                );
                             },
                         }
                         span { "Use start point" }
@@ -142,11 +194,17 @@ pub fn StartEndContent(
                             place_holer: "Start".to_string(),
                             is_error: !start_name_error_signal.read().is_empty(),
                             oninput: move |event: Event<FormData>| {
-                                let name = &event.value();
-                                start_name_signal.set(name.clone());
-                                if name.trim().is_empty() {
-                                    start_name_error_signal.set("Name can not be empty!".to_string());
-                                }
+                                let name = check_name(&event.value(), start_name_error_signal.clone());
+                                start_name_signal.set(name);
+                                check_if_save_possible(
+                                    *start_has_point_signal.read(),
+                                    &start_name_signal.read(),
+                                    start_adress_param.clone(),
+                                    *end_has_point_signal.read(),
+                                    &end_name_signal.read(),
+                                    end_adress_param.clone(),
+                                    save_error_signal.clone(),
+                                );
                             },
                         }
                         InputError { error: start_name_error_signal.read() }
@@ -154,19 +212,20 @@ pub fn StartEndContent(
                             value: start_time_signal,
                             is_error: false,
                             oninput: move |event: Event<FormData>| {
-                                let time = NaiveTime::parse_from_str(&event.value(), "%H:%M");
-                                if time.is_err() {
-                                    console::error_1(
-                                        &format!(
-                                            "Time format is not correct: {}",
-                                            time.expect_err("Expect error"),
-                                        )
-                                            .into(),
-                                    );
-                                    return;
+                                let time = check_time(&event.value());
+                                match time {
+                                    Some(t) => start_time_signal.set(t),
+                                    None => {}
                                 }
-                                let time = time.expect("Expect time");
-                                start_time_signal.set(time);
+                                check_if_save_possible(
+                                    *start_has_point_signal.read(),
+                                    &start_name_signal.read(),
+                                    start_adress_param.clone(),
+                                    *end_has_point_signal.read(),
+                                    &end_name_signal.read(),
+                                    end_adress_param.clone(),
+                                    save_error_signal.clone(),
+                                );
                             },
                         }
                     }
@@ -208,6 +267,15 @@ pub fn StartEndContent(
                             onclick: move |_| {
                                 let checkbox_state = !*end_has_point_signal.read();
                                 end_has_point_signal.set(checkbox_state);
+                                check_if_save_possible(
+                                    *start_has_point_signal.read(),
+                                    &start_name_signal.read(),
+                                    start_adress_param.clone(),
+                                    *end_has_point_signal.read(),
+                                    &end_name_signal.read(),
+                                    end_adress_param.clone(),
+                                    save_error_signal.clone(),
+                                );
                             },
                         }
                         span { "Use end point" }
@@ -230,11 +298,17 @@ pub fn StartEndContent(
                             place_holer: "End".to_string(),
                             is_error: !end_name_error_signal.read().is_empty(),
                             oninput: move |event: Event<FormData>| {
-                                let name = &event.value();
-                                end_name_signal.set(name.clone());
-                                if name.trim().is_empty() {
-                                    end_name_error_signal.set("Name can not be empty!".to_string());
-                                }
+                                let name = check_name(&event.value(), end_name_error_signal.clone());
+                                end_name_signal.set(name);
+                                check_if_save_possible(
+                                    *start_has_point_signal.read(),
+                                    &start_name_signal.read(),
+                                    start_adress_param.clone(),
+                                    *end_has_point_signal.read(),
+                                    &end_name_signal.read(),
+                                    end_adress_param.clone(),
+                                    save_error_signal.clone(),
+                                );
                             },
                         }
                         InputError { error: end_name_error_signal.read() }
@@ -242,19 +316,20 @@ pub fn StartEndContent(
                             value: end_time_signal,
                             is_error: false,
                             oninput: move |event: Event<FormData>| {
-                                let time = NaiveTime::parse_from_str(&event.value(), "%H:%M");
-                                if time.is_err() {
-                                    console::error_1(
-                                        &format!(
-                                            "Time format is not correct: {}",
-                                            time.expect_err("Expect error"),
-                                        )
-                                            .into(),
-                                    );
-                                    return;
+                                let time = check_time(&event.value());
+                                match time {
+                                    Some(t) => end_time_signal.set(t),
+                                    None => {}
                                 }
-                                let time = time.expect("Expect time");
-                                end_time_signal.set(time);
+                                check_if_save_possible(
+                                    *start_has_point_signal.read(),
+                                    &start_name_signal.read(),
+                                    start_adress_param.clone(),
+                                    *end_has_point_signal.read(),
+                                    &end_name_signal.read(),
+                                    end_adress_param.clone(),
+                                    save_error_signal.clone(),
+                                );
                             },
                         }
                     }
@@ -274,6 +349,122 @@ pub fn StartEndContent(
                     }
                 }
             }
+
+            if !save_response_error_signal.read().is_empty() {
+                div { class: "bg-red-50 border border-red-200 rounded-xl p-4 mt-6 text-red-700 font-sans",
+                    "{save_response_error_signal.read()}"
+                }
+            }
+
+            div { class: "flex justify-end w-full mt-8 pr-2",
+                ConfirmButton {
+                    action: on_save,
+                    text: "Save".to_string(),
+                    error_signal: save_error_signal.clone(),
+                }
+            }
         }
     }
+}
+
+fn check_name(name: &str, mut error_signal: Signal<String>) -> String {
+    let trim_name = name.trim();
+    if trim_name.is_empty() {
+        error_signal.set("Name can not be empty!".to_string());
+    } else {
+        error_signal.set("".to_string());
+    }
+    trim_name.to_string()
+}
+
+fn check_time(time_str: &str) -> Option<NaiveTime> {
+    let time = NaiveTime::parse_from_str(time_str, "%H:%M");
+    match time {
+        Ok(time) => Some(time),
+
+        Err(e) => {
+            console::error_1(&format!("Time format is not correct: {}", e,).into());
+            None
+        }
+    }
+}
+
+fn check_if_save_possible(
+    start_has_point: bool,
+    start_name: &str,
+    start_address: AddressParam,
+    end_has_point: bool,
+    end_name: &str,
+    end_address: AddressParam,
+    mut save_error_signal: Signal<String>,
+) -> bool {
+    console::log_1(&"Checking if save is possible...".into());
+    if start_has_point
+        && (start_name.trim().is_empty() || start_address.check_address_data().is_err())
+    {
+        save_error_signal.set("Start point data is missing!".to_string());
+        return false;
+    }
+
+    if end_has_point && (end_name.trim().is_empty() || end_address.check_address_data().is_err()) {
+        save_error_signal.set("End point data is missing!".to_string());
+        return false;
+    }
+
+    save_error_signal.set("".to_string());
+    true
+}
+
+fn to_meeting_point_data(
+    name: &str,
+    time: NaiveTime,
+    address_param: AddressParam,
+) -> MeetingPointData {
+    let address = address_param
+        .get_address_data()
+        .unwrap_or_else(|_| AddressData::default());
+    MeetingPointData {
+        name: name.to_string(),
+        time,
+        address: address,
+    }
+}
+
+async fn save_point_data(
+    mut storage_signal: Signal<StorageManager>,
+    cook_and_run_id: Uuid,
+    start_has_point: bool,
+    end_has_point: bool,
+    start_name: &str,
+    end_name: &str,
+    start_time: NaiveTime,
+    end_time: NaiveTime,
+    start_adress_param: AddressParam,
+    end_adress_param: AddressParam,
+) -> (Result<(), String>, Result<(), String>) {
+    let start_point = if start_has_point {
+        let start_point_data =
+            to_meeting_point_data(start_name, start_time, start_adress_param.clone());
+        Some(start_point_data)
+    } else {
+        None
+    };
+
+    let end_point = if end_has_point {
+        let end_point_data = to_meeting_point_data(end_name, end_time, end_adress_param.clone());
+        Some(end_point_data)
+    } else {
+        None
+    };
+
+    let mut storage = storage_signal.write().clone();
+    let start_update = storage
+        .update_start_point_in_cook_and_run(cook_and_run_id, &start_point)
+        .await;
+    console::log_1(&"Saved start point data.".into());
+    let end_update = storage
+        .update_end_point_in_cook_and_run(cook_and_run_id, &end_point)
+        .await;
+    console::log_1(&"Finished saving point data.".into());
+    (start_update, end_update)
 }
