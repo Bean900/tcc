@@ -1269,6 +1269,13 @@
       }
     }
   }
+  .hover\:bg-red-600 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-red-600);
+      }
+    }
+  }
   .hover\:text-\[\#4F7445\] {
     &:hover {
       @media (hover: hover) {

@@ -18,7 +18,7 @@ use super::address::AddressParam;
 #[component]
 pub fn StartEnd(cook_and_run_id: Uuid) -> Element {
     let storage = use_context::<Signal<StorageManager>>();
-    let team_list: Resource<Result<(Option<MeetingPointData>, Option<MeetingPointData>), String>> =
+    let start_end: Resource<Result<(Option<MeetingPointData>, Option<MeetingPointData>), String>> =
         use_resource(move || {
             let storage = storage.clone();
             async move {
@@ -31,20 +31,14 @@ pub fn StartEnd(cook_and_run_id: Uuid) -> Element {
             }
         });
 
-    match &*team_list.read_unchecked() {
-        None => rsx!(
-            LoadingPage {}
-        ),
-        Some(Err(e)) => rsx!(
-            ErrorPage { error_text: e }
-        ),
-        Some(Ok(point_data)) => rsx!(
-            StartEndContent {
-                cook_and_run_id,
-                start_point: point_data.0.clone(),
-                end_point: point_data.1.clone(),
-            }
-        ),
+    match &*start_end.read_unchecked() {
+        None => rsx!(LoadingPage {}),
+        Some(Err(e)) => rsx!(ErrorPage { error_text: e }),
+        Some(Ok(point_data)) => rsx!(StartEndContent {
+            cook_and_run_id,
+            start_point: point_data.0.clone(),
+            end_point: point_data.1.clone(),
+        }),
     }
 }
 
@@ -96,8 +90,6 @@ pub fn StartEndContent(
         .map(|point| AddressParam::new(&point.address))
         .unwrap_or_default();
 
-    let save_error_signal = use_signal(|| "".to_string());
-
     let mut save_response_error_signal = use_signal(|| "".to_string());
 
     let on_save: AsyncAction = async_action!({
@@ -111,7 +103,6 @@ pub fn StartEndContent(
             end_has_point,
             &end_name_signal.read(),
             end_adress_param.clone(),
-            save_error_signal.clone(),
         ) {
             let storage_signal = use_context::<Signal<StorageManager>>();
             let (start_update, end_update) = save_point_data(
@@ -152,7 +143,7 @@ pub fn StartEndContent(
                             StartSVG {}
                             Headline2 { headline: "Start Point".to_string() }
                         }
-                    
+
 
                     }
 
@@ -164,15 +155,6 @@ pub fn StartEndContent(
                             onclick: move |_| {
                                 let checkbox_state = !*start_has_point_signal.read();
                                 start_has_point_signal.set(checkbox_state);
-                                check_if_save_possible(
-                                    *start_has_point_signal.read(),
-                                    &start_name_signal.read(),
-                                    start_adress_param.clone(),
-                                    *end_has_point_signal.read(),
-                                    &end_name_signal.read(),
-                                    end_adress_param.clone(),
-                                    save_error_signal.clone(),
-                                );
                             },
                         }
                         span { "Use start point" }
@@ -196,15 +178,6 @@ pub fn StartEndContent(
                             oninput: move |event: Event<FormData>| {
                                 let name = check_name(&event.value(), start_name_error_signal.clone());
                                 start_name_signal.set(name);
-                                check_if_save_possible(
-                                    *start_has_point_signal.read(),
-                                    &start_name_signal.read(),
-                                    start_adress_param.clone(),
-                                    *end_has_point_signal.read(),
-                                    &end_name_signal.read(),
-                                    end_adress_param.clone(),
-                                    save_error_signal.clone(),
-                                );
                             },
                         }
                         InputError { error: start_name_error_signal.read() }
@@ -217,15 +190,6 @@ pub fn StartEndContent(
                                     Some(t) => start_time_signal.set(t),
                                     None => {}
                                 }
-                                check_if_save_possible(
-                                    *start_has_point_signal.read(),
-                                    &start_name_signal.read(),
-                                    start_adress_param.clone(),
-                                    *end_has_point_signal.read(),
-                                    &end_name_signal.read(),
-                                    end_adress_param.clone(),
-                                    save_error_signal.clone(),
-                                );
                             },
                         }
                     }
@@ -255,7 +219,7 @@ pub fn StartEndContent(
                             EndSVG {}
                             Headline2 { headline: "End Point".to_string() }
                         }
-                    
+
                     }
 
 
@@ -267,15 +231,6 @@ pub fn StartEndContent(
                             onclick: move |_| {
                                 let checkbox_state = !*end_has_point_signal.read();
                                 end_has_point_signal.set(checkbox_state);
-                                check_if_save_possible(
-                                    *start_has_point_signal.read(),
-                                    &start_name_signal.read(),
-                                    start_adress_param.clone(),
-                                    *end_has_point_signal.read(),
-                                    &end_name_signal.read(),
-                                    end_adress_param.clone(),
-                                    save_error_signal.clone(),
-                                );
                             },
                         }
                         span { "Use end point" }
@@ -300,15 +255,6 @@ pub fn StartEndContent(
                             oninput: move |event: Event<FormData>| {
                                 let name = check_name(&event.value(), end_name_error_signal.clone());
                                 end_name_signal.set(name);
-                                check_if_save_possible(
-                                    *start_has_point_signal.read(),
-                                    &start_name_signal.read(),
-                                    start_adress_param.clone(),
-                                    *end_has_point_signal.read(),
-                                    &end_name_signal.read(),
-                                    end_adress_param.clone(),
-                                    save_error_signal.clone(),
-                                );
                             },
                         }
                         InputError { error: end_name_error_signal.read() }
@@ -321,15 +267,6 @@ pub fn StartEndContent(
                                     Some(t) => end_time_signal.set(t),
                                     None => {}
                                 }
-                                check_if_save_possible(
-                                    *start_has_point_signal.read(),
-                                    &start_name_signal.read(),
-                                    start_adress_param.clone(),
-                                    *end_has_point_signal.read(),
-                                    &end_name_signal.read(),
-                                    end_adress_param.clone(),
-                                    save_error_signal.clone(),
-                                );
                             },
                         }
                     }
@@ -357,11 +294,7 @@ pub fn StartEndContent(
             }
 
             div { class: "flex justify-end w-full mt-8 pr-2",
-                ConfirmButton {
-                    action: on_save,
-                    text: "Save".to_string(),
-                    error_signal: save_error_signal.clone(),
-                }
+                ConfirmButton { action: on_save, text: "Save".to_string() }
             }
         }
     }
@@ -396,22 +329,18 @@ fn check_if_save_possible(
     end_has_point: bool,
     end_name: &str,
     end_address: AddressParam,
-    mut save_error_signal: Signal<String>,
 ) -> bool {
     console::log_1(&"Checking if save is possible...".into());
     if start_has_point
         && (start_name.trim().is_empty() || start_address.check_address_data().is_err())
     {
-        save_error_signal.set("Start point data is missing!".to_string());
         return false;
     }
 
     if end_has_point && (end_name.trim().is_empty() || end_address.check_address_data().is_err()) {
-        save_error_signal.set("End point data is missing!".to_string());
         return false;
     }
 
-    save_error_signal.set("".to_string());
     true
 }
 

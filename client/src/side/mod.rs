@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 pub use callback::Callback;
 pub use dashboard::Dashboard;
+pub use details::courses::Courses;
 pub use details::overview::Overview;
 pub use details::startend::StartEnd;
 pub use details::teams::Teams;
@@ -25,6 +26,7 @@ pub use run_schedule::RunSchedule;*/
 use dioxus::prelude::*;
 use dioxus::signals::Signal;
 use gloo_timers::future::TimeoutFuture;
+use uuid::Uuid;
 
 const DISABLED_BUTTON: &str = "bg-gray-300 text-gray-500 rounded-lg px-2 py-2 cursor-not-allowed";
 const ENABLED_BUTTON_SECONDARY: &str =
@@ -220,30 +222,55 @@ fn CloseButton(onclick: EventHandler<MouseEvent>) -> Element {
     }
 }
 
-#[component]
-pub(crate) fn DeleteButton(
+#[derive(Props, Clone)]
+pub struct DeleteButtonProps {
+    id: Uuid,
+    #[props(default)]
+    action: Option<AsyncAction>,
+    #[props(default)]
     error_signal: Option<Signal<String>>,
-    onclick: Option<EventHandler<MouseEvent>>,
-) -> Element {
-    let mut loading_signal = use_signal(|| false);
-    let on_click_function = move |event: Event<MouseData>| {
-        if error_signal.map_or(true, |s| s.read().is_empty()) {
-            if let Some(onclick) = &onclick {
-                loading_signal.set(true);
+}
 
-                let mut loading_signal_clone = loading_signal.clone();
-                let onclick = onclick.clone();
-                let event = event.clone();
-                spawn(async move {
-                    onclick.call(event);
-                    loading_signal_clone.set(false);
-                });
-            }
+impl DeleteButtonProps {
+    pub fn new(action: AsyncAction, error_signal: Option<Signal<String>>) -> Element {
+        rsx! {
+            DeleteButton { id: Uuid::new_v4(), action: Some(action), error_signal }
+        }
+    }
+}
+
+impl PartialEq for DeleteButtonProps {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+#[component]
+pub(crate) fn DeleteButton(props: DeleteButtonProps) -> Element {
+    let mut is_loading = use_signal(|| false);
+    let on_click_function = move |_| {
+        if is_loading() || props.action.is_none() {
+            return;
+        }
+
+        if props.error_signal.map_or(false, |s| !s.read().is_empty()) {
+            return;
+        }
+
+        if let Some(action_fn) = &props.action {
+            is_loading.set(true);
+
+            let action_fn = action_fn.clone();
+
+            spawn(async move {
+                (action_fn)().await;
+                is_loading.set(false);
+            });
         }
     };
 
     rsx! {
-        if *loading_signal.read() {
+        if *is_loading.read() {
             div {
                 role: "status",
                 class: "flex justify-center items-center h-12",

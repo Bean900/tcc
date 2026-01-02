@@ -1,15 +1,15 @@
+use crate::async_action;
+use crate::side::details::address::{Address, AddressParam};
+use crate::side::details::{ErrorPage, LoadingPage};
+use crate::side::AsyncAction;
+use crate::side::{AddressSVG, DeleteButtonProps, Headline1, Headline2, InputPhoneNumber};
+use crate::storage::{
+    AddressData, NoteCreate, NoteData, StorageManager, TeamCreate, TeamData, TeamUpdate,
+};
 use chrono::{Local, TimeZone, Utc};
 use dioxus::prelude::*;
 use uuid::Uuid;
 use web_sys::console;
-
-use crate::async_action;
-use crate::side::details::address::{Address, AddressParam};
-use crate::side::details::{ErrorPage, LoadingPage};
-use crate::side::{AddressSVG, AsyncAction, Headline1, Headline2, InputPhoneNumber};
-use crate::storage::{
-    AddressData, NoteCreate, NoteData, StorageManager, TeamCreate, TeamData, TeamUpdate,
-};
 
 use crate::side::{
     CloseButton, ConfirmButton, DeleteButton, Input, InputError, InputMultirow, InputNumber,
@@ -122,15 +122,12 @@ pub fn Teams(cook_and_run_id: Uuid) -> Element {
     });
 
     match &*team_list.read_unchecked() {
-        None => rsx!(
-            LoadingPage {}
-        ),
-        Some(Err(e)) => rsx!(
-            ErrorPage { error_text: e }
-        ),
-        Some(Ok(team_list)) => rsx!(
-            TeamsContent { cook_and_run_id, team_list: team_list.clone() }
-        ),
+        None => rsx!(LoadingPage {}),
+        Some(Err(e)) => rsx!(ErrorPage { error_text: e }),
+        Some(Ok(team_list)) => rsx!(TeamsContent {
+            cook_and_run_id,
+            team_list: team_list.clone()
+        }),
     }
 }
 
@@ -343,8 +340,19 @@ fn EditTeamDialog(
         );
     });
 
-    rsx! {
+    let delete_button = DeleteButtonProps::new(
+        async_action!({
+            let result = delete_team(project_id, team_data.id).await;
+            if let Err(e) = result {
+                console::error_1(&format!("Error deleting team: {}", e).into());
+            } else {
+                team_dialog_signal.set(PopUpWindow::None);
+            }
+        }),
+        None,
+    );
 
+    rsx! {
         div { class: "backdrop-blur fixed inset-0 flex h-screen w-screen justify-center items-center",
             div { class: "relative bg-white shadow-md rounded-xl p-6 hover:shadow-lg transition-all cursor-pointer w-224",
                 // Title
@@ -385,18 +393,8 @@ fn EditTeamDialog(
                             }
                         }
                     }
-                    DeleteButton {
-                        onclick: move |_| {
-                            async move {
-                                let result = delete_team(project_id, team_data.id).await;
-                                if let Err(e) = result {
-                                    console::error_1(&format!("Error deleting team: {}", e).into());
-                                } else {
-                                    team_dialog_signal.set(PopUpWindow::None);
-                                }
-                            }
-                        },
-                    }
+                    {delete_button}
+
                 }
 
                 // Close button
@@ -658,7 +656,7 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                         Note { note_data: note_data.clone() }
                     }
                 }
-            
+
             }
         }
     }

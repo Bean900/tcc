@@ -642,16 +642,19 @@ mod tests {
             id: Uuid::new_v4(),
             name: "Course 1".to_string(),
             time: chrono::NaiveTime::from_hms_opt(5, 0, 0).unwrap(),
+            has_multiple_hosts: false,
         };
         let course_2 = CourseData {
             id: Uuid::new_v4(),
             name: "Course 2".to_string(),
             time: chrono::NaiveTime::from_hms_opt(10, 0, 0).unwrap(),
+            has_multiple_hosts: true,
         };
         let course_3 = CourseData {
             id: Uuid::new_v4(),
             name: "Course 3".to_string(),
             time: chrono::NaiveTime::from_hms_opt(15, 0, 0).unwrap(),
+            has_multiple_hosts: false,
         };
 
         let mut cook_and_run_data = CookAndRunData::default();

@@ -1,6 +1,6 @@
 mod address;
 //mod calculate;
-//mod courses;
+pub mod courses;
 pub mod overview;
 //mod share_team;
 pub mod startend;
@@ -41,7 +41,7 @@ pub fn Menu(cook_and_run_id: Uuid) -> Element {
                 }
                 SidebarButton {
                     label: "Courses",
-                    target_route: Route::Overview { cook_and_run_id },
+                    target_route: Route::Courses { cook_and_run_id },
                     current_route: current_route.clone(),
                 }
                 SidebarButton {

@@ -6,6 +6,7 @@ mod storage;
 
 use dioxus::prelude::*;
 use side::Callback;
+use side::Courses;
 use side::Dashboard;
 use side::Overview;
 use side::StartEnd;
@@ -44,11 +45,11 @@ enum Route {
                     Overview {cook_and_run_id:Uuid},
                     #[route("/teams")]
                     Teams {cook_and_run_id:Uuid},
-                     #[route("/startend")]
+                    #[route("/startend")]
                     StartEnd {cook_and_run_id:Uuid},
-                 /*   #[route("/courses")]
+                    #[route("/courses")]
                     Courses {cook_and_run_id:Uuid},
-                    #[route("/plan")]
+                     /*     #[route("/plan")]
                     Plan {cook_and_run_id:Uuid},*/
                 #[end_layout]
             #[end_nest]

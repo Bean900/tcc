@@ -4,8 +4,8 @@ use uuid::Uuid;
 use super::{CookAndRunData, CookAndRunMetaData};
 
 use crate::storage::{
-    CookAndRunCreate, CookAndRunMetaUpdate, CourseData, MeetingPointData, NoteCreate, PlanData,
-    Storage, TeamCreate, TeamData, TeamUpdate,
+    CookAndRunCreate, CookAndRunMetaUpdate, CourseCreate, CourseData, CourseUpdate,
+    MeetingPointData, NoteCreate, PlanData, Storage, TeamCreate, TeamData, TeamUpdate,
 };
 
 const DATA_KEY: &str = "tcc_data";
@@ -14,6 +14,28 @@ const DATA_KEY: &str = "tcc_data";
 pub struct LocalStorage {
     storage: web_sys::Storage,
     cook_and_run_data: Vec<CookAndRunData>,
+}
+
+impl CourseCreate {
+    pub fn to_local(&self, course_id: Uuid) -> CourseData {
+        CourseData {
+            id: course_id,
+            name: self.name.clone(),
+            time: self.time,
+            has_multiple_hosts: self.has_multiple_hosts,
+        }
+    }
+}
+
+impl CourseUpdate {
+    pub fn to_local(&self, course_id: Uuid) -> CourseData {
+        CourseData {
+            id: course_id,
+            name: self.name.clone(),
+            time: self.time,
+            has_multiple_hosts: self.has_multiple_hosts,
+        }
+    }
 }
 
 impl TeamCreate {
@@ -269,27 +291,29 @@ impl Storage for LocalStorage {
     async fn create_course_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
-        course: &CourseData,
+        course_id: Uuid,
+        course: &CourseCreate,
     ) -> Result<(), String> {
         let mut cook_and_run = self
             .get_cook_and_run_data_by_id(cook_and_run_id)
             .ok_or_else(|| format!("Cook and run project with ID {} not found", cook_and_run_id))?;
 
-        if cook_and_run.course_list.iter().any(|c| c.id == course.id) {
+        if cook_and_run.course_list.iter().any(|c| c.id == course_id) {
             return Err(format!(
                 "Course with ID {} already exists in Cook and Run project {}",
-                course.id, cook_and_run_id
+                course_id, cook_and_run_id
             ));
         }
 
-        cook_and_run.course_list.push(course.clone());
+        cook_and_run.course_list.push(course.to_local(course_id));
         self.update_cook_and_run_data(&cook_and_run)
     }
 
     async fn update_course_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
-        course: &super::CourseData,
+        course_id: Uuid,
+        course: &CourseUpdate,
     ) -> Result<(), String> {
         let mut cook_and_run = self
             .get_cook_and_run_data_by_id(cook_and_run_id)
@@ -297,8 +321,8 @@ impl Storage for LocalStorage {
 
         let mut found = false;
         for c in &mut cook_and_run.course_list {
-            if c.id == course.id {
-                *c = course.clone();
+            if c.id == course_id {
+                *c = course.to_local(course_id);
                 found = true;
                 break;
             }
@@ -306,7 +330,7 @@ impl Storage for LocalStorage {
         if !found {
             return Err(format!(
                 "Course with ID {} not found in Cook and Run project {}",
-                course.id, cook_and_run_id
+                course_id, cook_and_run_id
             ));
         }
 
@@ -546,6 +570,14 @@ impl Storage for LocalStorage {
     ) -> Result<Option<MeetingPointData>, String> {
         let cook_and_run = self.select_cook_and_run(cook_and_run_id).await?;
         Ok(cook_and_run.end_point)
+    }
+
+    async fn select_cook_and_run_course_list(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Vec<CourseData>, String> {
+        let cook_and_run = self.select_cook_and_run(cook_and_run_id).await?;
+        Ok(cook_and_run.course_list)
     }
 }
 fn update_meta(

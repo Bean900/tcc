@@ -8,7 +8,8 @@ use crate::{
     auth0::{AuthState, SessionData},
     storage::{
         AddressData, CookAndRunCreate, CookAndRunData, CookAndRunMetaData, CookAndRunMetaUpdate,
-        MeetingPointData, NoteCreate, Storage, TeamCreate, TeamData, TeamUpdate,
+        CourseCreate, CourseData, CourseUpdate, MeetingPointData, NoteCreate, Storage, TeamCreate,
+        TeamData, TeamUpdate,
     },
 };
 
@@ -62,8 +63,8 @@ impl CookAndRunCreateRequest {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct TeamListResponse {
-    pub data: Vec<TeamData>,
+struct TeamListResponse {
+    data: Vec<TeamData>,
 }
 
 #[derive(Debug, Serialize)]
@@ -92,6 +93,11 @@ impl TeamCreateRequest {
             needs_check: from.needs_check,
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct CourseListResponse {
+    data: Vec<CourseData>,
 }
 
 impl CloudStorage {
@@ -316,7 +322,8 @@ impl Storage for CloudStorage {
     async fn create_course_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
-        course: &super::CourseData,
+        course_id: Uuid,
+        course: &CourseCreate,
     ) -> Result<(), String> {
         let session_data = match self.get_access_token() {
             Ok(sd) => sd,
@@ -324,7 +331,7 @@ impl Storage for CloudStorage {
         };
         let url = format!(
             "{}/cook_and_run/{}/course/{}",
-            self.base_url, cook_and_run_id, course.id
+            self.base_url, cook_and_run_id, course_id
         );
         let client = reqwest::Client::new();
         let res = client
@@ -344,7 +351,8 @@ impl Storage for CloudStorage {
     async fn update_course_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
-        course: &super::CourseData,
+        course_id: Uuid,
+        course: &CourseUpdate,
     ) -> Result<(), String> {
         let session_data = match self.get_access_token() {
             Ok(sd) => sd,
@@ -352,7 +360,7 @@ impl Storage for CloudStorage {
         };
         let url = format!(
             "{}/cook_and_run/{}/course/{}",
-            self.base_url, cook_and_run_id, course.id
+            self.base_url, cook_and_run_id, course_id
         );
         let client = reqwest::Client::new();
         let res = client
@@ -731,6 +739,34 @@ impl Storage for CloudStorage {
                 .await
                 .map_or_else(|e| Err(e.to_string()), |data| Ok(Some(data))),
             Ok(response) if response.status() == StatusCode::NO_CONTENT => Ok(None),
+            Ok(response) => Err(format!("Request failed: {}", response.status())),
+            Err(e) => Err(format!("Request error: {}", e)),
+        }
+    }
+
+    async fn select_cook_and_run_course_list(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Vec<CourseData>, String> {
+        let session_data = match self.get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+
+        let url = format!("{}/cook_and_run/{}/courses", self.base_url, cook_and_run_id);
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(&url)
+            .bearer_auth(&session_data.access_token)
+            .send()
+            .await;
+
+        match res {
+            Ok(response) if response.status().is_success() => response
+                .json::<CourseListResponse>()
+                .await
+                .map_or_else(|e| Err(e.to_string()), |data| Ok(data.data)),
             Ok(response) => Err(format!("Request failed: {}", response.status())),
             Err(e) => Err(format!("Request error: {}", e)),
         }

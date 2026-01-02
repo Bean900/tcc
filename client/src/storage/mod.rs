@@ -185,7 +185,8 @@ impl StorageManager {
     pub async fn create_course_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
-        course: &CourseData,
+        course_id: Uuid,
+        course: &CourseCreate,
     ) -> Result<(), String> {
         let exists_local = self
             .local
@@ -195,11 +196,11 @@ impl StorageManager {
 
         if exists_local {
             self.local
-                .create_course_of_cook_and_run(cook_and_run_id, course)
+                .create_course_of_cook_and_run(cook_and_run_id, course_id, course)
                 .await
         } else {
             self.cloud
-                .create_course_of_cook_and_run(cook_and_run_id, course)
+                .create_course_of_cook_and_run(cook_and_run_id, course_id, course)
                 .await
         }
     }
@@ -207,7 +208,8 @@ impl StorageManager {
     pub async fn update_course_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
-        course: &CourseData,
+        course_id: Uuid,
+        course: &CourseUpdate,
     ) -> Result<(), String> {
         let exists_local = self
             .local
@@ -217,11 +219,11 @@ impl StorageManager {
 
         if exists_local {
             self.local
-                .update_course_of_cook_and_run(cook_and_run_id, course)
+                .update_course_of_cook_and_run(cook_and_run_id, course_id, course)
                 .await
         } else {
             self.cloud
-                .update_course_of_cook_and_run(cook_and_run_id, course)
+                .update_course_of_cook_and_run(cook_and_run_id, course_id, course)
                 .await
         }
     }
@@ -538,6 +540,30 @@ impl StorageManager {
             },
         }
     }
+
+    pub async fn select_cook_and_run_course_list(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Vec<CourseData>, String> {
+        match self
+            .local
+            .select_cook_and_run_course_list(cook_and_run_id)
+            .await
+        {
+            Ok(data) => Ok(data),
+            Err(e_local) => match self
+                .cloud
+                .select_cook_and_run_course_list(cook_and_run_id)
+                .await
+            {
+                Ok(data) => Ok(data),
+                Err(e_cloud) => Err(format!(
+                    "Cook and run with id {} not found in local or cloud storage: {} | {}",
+                    cook_and_run_id, e_local, e_cloud
+                )),
+            },
+        }
+    }
 }
 
 pub trait Storage {
@@ -560,12 +586,14 @@ pub trait Storage {
     async fn create_course_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
-        course: &CourseData,
+        course_id: Uuid,
+        course: &CourseCreate,
     ) -> Result<(), String>;
     async fn update_course_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
-        course: &CourseData,
+        course_id: Uuid,
+        course: &CourseUpdate,
     ) -> Result<(), String>;
     async fn delete_course_of_cook_and_run(
         &mut self,
@@ -637,6 +665,24 @@ pub trait Storage {
         &self,
         cook_and_run_id: Uuid,
     ) -> Result<Option<MeetingPointData>, String>;
+    async fn select_cook_and_run_course_list(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Vec<CourseData>, String>;
+}
+
+#[derive(Debug, Serialize)]
+pub struct CourseCreate {
+    pub name: String,
+    pub time: NaiveTime,
+    pub has_multiple_hosts: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CourseUpdate {
+    pub name: String,
+    pub time: NaiveTime,
+    pub has_multiple_hosts: bool,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -644,6 +690,7 @@ pub struct CourseData {
     pub id: Uuid,
     pub name: String,
     pub time: NaiveTime,
+    pub has_multiple_hosts: bool,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
