@@ -1,9 +1,10 @@
 use crate::side::{AsyncAction, DeleteButtonProps};
+use crate::storage::{CourseCreate, CourseUpdate};
 use crate::{
     async_action,
     side::{
         details::{ErrorPage, LoadingPage},
-        ConfirmButton, DeleteButton, Headline1, Input, InputError, InputTime, WarnButton,
+        ConfirmButton, Headline1, Input, InputError, InputTime,
     },
     storage::{CourseData, StorageManager},
 };
@@ -53,9 +54,16 @@ impl CourseParam {
         }
     }
 
-    fn to_course_data(&self) -> CourseData {
-        CourseData {
-            id: self.id.clone(),
+    fn to_create_course(&self) -> CourseCreate {
+        CourseCreate {
+            name: self.name.clone(),
+            time: self.time,
+            has_multiple_hosts: self.has_multiple_hosts,
+        }
+    }
+
+    fn to_update_course(&self) -> CourseUpdate {
+        CourseUpdate {
             name: self.name.clone(),
             time: self.time,
             has_multiple_hosts: self.has_multiple_hosts,
@@ -77,12 +85,15 @@ pub fn Courses(cook_and_run_id: Uuid) -> Element {
     });
 
     match &*course_list.read_unchecked() {
-        None => rsx!(LoadingPage {}),
-        Some(Err(e)) => rsx!(ErrorPage { error_text: e }),
-        Some(Ok(course_list)) => rsx!(CoursesContent {
-            cook_and_run_id,
-            course_list: course_list.clone()
-        }),
+        None => rsx!(
+            LoadingPage {}
+        ),
+        Some(Err(e)) => rsx!(
+            ErrorPage { error_text: e }
+        ),
+        Some(Ok(course_list)) => rsx!(
+            CoursesContent { cook_and_run_id, course_list: course_list.clone() }
+        ),
     }
 }
 
@@ -116,12 +127,7 @@ fn CoursesContent(cook_and_run_id: Uuid, course_list: Vec<CourseData>) -> Elemen
                                         let name_value = e.value().trim().to_string();
                                         let mut list = course_list_signal.write();
                                         if let Some(c) = list.iter_mut().find(|c| c.id == course.id) {
-                                            if name_value.is_empty() {
-                                                c.name_error = "Course name cannot be empty!".to_string();
-                                            } else {
-                                                c.name_error = "".to_string();
-                                            }
-                                            c.name = name_value;
+                                            check_name(c, &name_value);
                                         }
                                     },
                                 }
@@ -135,15 +141,9 @@ fn CoursesContent(cook_and_run_id: Uuid, course_list: Vec<CourseData>) -> Elemen
                                     value: course.time.clone(),
                                     is_error: !course.time_error.clone().is_empty(),
                                     oninput: move |event: Event<FormData>| {
-                                        let time = NaiveTime::parse_from_str(&event.value(), "%H:%M");
                                         let mut list = course_list_signal.write();
                                         if let Some(c) = list.iter_mut().find(|c| c.id == course.id) {
-                                            if let Ok(t) = &time {
-                                                c.time_error = "".to_string();
-                                                c.time = t.clone();
-                                            } else {
-                                                c.time_error = "Invalid time format!".to_string();
-                                            }
+                                            check_time(c, &event.value());
                                         }
                                     },
                                 }
@@ -151,13 +151,27 @@ fn CoursesContent(cook_and_run_id: Uuid, course_list: Vec<CourseData>) -> Elemen
                             }
                         }
                         div { class: "flex flex-wrap items-center gap-3",
-
                             div { class: "flex items-center gap-2",
                                 input {
                                     r#type: "radio",
                                     name: "multi_participant_course",
                                     checked: course.has_multiple_hosts,
-                                    onchange: move |_| {},
+                                    onchange: move |_| {
+                                        let mut list = course_list_signal.write();
+                                        for c in list.iter_mut() {
+                                            if c.id == course.id {
+                                                if !c.has_multiple_hosts {
+                                                    c.has_multiple_hosts = true;
+                                                    c.is_updated = true;
+                                                }
+                                            } else {
+                                                if c.has_multiple_hosts {
+                                                    c.has_multiple_hosts = false;
+                                                    c.is_updated = true;
+                                                }
+                                            }
+                                        }
+                                    },
                                 }
                                 label { class: "text-sm text-gray-700", "Allow more hosts!" }
                             }
@@ -193,14 +207,64 @@ fn CoursesContent(cook_and_run_id: Uuid, course_list: Vec<CourseData>) -> Elemen
                             div { class: "text-5xl font-bold", "+" }
                         }
                     }
-
                 }
 
                 div { class: "flex justify-end w-full ",
-                    ConfirmButton { text: "Save".to_string() }
+                    ConfirmButton {
+                        action: async_action!(
+                            { let mut storage_signal = use_context::< Signal < StorageManager >> (); let mut
+                            storage = storage_signal.write(); let mut list = course_list_signal.write(); for
+                            course in list.iter_mut() { let name = course.name.clone(); let time = course
+                            .time.format("%H:%M").to_string(); if ! check_name(course, & name) ||!
+                            check_time(course, & time) { console::error_1(&
+                            format!("Validation errors in course: {}", course.id) .into()); continue; } if
+                            course.is_new { let result = storage
+                            .create_course_of_cook_and_run(cook_and_run_id, course.id, & course
+                            .to_create_course()). await; if let Err(e) = result { console::error_1(&
+                            format!("Error inserting course: {}", e) .into()); return; } else { course.is_new
+                            = false; course.is_updated = false; } } else if course.is_updated { let result =
+                            storage.update_course_of_cook_and_run(cook_and_run_id, course.id, & course
+                            .to_update_course()). await; if let Err(e) = result { console::error_1(&
+                            format!("Error updating course: {}", e) .into()); return; } else { course
+                            .is_updated = false; } } } }
+                        ),
+                        text: "Save".to_string(),
+                    }
                 }
-
             }
+        }
+    }
+}
+
+fn check_name(course_param: &mut CourseParam, new_name: &str) -> bool {
+    let name = new_name.trim();
+    if course_param.name != name {
+        course_param.is_updated = true;
+        course_param.name = name.to_string();
+    }
+
+    if name.is_empty() {
+        course_param.name_error = "Course name cannot be empty!".to_string();
+        false
+    } else {
+        course_param.name_error = "".to_string();
+        true
+    }
+}
+
+fn check_time(course_param: &mut CourseParam, new_time: &str) -> bool {
+    match NaiveTime::parse_from_str(new_time, "%H:%M") {
+        Ok(t) => {
+            course_param.time_error = "".to_string();
+            if course_param.time != t {
+                course_param.is_updated = true;
+            }
+            course_param.time = t;
+            true
+        }
+        Err(_) => {
+            course_param.time_error = "Invalid time format!".to_string();
+            false
         }
     }
 }
