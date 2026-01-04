@@ -6,8 +6,13 @@ use crate::side::{AddressSVG, DeleteButtonProps, Headline1, Headline2, InputPhon
 use crate::storage::{
     AddressData, NoteCreate, NoteData, StorageManager, TeamCreate, TeamData, TeamUpdate,
 };
+use base64::engine::general_purpose;
+use base64::Engine;
 use chrono::{Local, TimeZone, Utc};
+use dioxus::html::base;
 use dioxus::prelude::*;
+use qrcode::render::svg;
+use qrcode::QrCode;
 use uuid::Uuid;
 use web_sys::console;
 
@@ -110,24 +115,32 @@ async fn delete_team(id: Uuid, team_id: Uuid) -> Result<(), String> {
 #[component]
 pub fn Teams(cook_and_run_id: Uuid) -> Element {
     let storage = use_context::<Signal<StorageManager>>();
-    let team_list: Resource<Result<Vec<TeamData>, String>> = use_resource(move || {
+    let team_list: Resource<Result<(Vec<TeamData>, bool), String>> = use_resource(move || {
         let storage = storage.clone();
         async move {
             let storage = storage.read().clone();
             let team_list = storage
                 .select_cook_and_run_team_list(cook_and_run_id)
                 .await?;
-            Ok(team_list)
+            let meta = storage.select_cook_and_run_meta(cook_and_run_id).await?;
+            Ok((team_list, meta.is_in_cloud))
         }
     });
 
     match &*team_list.read_unchecked() {
-        None => rsx!(LoadingPage {}),
-        Some(Err(e)) => rsx!(ErrorPage { error_text: e }),
-        Some(Ok(team_list)) => rsx!(TeamsContent {
-            cook_and_run_id,
-            team_list: team_list.clone()
-        }),
+        None => rsx!(
+            LoadingPage {}
+        ),
+        Some(Err(e)) => rsx!(
+            ErrorPage { error_text: e }
+        ),
+        Some(Ok(team_list)) => rsx!(
+            TeamsContent {
+                cook_and_run_id,
+                team_list: team_list.0.clone(),
+                is_online: team_list.1,
+            }
+        ),
     }
 }
 
@@ -135,15 +148,83 @@ enum PopUpWindow {
     None,
     AddTeam,
     EditTeam(TeamData),
+    Share,
 }
 
 #[component]
-pub(crate) fn TeamsContent(cook_and_run_id: Uuid, team_list: Vec<TeamData>) -> Element {
+pub(crate) fn TeamsContent(
+    cook_and_run_id: Uuid,
+    team_list: Vec<TeamData>,
+    is_online: bool,
+) -> Element {
     let mut team_dialog_signal: Signal<PopUpWindow> = use_signal(|| PopUpWindow::None);
 
     rsx! {
         section {
-            Headline1 { headline: "Teams" }
+            div { class: "flex justify-between items-center mb-4 px-6",
+                Headline1 { headline: "Teams" }
+                if is_online {
+                    button {
+                        class: "flex items-center justify-center w-10 h-10 rounded-lg bg-[#C66741] hover:bg-[#b8563a] text-white shadow-md hover:shadow-lg transition-all",
+                        onclick: move |_| {
+                            team_dialog_signal.set(PopUpWindow::Share);
+                        },
+                        svg {
+                            class: "w-5 h-5",
+                            view_box: "0 0 24 24",
+                            fill: "none",
+                            stroke: "currentColor",
+                            stroke_width: "2",
+                            circle { cx: "18", cy: "5", r: "3" }
+                            circle { cx: "6", cy: "12", r: "3" }
+                            circle { cx: "18", cy: "19", r: "3" }
+                            line {
+                                x1: "8.59",
+                                y1: "13.51",
+                                x2: "15.42",
+                                y2: "17.49",
+                            }
+                            line {
+                                x1: "15.41",
+                                y1: "6.51",
+                                x2: "8.59",
+                                y2: "10.49",
+                            }
+                        }
+                    }
+                } else {
+                    div {
+                        class: "flex items-center justify-center w-10 h-10 rounded-lg bg-gray-400 text-gray-600 shadow-md opacity-60 group relative",
+                        title: "Sharing option to let people create teams is only available when the project is stored in the cloud!",
+                        button {
+                            class: "flex items-center justify-center w-full h-full",
+                            disabled: true,
+                            svg {
+                                class: "w-5 h-5",
+                                view_box: "0 0 24 24",
+                                fill: "none",
+                                stroke: "currentColor",
+                                stroke_width: "2",
+                                circle { cx: "18", cy: "5", r: "3" }
+                                circle { cx: "6", cy: "12", r: "3" }
+                                circle { cx: "18", cy: "19", r: "3" }
+                                line {
+                                    x1: "8.59",
+                                    y1: "13.51",
+                                    x2: "15.42",
+                                    y2: "17.49",
+                                }
+                                line {
+                                    x1: "15.41",
+                                    y1: "6.51",
+                                    x2: "8.59",
+                                    y2: "10.49",
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             // Scrollable grid
             div { class: "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 p-6 max-h-[calc(100vh-16rem)] overflow-y-auto pr-2",
@@ -171,13 +252,13 @@ pub(crate) fn TeamsContent(cook_and_run_id: Uuid, team_list: Vec<TeamData>) -> E
                         })
                 }
 
+
                 a {
                     class: "border-4 border-dashed border-gray-300 rounded-xl p-6 flex items-center justify-center text-gray-400 hover:bg-[#fdfaf6] hover:text-[#C66741] hover:scale-105 transition-all duration-200 cursor-pointer",
                     onclick: move |_| {
                         team_dialog_signal.set(PopUpWindow::AddTeam);
                     },
                     div {
-
                         div { class: "text-5xl font-bold", "+" }
                     }
                 }
@@ -197,6 +278,325 @@ pub(crate) fn TeamsContent(cook_and_run_id: Uuid, team_list: Vec<TeamData>) -> E
                         team_dialog_signal: team_dialog_signal.clone(),
                         project_id: cook_and_run_id,
                         team_data: team_data.clone(),
+                    }
+                }
+            }
+            PopUpWindow::Share => rsx! {
+                ShareDialog {
+                    team_dialog_signal: team_dialog_signal.clone(),
+                    project_id: cook_and_run_id,
+                }
+            },
+        }
+    }
+}
+
+#[component]
+fn ShareDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Element {
+    let share_url: Signal<String> = use_signal(|| {
+        let window = web_sys::window().expect("no global `window` exists");
+        let location = window.location();
+        let base_url = location.origin().unwrap_or_else(|_| "unknown".to_string());
+        format!("{}/cook-and-run/{}/share", base_url, project_id)
+    });
+    let mut is_edit_share_signal = use_signal(|| true);
+
+    let mut is_active_signal = use_signal(|| true);
+
+    let qr_data_uri = use_memo(move || {
+        // 1. QR Code Instanz erstellen
+        let code = match QrCode::new(share_url.read().as_bytes()) {
+            Ok(c) => c,
+            Err(_) => return String::new(), // Leerer String bei Fehler
+        };
+
+        // 2. Als SVG-String rendern
+        let svg_xml = code
+            .render::<svg::Color>()
+            .min_dimensions(200, 200)
+            .dark_color(svg::Color("#000000"))
+            .light_color(svg::Color("#ffffff"))
+            .build();
+
+        // 3. Nach Base64 kodieren für die Verwendung im src-Attribut
+        let encoded = general_purpose::STANDARD.encode(svg_xml);
+        format!("data:image/svg+xml;base64,{}", encoded)
+    });
+
+    rsx! {
+        div { class: "backdrop-blur fixed inset-0 flex h-screen w-screen justify-center items-center",
+            div { class: "relative bg-white shadow-md rounded-xl p-6 hover:shadow-lg transition-all cursor-pointer w-224",
+                // Title
+                h2 { class: "text-2xl font-semibold text-black-600 mb-4", "Share config" }
+
+
+                div { class: "flex border-b border-gray-300 mb-4 items-center justify-between",
+                    div { class: "flex",
+                        button {
+                            r#type: "button",
+                            onclick: move |_| {
+                                is_edit_share_signal.set(true);
+                            },
+                            class: if *is_edit_share_signal.read() { "px-4 py-2 font-semibold text-sm text-[#C66741] border-b-2 border-[#C66741]" } else { "px-4 py-2 font-semibold text-sm text-gray-600 hover:text-[#C66741]" },
+                            "Info"
+                        }
+                        button {
+                            r#type: "button",
+                            onclick: move |_| {
+                                is_edit_share_signal.set(false);
+                            },
+                            class: if !*is_edit_share_signal.read() { "px-4 py-2 font-semibold text-sm text-[#C66741] border-b-2 border-[#C66741]" } else { "px-4 py-2 font-semibold text-sm text-gray-600 hover:text-[#C66741]" },
+                            "Config"
+                        }
+                    }
+                    div {
+                        div { class: "flex items-center space-x-2",
+                            label { class: "text-sm text-gray-600", "Activate:" }
+                            input {
+                                r#type: "checkbox",
+                                checked: is_active_signal,
+                                class: "text-[#C66741] rounded",
+                                onclick: move |_| {
+                                    let new_value = !*is_active_signal.read();
+                                    is_active_signal.set(new_value);
+                                },
+                            }
+                        }
+                    }
+                }
+
+                // Close button
+                CloseButton {
+                    onclick: move |_| {
+                        team_dialog_signal.set(PopUpWindow::None);
+                    },
+                }
+
+                if *is_edit_share_signal.read() {
+                    div { class: if *is_active_signal.read() { "flex flex-col space-y-4" } else { "flex flex-col space-y-4 opacity-50 pointer-events-none" },
+                        // Registered Teams Info
+                        div { class: "grid grid-cols-2 gap-4",
+                            div { class: "p-4 bg-blue-50 rounded-lg",
+                                p { class: "text-sm text-gray-600 mb-1", "Teams Registered" }
+                                p { class: "text-2xl font-bold text-[#C66741]", "12" }
+                            }
+                            div { class: "p-4 bg-blue-50 rounded-lg",
+                                p { class: "text-sm text-gray-600 mb-1", "Teams Allowed" }
+                                p { class: "text-2xl font-bold text-[#C66741]", "∞" }
+                            }
+                        }
+
+                        // QR Code Section
+                        div { class: "flex flex-col items-center p-4 bg-gray-50 rounded-lg",
+                            label { class: "block text-sm font-semibold text-gray-700 mb-3",
+                                "QR Code"
+                            }
+                            div { class: "bg-white p-4 rounded border border-gray-300",
+                                img {
+                                    src: "{qr_data_uri}",
+                                    alt: "QR Code",
+                                    class: "w-48 h-48",
+                                }
+                            }
+                            button {
+                                class: "mt-3 px-4 py-2 bg-[#C66741] hover:bg-[#b8563a] text-white rounded-lg transition-all",
+                                disabled: !*is_active_signal.read(),
+                                onclick: move |_| {},
+                                "Download QR Code"
+                            }
+                        }
+
+                        // Share Link Section
+                        div { class: "flex flex-col",
+                            label { class: "block text-sm font-semibold text-gray-700 mb-2",
+                                "Share Link"
+                            }
+                            div { class: "flex gap-2",
+                                input {
+                                    r#type: "text",
+                                    readonly: true,
+                                    disabled: !*is_active_signal.read(),
+                                    value: "{share_url}",
+                                    class: "flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-50",
+                                }
+                                button {
+                                    class: "px-4 py-2 bg-[#C66741] hover:bg-[#b8563a] text-white rounded-lg transition-all",
+                                    disabled: !*is_active_signal.read(),
+                                    onclick: move |_| {},
+                                    "Copy"
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    div { class: "flex flex-col space-y-4",
+                        // Invitation Text
+                        div {
+                            label { class: "block text-sm font-semibold text-gray-700 mb-2",
+                                "Invitation Text"
+                            }
+                            InputMultirow {
+                                place_holer: Some("Enter an invitation text...".to_string()),
+                                value: use_signal(|| "".to_string()),
+                                is_error: false,
+                                oninput: move |_: Event<FormData>| {},
+                            }
+                        }
+
+                        // Settings Grid
+                        div { class: "grid grid-cols-2 gap-4",
+                            // Require Login
+                            div {
+                                class: "flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-help group relative",
+                                title: "Teams must be logged in to join",
+                                input {
+                                    r#type: "checkbox",
+                                    checked: false,
+                                    class: "w-4 h-4 text-[#C66741] rounded cursor-pointer",
+                                    onclick: move |_| {},
+                                }
+                                label { class: "text-sm font-medium text-gray-700 cursor-pointer",
+                                    "Login required"
+                                }
+                                div { class: "absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10",
+                                    "Teams must be logged in to join"
+                                }
+                            }
+
+                            // Default needs check
+                            div {
+                                class: "flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-help group relative",
+                                title: "New teams require verification before participation",
+                                input {
+                                    r#type: "checkbox",
+                                    checked: false,
+                                    class: "w-4 h-4 text-[#C66741] rounded cursor-pointer",
+                                    onclick: move |_| {},
+                                }
+                                label { class: "text-sm font-medium text-gray-700 cursor-pointer",
+                                    "Verification required"
+                                }
+                                div { class: "absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10",
+                                    "New teams require verification before participation"
+                                }
+                            }
+                        }
+
+                        // Required Fields
+                        div { class: "p-4 bg-gray-50 rounded-lg",
+                            label { class: "block text-sm font-semibold text-gray-700 mb-3",
+                                "Required Fields"
+                            }
+                            div { class: "grid grid-cols-2 gap-3",
+                                div {
+                                    class: "flex items-center space-x-3 cursor-help group relative",
+                                    title: "Teams must provide an email address",
+                                    input {
+                                        r#type: "checkbox",
+                                        checked: true,
+                                        class: "w-4 h-4 text-[#C66741] rounded cursor-pointer",
+                                        onclick: move |_| {},
+                                    }
+                                    label { class: "text-sm text-gray-700 cursor-pointer",
+                                        "Email"
+                                    }
+                                    div { class: "absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10",
+                                        "Teams must provide an email address"
+                                    }
+                                }
+                                div {
+                                    class: "flex items-center space-x-3 cursor-help group relative",
+                                    title: "Teams must provide a phone number",
+                                    input {
+                                        r#type: "checkbox",
+                                        checked: false,
+                                        class: "w-4 h-4 text-[#C66741] rounded cursor-pointer",
+                                        onclick: move |_| {},
+                                    }
+                                    label { class: "text-sm text-gray-700 cursor-pointer",
+                                        "Phone"
+                                    }
+                                    div { class: "absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10",
+                                        "Teams must provide a phone number"
+                                    }
+                                }
+                                div {
+                                    class: "flex items-center space-x-3 cursor-help group relative",
+                                    title: "Teams must specify number of members",
+                                    input {
+                                        r#type: "checkbox",
+                                        checked: false,
+                                        class: "w-4 h-4 text-[#C66741] rounded cursor-pointer",
+                                        onclick: move |_| {},
+                                    }
+                                    label { class: "text-sm text-gray-700 cursor-pointer",
+                                        "Number of Members"
+                                    }
+                                    div { class: "absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10",
+                                        "Teams must specify number of members"
+                                    }
+                                }
+                                div {
+                                    class: "flex items-center space-x-3 cursor-help group relative",
+                                    title: "Teams must provide dietary requirements",
+                                    input {
+                                        r#type: "checkbox",
+                                        checked: false,
+                                        class: "w-4 h-4 text-[#C66741] rounded cursor-pointer",
+                                        onclick: move |_| {},
+                                    }
+                                    label { class: "text-sm text-gray-700 cursor-pointer",
+                                        "Dietary Requirements"
+                                    }
+                                    div { class: "absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10",
+                                        "Teams must provide dietary requirements"
+                                    }
+                                }
+                            }
+                        }
+
+                        // Max Teams & Validity in Row
+                        div { class: "grid grid-cols-2 gap-4",
+                            div { class: "cursor-help group relative",
+                                label { class: "block text-sm font-semibold text-gray-700 mb-2",
+                                    "Max Teams"
+                                }
+                                InputNumber {
+                                    place_holer: Some("0 = unlimited".to_string()),
+                                    value: use_signal(|| "".to_string()),
+                                    is_error: false,
+                                    oninput: move |_e: Event<FormData>| {},
+                                }
+                                div { class: "absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10",
+                                    "Maximum number of teams allowed to join (0 = unlimited)"
+                                }
+                            }
+                            div { class: "cursor-help group relative",
+                                label { class: "block text-sm font-semibold text-gray-700 mb-2",
+                                    "Valid until"
+                                }
+                                div { class: "flex gap-2",
+                                    input {
+                                        r#type: "date",
+                                        class: "flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C66741] transition-all",
+                                    }
+                                    input {
+                                        r#type: "time",
+                                        class: "flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C66741] transition-all",
+                                    }
+                                }
+                                div { class: "absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10",
+                                    "Configuration expires at this date and time"
+                                }
+                            }
+                        }
+
+                        div { class: "flex justify-center mt-2 pt-2",
+                            ConfirmButton {
+                                text: "Save Configuration".to_string(),
+                                action: async_action!({}),
+                            }
+                        }
                     }
                 }
             }
@@ -394,7 +794,6 @@ fn EditTeamDialog(
                         }
                     }
                     {delete_button}
-
                 }
 
                 // Close button
@@ -656,7 +1055,6 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                         Note { note_data: note_data.clone() }
                     }
                 }
-
             }
         }
     }

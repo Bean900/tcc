@@ -67,6 +67,8 @@ impl Route {
             Route::Dashboard {} => "cook-and-run".to_string(),
             Route::Overview { cook_and_run_id } => format!("overview.{}", cook_and_run_id),
             Route::Teams { cook_and_run_id } => format!("teams.{}", cook_and_run_id),
+            Route::StartEnd { cook_and_run_id } => format!("startend.{}", cook_and_run_id),
+            Route::Courses { cook_and_run_id } => format!("courses.{}", cook_and_run_id),
             _ => "-".to_string(),
         }
     }
@@ -90,6 +92,30 @@ impl Route {
                 if parts.len() == 2 {
                     if let Ok(uuid) = Uuid::parse_str(parts[1]) {
                         return Route::Teams {
+                            cook_and_run_id: uuid,
+                        };
+                    }
+                }
+                Route::NotFound {
+                    route: vec![s.to_string()],
+                }
+            }
+            "startend" => {
+                if parts.len() == 2 {
+                    if let Ok(uuid) = Uuid::parse_str(parts[1]) {
+                        return Route::StartEnd {
+                            cook_and_run_id: uuid,
+                        };
+                    }
+                }
+                Route::NotFound {
+                    route: vec![s.to_string()],
+                }
+            }
+            "courses" => {
+                if parts.len() == 2 {
+                    if let Ok(uuid) = Uuid::parse_str(parts[1]) {
+                        return Route::Courses {
                             cook_and_run_id: uuid,
                         };
                     }

@@ -6,7 +6,7 @@ use crate::{
     calculator::Calculator,
     error,
     side::{AddressSVG, Headline1, Headline2, SecondaryButton},
-    storage::{TeamData, PlanData, StorageManager},
+    storage::{PlanData, StorageManager, TeamData},
     Route,
 };
 
@@ -17,29 +17,34 @@ fn save_plan(cook_and_run_id: Uuid, plan: &PlanData) -> Result<(), String> {
 }
 
 #[component]
-pub fn Calculate(id: Uuid) -> Element {
-    let storage = match StorageManager::get_lock() {
-        Ok(storage) => storage,
-        Err(e) => {
-            console::error_1(&format!("Error while getting storage lock: {}", e).into());
-            return error(
-                "Unexpected Error",
-                "An unexpected error has occurred. Please team your system administrator.",
-            );
+pub fn Calculate(cook_and_run_id: Uuid) -> Element {
+    let storage = use_context::<Signal<StorageManager>>();
+    let plan_list: Resource<Result<Vec<PlanData>, String>> = use_resource(move || {
+        let storage = storage.clone();
+        async move {
+            let storage = storage.read().clone();
+            let plan_list = storage
+                .select_cook_and_run_plan_list(cook_and_run_id)
+                .await?;
+            Ok(plan_list)
         }
-    };
+    });
 
-    let cook_and_run = match storage.select_cook_and_run(id) {
-        Ok(cook_and_run) => cook_and_run,
-        Err(e) => {
-            console::error_1(&format!("Error while loading cook and run: {}", e,).into());
-            return error(
-                "Not Found",
-                "The requested cook and run could not be found.",
-            );
-        }
-    };
+    match &*plan_list.read_unchecked() {
+        None => rsx!(
+            LoadingPage {}
+        ),
+        Some(Err(e)) => rsx!(
+            ErrorPage { error_text: e }
+        ),
+        Some(Ok(plan_list)) => rsx!(
+            CalculateContent { cook_and_run_id, plan_list: plan_list.clone() }
+        ),
+    }
+}
 
+#[component]
+pub fn CalculateContent(plan_list: Vec<PlanData>) -> Element {
     let mut top_plan_signal = use_signal(|| cook_and_run.top_plan.clone());
 
     let calculator = Calculator::new(&cook_and_run);
@@ -51,7 +56,7 @@ pub fn Calculate(id: Uuid) -> Element {
             )
             .into(),
         );
-        return rsx!("Error while creating calculator. Are all fields set?");
+        return rsx!( "Error while creating calculator. Are all fields set?" );
     }
     let calculator = calculator.expect("Expect calculator");
 
@@ -111,6 +116,7 @@ pub fn Calculate(id: Uuid) -> Element {
         }
     }
 }
+
 #[component]
 fn TeamCard(props: TeamData) -> Element {
     rsx! {
