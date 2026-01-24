@@ -23,67 +23,114 @@ When cloud functionality is enabled, projects can be accessed and managed from m
 
 ### Prerequisites
 
-Before installing the client, ensure that the following tools are available on your system:
+To install, run, and develop the client locally, the following tools are required:
 
-* A modern operating system (Windows, macOS, or Linux)
-* A recent web browser (for web-based usage)
-* Git (for development and contribution)
-* The required runtime environment as described below
+- **Rust** (stable toolchain)
+  - Install via rustup: https://rustup.rs
+- **Cargo** (comes with Rust)
+- **Node.js** (LTS version recommended)
+- **npm** or **pnpm** (for frontend tooling)
+- **Git**
 
-Depending on your setup, additional tools may be required for development work (see *Development Setup*).
+The client is built using **Rust**, **Dioxus**, and **Tailwind CSS**. Tailwind is integrated via the Node.js toolchain and is required both for development and for production builds.
+
+---
 
 ### Client Installation
 
 1. Clone the repository:
-
    ```bash
-   git clone git@github.com:Bean900/tcc.git
-   cd tcc
+   git clone <repository-url>
+   cd <project-directory>
    ```
 
-2. Install the required dependencies:
-
+2. Install Rust dependencies:
    ```bash
-   <dependency-install-command>
+   cargo fetch
    ```
 
-3. Verify that the installation completed successfully by running the version or help command:
-
+3. Install Node.js dependencies (required for Tailwind CSS):
    ```bash
-   <client-command> --help
+   npm install
    ```
+   or, if using pnpm:
+   ```bash
+   pnpm install
+   ```
+
+
+If no errors occur, the client is ready to be started.
+
+---
 
 ## Development Setup
 
-For implementation and development work, the following components must be running:
+For active development and implementation work, the following processes must be running:
 
-* The client application in development mode
-* Any required local services (e.g. local storage, optional backend services)
+- The Dioxus development server
+- The Tailwind CSS watcher
 
-Typical development steps:
+### Start Development Mode
 
-1. Install all development dependencies:
-
+1. Start Tailwind in watch mode:
    ```bash
-   <development-dependency-install-command>
+   npx @tailwindcss/cli -i ./assets/input.css -o ./assets/output.css --watch
    ```
 
-2. Start the development environment:
-
+2. In a second terminal, start the Dioxus development server:
    ```bash
-   <development-start-command>
+   dx serve --platform web
    ```
 
-3. Make code changes and verify them using the available build or test commands.
+This will start the application in development mode with hot reloading enabled for both Rust and CSS changes.
+
+---
 
 ## Starting the Client
 
-To start the client in normal (non-development) mode, run:
+### Development Mode
+
+For local development:
 
 ```bash
-<client-start-command>
+dx serve --platform web
 ```
 
-Once started, the client will be accessible via the configured interface (for example, a local desktop window or a browser at a local address).
+The application will be available at the local address printed in the terminal (typically `http://localhost:8080`).
 
-Further configuration options, advanced features, and cloud setup instructions are described in the following chapters of this documentation.
+### Production Build
+
+To create an optimized production build:
+
+1. Build Tailwind CSS:
+   ```bash
+   npm run build:css
+   ```
+
+2. Build the Dioxus application:
+   ```bash
+   dx build --release
+   ```
+
+The resulting artifacts can be found in the build output directory and can be deployed or packaged depending on the target platform.
+
+---
+
+## Further Development
+
+### Recommended Workflow
+
+- Keep Tailwind running in watch mode during development
+- Use `dx serve` for fast feedback and hot reloads
+- Run `cargo fmt` and `cargo clippy` regularly to maintain code quality
+
+### Useful Commands
+
+```bash
+cargo fmt        # Format Rust code
+cargo clippy    # Lint Rust code
+cargo test      # Run tests
+```
+
+Additional chapters will cover application architecture, cloud setup, and advanced configuration options.
+
