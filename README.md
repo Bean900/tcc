@@ -58,6 +58,7 @@ To install, run, and develop the client locally, the following steps are require
    cd client
    ```
 1. Install [Dioxus](https://dioxuslabs.com/learn/0.7/getting_started/)
+1. Install [Node.js](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
 1. Install Node.js dependencies (required for Tailwind CSS):
    ```bash
    npm install
