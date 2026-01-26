@@ -1,55 +1,64 @@
-# Project Overview
+# Traveling Cook Calculator
 
 ## Introduction
 
-The traveling cook calculator (TCC) is designed to support the planning and organization of so-called *Cook & Run*, *Running Dinner*, or similar multi-stage dining and running events. From the very beginning, development has been driven by a strong focus on data privacy and by the goal of calculating routes and team allocations as optimally as possible.
+The traveling cook calculator (TCC) is built to simplify the planning and execution of Cook & Run, Running Dinner, and similar multi-stage dining events. Its primary goal is to calculate team assignments and routes as efficiently as possible while minimizing organizational overhead.
 
-At its core, the application allows all data entry and all calculations to be performed completely locally. This enables event organizers to plan and execute events without transmitting any personal or location-based data to external systems.
+A strong focus has been placed on data privacy, flexibility, and ease of use. Organizers can choose between a fully local workflow or enhanced collaboration features via an optional cloud setup. Participants can enter their own data, routes are calculated automatically, and organizers retain full control over validation and execution.
 
-For users who require additional functionality, the application also offers an optional cloud mode. Even in this scenario, data protection remains a top priority: the cloud can be self-hosted, allowing full control over where and how data is stored. Instructions on how to set up and operate your own cloud instance are provided in a later chapter.
-
-When cloud functionality is enabled, projects can be accessed and managed from multiple devices, such as different computers or mobile phones. In addition, organizers can generate a shareable link or QR code through which participating teams can directly enter their information and subsequently access their "walking" sheets. This significantly reduces manual effort, as the organizer only needs to review and validate the submitted data instead of collecting and entering it manually.
+In short, the application reduces manual coordination effort, avoids error-prone spreadsheets, and provides a privacy-conscious alternative to centralized event-planning platforms.
 
 ## Features
 
-* Privacy-first architecture with full local-only operation
-* Optimized route and team calculation for Running Dinner–style events
-* Optional cloud support with self-hosting capability
-* Cross-device project access (desktop and mobile)
-* Shareable links and QR codes for team self-registration
-* Central validation and management of all submitted data
+Data protection is a core design principle of this project.
+* All participant and event data can be entered, stored, and processed entirely locally.
+* No data is transferred to external services unless cloud functionality is explicitly enabled or OpenStreetMap is used.
 
-## Installation (Client)
+When cloud features are used:
+* Only the data required for collaboration and synchronization is stored.
+* The system is designed to allow self-hosting, ensuring that organizers remain in full control of where participant data is stored.
+* Participant-provided data (such as addresses) is used exclusively for event planning and route calculation.
+* Data is never sold, shared with third parties, or used for analytics beyond the scope of the event.
 
-### Prerequisites
+## Quick Start
+The fastest way to get started is to use the hosted version of the application:
 
-To install, run, and develop the client locally, the following tools are required:
+1. Visit https://XYZ
+1. Create a new project
+1. Configure your event settings
+1. Share the generated link or QR code with participants
 
-- **Rust** (stable toolchain)
-  - Install via rustup: https://rustup.rs
-- **Cargo** (comes with Rust)
-- **Node.js** (LTS version recommended)
-- **npm** or **pnpm** (for frontend tooling)
-- **Git**
+No local installation is required for this workflow. All core features are available directly through the browser.
 
-The client is built using **Rust**, **Dioxus**, and **Tailwind CSS**. Tailwind is integrated via the Node.js toolchain and is required both for development and for production builds.
+## Installation
 
----
+### Client
+Coming soon
 
-### Client Installation
+### Server
+Coming soon
 
+
+## Contribute
+
+### General Setup
+To install, run, and develop the client locally, the following steps are required:
+
+1. Install [Git](https://git-scm.com/install/)
+1. Install [Rust](https://rust-lang.org/tools/install/)
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
-   cd <project-directory>
+   git clone https://github.com/Bean900/tcc.git
+   cd tcc
    ```
-
-2. Install Rust dependencies:
+   
+### Setup Client
+1. Go to the client folder:
    ```bash
-   cargo fetch
+   cd client
    ```
-
-3. Install Node.js dependencies (required for Tailwind CSS):
+1. Install [Dioxus](https://dioxuslabs.com/learn/0.7/getting_started/)
+1. Install Node.js dependencies (required for Tailwind CSS):
    ```bash
    npm install
    ```
@@ -57,80 +66,22 @@ The client is built using **Rust**, **Dioxus**, and **Tailwind CSS**. Tailwind i
    ```bash
    pnpm install
    ```
+1. Install Rust dependencies:
+   ```bash
+   cargo fetch
+   ```
 
+If no errors occur, the client is ready to started and can be further developed.
 
-If no errors occur, the client is ready to be started.
-
----
-
-## Development Setup
-
-For active development and implementation work, the following processes must be running:
-
-- The Dioxus development server
-- The Tailwind CSS watcher
-
-### Start Development Mode
+For local testing, the following steps must then be followed:
 
 1. Start Tailwind in watch mode:
    ```bash
    npx @tailwindcss/cli -i ./assets/input.css -o ./assets/output.css --watch
    ```
-
 2. In a second terminal, start the Dioxus development server:
    ```bash
    dx serve --platform web
    ```
 
 This will start the application in development mode with hot reloading enabled for both Rust and CSS changes.
-
----
-
-## Starting the Client
-
-### Development Mode
-
-For local development:
-
-```bash
-dx serve --platform web
-```
-
-The application will be available at the local address printed in the terminal (typically `http://localhost:8080`).
-
-### Production Build
-
-To create an optimized production build:
-
-1. Build Tailwind CSS:
-   ```bash
-   npm run build:css
-   ```
-
-2. Build the Dioxus application:
-   ```bash
-   dx build --release
-   ```
-
-The resulting artifacts can be found in the build output directory and can be deployed or packaged depending on the target platform.
-
----
-
-## Further Development
-
-### Recommended Workflow
-
-- Keep Tailwind running in watch mode during development
-- Use `dx serve` for fast feedback and hot reloads
-- Run `cargo fmt` and `cargo clippy` regularly to maintain code quality
-
-### Useful Commands
-
-```bash
-cargo fmt        # Format Rust code
-cargo clippy    # Lint Rust code
-cargo test      # Run tests
-```
-
-Additional chapters will cover application architecture, cloud setup, and advanced configuration options.
-
