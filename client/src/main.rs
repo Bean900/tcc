@@ -1,10 +1,11 @@
 mod address_connector;
 pub mod auth0;
 mod calculator;
+mod schema_calculator;
 mod side;
 mod storage;
-
 use dioxus::prelude::*;
+use side::Calculate;
 use side::Callback;
 use side::Courses;
 use side::Dashboard;
@@ -49,8 +50,8 @@ enum Route {
                     StartEnd {cook_and_run_id:Uuid},
                     #[route("/courses")]
                     Courses {cook_and_run_id:Uuid},
-                     /*     #[route("/plan")]
-                    Plan {cook_and_run_id:Uuid},*/
+                    #[route("/calculate")]
+                    Calculate {cook_and_run_id:Uuid},
                 #[end_layout]
             #[end_nest]
         #[end_nest]
@@ -69,6 +70,7 @@ impl Route {
             Route::Teams { cook_and_run_id } => format!("teams.{}", cook_and_run_id),
             Route::StartEnd { cook_and_run_id } => format!("startend.{}", cook_and_run_id),
             Route::Courses { cook_and_run_id } => format!("courses.{}", cook_and_run_id),
+            Route::Calculate { cook_and_run_id } => format!("calculate.{}", cook_and_run_id),
             _ => "-".to_string(),
         }
     }
@@ -116,6 +118,18 @@ impl Route {
                 if parts.len() == 2 {
                     if let Ok(uuid) = Uuid::parse_str(parts[1]) {
                         return Route::Courses {
+                            cook_and_run_id: uuid,
+                        };
+                    }
+                }
+                Route::NotFound {
+                    route: vec![s.to_string()],
+                }
+            }
+            "calculate" => {
+                if parts.len() == 2 {
+                    if let Ok(uuid) = Uuid::parse_str(parts[1]) {
+                        return Route::Calculate {
                             cook_and_run_id: uuid,
                         };
                     }

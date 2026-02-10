@@ -1,5 +1,5 @@
 mod address;
-//pub mod calculate;
+pub mod calculate;
 pub mod courses;
 pub mod overview;
 //mod share_team;
@@ -46,7 +46,9 @@ pub fn Menu(cook_and_run_id: Uuid) -> Element {
                 }
                 SidebarButton {
                     label: "Calculation",
-                    target_route: Route::Overview { cook_and_run_id },
+                    target_route: Route::Calculate {
+                        cook_and_run_id,
+                    },
                     current_route: current_route.clone(),
                 }
             }

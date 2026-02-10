@@ -1,7 +1,6 @@
 mod callback;
 mod dashboard;
 mod details;
-//mod run_schedule;
 
 use std::future::Future;
 use std::pin::Pin;
@@ -9,19 +8,12 @@ use std::sync::Arc;
 
 pub use callback::Callback;
 pub use dashboard::Dashboard;
+pub use details::calculate::Calculate;
 pub use details::courses::Courses;
 pub use details::overview::Overview;
 pub use details::startend::StartEnd;
 pub use details::teams::Teams;
 pub use details::Menu;
-//pub use details::ProjectOverviewPage;
-/*pub use details::ProjectCalculationPage;
-pub use details::ProjectCoursesPage;
-
-pub use details::ProjectStartEndPage;
-pub use details::ProjectTeamsPage;
-pub use details::ShareTeam;
-pub use run_schedule::RunSchedule;*/
 
 use dioxus::prelude::*;
 use dioxus::signals::Signal;
