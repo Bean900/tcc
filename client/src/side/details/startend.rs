@@ -32,13 +32,23 @@ pub fn StartEnd(cook_and_run_id: Uuid) -> Element {
         });
 
     match &*start_end.read_unchecked() {
-        None => rsx!(LoadingPage {}),
-        Some(Err(e)) => rsx!(ErrorPage { error_text: e }),
-        Some(Ok(point_data)) => rsx!(StartEndContent {
-            cook_and_run_id,
-            start_point: point_data.0.clone(),
-            end_point: point_data.1.clone(),
-        }),
+        None => rsx!(
+            LoadingPage {}
+        ),
+        Some(Err(e)) => rsx!(
+            ErrorPage {
+                error_text: "Could not load project. You may need to log in or the servers may be offline."
+                    .to_string(),
+                error_details: e.clone(),
+            }
+        ),
+        Some(Ok(point_data)) => rsx!(
+            StartEndContent {
+                cook_and_run_id,
+                start_point: point_data.0.clone(),
+                end_point: point_data.1.clone(),
+            }
+        ),
     }
 }
 
@@ -143,8 +153,7 @@ pub fn StartEndContent(
                             StartSVG {}
                             Headline2 { headline: "Start Point".to_string() }
                         }
-
-
+                    
                     }
 
                     label { class: "inline-flex items-center space-x-2 text-[#3B3B3B] font-sans leading-relaxed text-base mb-4",
@@ -212,16 +221,13 @@ pub fn StartEndContent(
                 // End Point
                 div { class: "bg-[#fdfaf6] shadow rounded-xl p-4 border w-100 h-160",
 
-
-
                     h3 { class: "text-lg font-semibold mb-2 flex items-center justify-between",
                         div { class: "flex items-center space-x-2",
                             EndSVG {}
                             Headline2 { headline: "End Point".to_string() }
                         }
-
+                    
                     }
-
 
                     label { class: "inline-flex items-center space-x-2 text-[#3B3B3B] font-sans leading-relaxed text-base mb-4",
                         input {

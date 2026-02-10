@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
     middleware::from_fn_with_state,
     response::{IntoResponse, Json, Response},
-    routing::{delete, get, post},
+    routing::{delete, get, patch, post},
     Extension, Router,
 };
 use chrono::NaiveDateTime;
@@ -83,6 +83,13 @@ pub fn routes(app_state: AppState) -> Router<AppState> {
         )
         .route(
             "/cook_and_run/:cook_and_run_id/share_team_config",
+            patch(update_share_config).layer(from_fn_with_state(
+                app_state.clone(),
+                require_permission(UPDATE_PERMISSION),
+            )),
+        )
+        .route(
+            "/cook_and_run/:cook_and_run_id/share_team_config",
             get(get_share_config).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
@@ -107,6 +114,25 @@ async fn create_share_config(
     let time = chrono::Utc::now().naive_utc();
 
     sharing::create(
+        &mut state.db,
+        &cook_and_run_id,
+        &claims.sub,
+        &payload.to(&Uuid::new_v4(), &time),
+    )?;
+
+    Ok(())
+}
+
+/// Update team sharing configuration
+async fn update_share_config(
+    Extension(claims): Extension<Claims>,
+    State(mut state): State<AppState>,
+    Path(cook_and_run_id): Path<Uuid>,
+    Json(payload): Json<CreateShareConfigRequest>,
+) -> Result<(), RestError> {
+    let time = chrono::Utc::now().naive_utc();
+
+    sharing::update(
         &mut state.db,
         &cook_and_run_id,
         &claims.sub,

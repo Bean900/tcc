@@ -1,24 +1,23 @@
-use crate::async_action;
 use crate::side::details::address::{Address, AddressParam};
 use crate::side::details::{ErrorPage, LoadingPage};
 use crate::side::AsyncAction;
 use crate::side::{AddressSVG, DeleteButtonProps, Headline1, Headline2, InputPhoneNumber};
 use crate::storage::{
-    AddressData, NoteCreate, NoteData, StorageManager, TeamCreate, TeamData, TeamUpdate,
+    AddressData, NoteCreate, NoteData, ShareTeamConfig, StorageManager, TeamCreate, TeamData,
+    TeamUpdate,
 };
+use crate::{async_action, storage};
 use base64::engine::general_purpose;
 use base64::Engine;
 use chrono::{Local, TimeZone, Utc};
-use dioxus::html::base;
 use dioxus::prelude::*;
 use qrcode::render::svg;
 use qrcode::QrCode;
 use uuid::Uuid;
 use web_sys::console;
+use web_sys::wasm_bindgen::JsCast;
 
-use crate::side::{
-    CloseButton, ConfirmButton, DeleteButton, Input, InputError, InputMultirow, InputNumber,
-};
+use crate::side::{CloseButton, ConfirmButton, Input, InputError, InputMultirow, InputNumber};
 
 fn map_string(value: String) -> Option<String> {
     let value = value.trim();
@@ -132,7 +131,11 @@ pub fn Teams(cook_and_run_id: Uuid) -> Element {
             LoadingPage {}
         ),
         Some(Err(e)) => rsx!(
-            ErrorPage { error_text: e }
+            ErrorPage {
+                error_text: "Could not load project. You may need to log in or the servers may be offline."
+                    .to_string(),
+                error_details: e.clone(),
+            }
         ),
         Some(Ok(team_list)) => rsx!(
             TeamsContent {
@@ -148,7 +151,14 @@ enum PopUpWindow {
     None,
     AddTeam,
     EditTeam(TeamData),
-    Share,
+    Share(Option<ShareTeamConfig>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum ShareConfigState {
+    Offline,
+    Loaded(ShareTeamConfig),
+    None,
 }
 
 #[component]
@@ -157,78 +167,158 @@ pub(crate) fn TeamsContent(
     team_list: Vec<TeamData>,
     is_online: bool,
 ) -> Element {
+    let number_of_teams = team_list.len();
     let mut team_dialog_signal: Signal<PopUpWindow> = use_signal(|| PopUpWindow::None);
+
+    let storage = use_context::<Signal<StorageManager>>();
+    let share_config: Resource<Result<ShareConfigState, String>> =
+        use_resource(move || async move {
+            if is_online == false {
+                return Ok(ShareConfigState::Offline);
+            }
+            let storage = storage.read().clone();
+            let share_config = storage
+                .select_cook_and_run_share_config(cook_and_run_id)
+                .await?;
+            match share_config {
+                Some(config) => Ok(ShareConfigState::Loaded(config)),
+                None => Ok(ShareConfigState::None),
+            }
+        });
+
+    let config = match share_config.read_unchecked().clone() {
+        None => rsx! {
+            div { class: "flex items-center justify-center w-10 h-10 rounded-lg bg-gray-200 text-gray-600 shadow-md animate-pulse" }
+        },
+        Some(Err(e)) => rsx! {
+            div {
+
+                class: "flex items-center justify-center w-10 h-10 rounded-lg bg-red-100 text-red-600 shadow-md",
+                title: "Error loading share config: {e.clone()}",
+                svg {
+                    class: "w-5 h-5",
+                    view_box: "0 0 24 24",
+                    fill: "none",
+                    stroke: "currentColor",
+                    stroke_width: "2",
+                    line {
+                        x1: "18",
+                        y1: "6",
+                        x2: "6",
+                        y2: "18",
+                    }
+                    line {
+                        x1: "6",
+                        y1: "6",
+                        x2: "18",
+                        y2: "18",
+                    }
+                }
+            }
+        },
+        Some(Ok(ShareConfigState::Offline)) => rsx! {
+            div {
+                class: "flex items-center justify-center w-10 h-10 rounded-lg bg-gray-400 text-gray-600 shadow-md opacity-60 group relative",
+                title: "Sharing option to let people create teams is only available when the project is stored in the cloud!",
+                button {
+                    class: "flex items-center justify-center w-full h-full",
+                    disabled: true,
+                    svg {
+                        class: "w-5 h-5",
+                        view_box: "0 0 24 24",
+                        fill: "none",
+                        stroke: "currentColor",
+                        stroke_width: "2",
+                        circle { cx: "18", cy: "5", r: "3" }
+                        circle { cx: "6", cy: "12", r: "3" }
+                        circle { cx: "18", cy: "19", r: "3" }
+                        line {
+                            x1: "8.59",
+                            y1: "13.51",
+                            x2: "15.42",
+                            y2: "17.49",
+                        }
+                        line {
+                            x1: "15.41",
+                            y1: "6.51",
+                            x2: "8.59",
+                            y2: "10.49",
+                        }
+                    }
+                }
+            }
+        },
+        Some(Ok(ShareConfigState::Loaded(config))) => rsx! {
+            button {
+                class: "flex items-center justify-center w-10 h-10 rounded-lg bg-[#C66741] hover:bg-[#b8563a] text-white shadow-md hover:shadow-lg transition-all",
+                onclick: move |_| {
+                    team_dialog_signal.set(PopUpWindow::Share(Some(config.clone())));
+                },
+                svg {
+                    class: "w-5 h-5",
+                    view_box: "0 0 24 24",
+                    fill: "none",
+                    stroke: "currentColor",
+                    stroke_width: "2",
+                    circle { cx: "18", cy: "5", r: "3" }
+                    circle { cx: "6", cy: "12", r: "3" }
+                    circle { cx: "18", cy: "19", r: "3" }
+                    line {
+                        x1: "8.59",
+                        y1: "13.51",
+                        x2: "15.42",
+                        y2: "17.49",
+                    }
+                    line {
+                        x1: "15.41",
+                        y1: "6.51",
+                        x2: "8.59",
+                        y2: "10.49",
+                    }
+                }
+            }
+        },
+        Some(Ok(ShareConfigState::None)) => rsx! {
+            button {
+                class: "flex items-center justify-center w-10 h-10 rounded-lg bg-[#C66741] hover:bg-[#b8563a] text-white shadow-md hover:shadow-lg transition-all",
+                onclick: move |_| {
+                    team_dialog_signal.set(PopUpWindow::Share(None));
+                },
+                svg {
+                    class: "w-5 h-5",
+                    view_box: "0 0 24 24",
+                    fill: "none",
+                    stroke: "currentColor",
+                    stroke_width: "2",
+                    circle { cx: "18", cy: "5", r: "3" }
+                    circle { cx: "6", cy: "12", r: "3" }
+                    circle { cx: "18", cy: "19", r: "3" }
+                    line {
+                        x1: "8.59",
+                        y1: "13.51",
+                        x2: "15.42",
+                        y2: "17.49",
+                    }
+                    line {
+                        x1: "15.41",
+                        y1: "6.51",
+                        x2: "8.59",
+                        y2: "10.49",
+                    }
+                }
+            }
+        },
+    };
 
     rsx! {
         section {
             div { class: "flex justify-between items-center mb-4 px-6",
                 Headline1 { headline: "Teams" }
-                if is_online {
-                    button {
-                        class: "flex items-center justify-center w-10 h-10 rounded-lg bg-[#C66741] hover:bg-[#b8563a] text-white shadow-md hover:shadow-lg transition-all",
-                        onclick: move |_| {
-                            team_dialog_signal.set(PopUpWindow::Share);
-                        },
-                        svg {
-                            class: "w-5 h-5",
-                            view_box: "0 0 24 24",
-                            fill: "none",
-                            stroke: "currentColor",
-                            stroke_width: "2",
-                            circle { cx: "18", cy: "5", r: "3" }
-                            circle { cx: "6", cy: "12", r: "3" }
-                            circle { cx: "18", cy: "19", r: "3" }
-                            line {
-                                x1: "8.59",
-                                y1: "13.51",
-                                x2: "15.42",
-                                y2: "17.49",
-                            }
-                            line {
-                                x1: "15.41",
-                                y1: "6.51",
-                                x2: "8.59",
-                                y2: "10.49",
-                            }
-                        }
-                    }
-                } else {
-                    div {
-                        class: "flex items-center justify-center w-10 h-10 rounded-lg bg-gray-400 text-gray-600 shadow-md opacity-60 group relative",
-                        title: "Sharing option to let people create teams is only available when the project is stored in the cloud!",
-                        button {
-                            class: "flex items-center justify-center w-full h-full",
-                            disabled: true,
-                            svg {
-                                class: "w-5 h-5",
-                                view_box: "0 0 24 24",
-                                fill: "none",
-                                stroke: "currentColor",
-                                stroke_width: "2",
-                                circle { cx: "18", cy: "5", r: "3" }
-                                circle { cx: "6", cy: "12", r: "3" }
-                                circle { cx: "18", cy: "19", r: "3" }
-                                line {
-                                    x1: "8.59",
-                                    y1: "13.51",
-                                    x2: "15.42",
-                                    y2: "17.49",
-                                }
-                                line {
-                                    x1: "15.41",
-                                    y1: "6.51",
-                                    x2: "8.59",
-                                    y2: "10.49",
-                                }
-                            }
-                        }
-                    }
-                }
+                {config}
             }
 
             // Scrollable grid
             div { class: "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 p-6 max-h-[calc(100vh-16rem)] overflow-y-auto pr-2",
-
 
                 {
                     team_list
@@ -251,7 +341,6 @@ pub(crate) fn TeamsContent(
                             }
                         })
                 }
-
 
                 a {
                     class: "border-4 border-dashed border-gray-300 rounded-xl p-6 flex items-center justify-center text-gray-400 hover:bg-[#fdfaf6] hover:text-[#C66741] hover:scale-105 transition-all duration-200 cursor-pointer",
@@ -281,10 +370,12 @@ pub(crate) fn TeamsContent(
                     }
                 }
             }
-            PopUpWindow::Share => rsx! {
+            PopUpWindow::Share(share_config) => rsx! {
                 ShareDialog {
                     team_dialog_signal: team_dialog_signal.clone(),
                     project_id: cook_and_run_id,
+                    share_config_option: share_config.clone(),
+                    number_of_teams,
                 }
             },
         }
@@ -292,25 +383,80 @@ pub(crate) fn TeamsContent(
 }
 
 #[component]
-fn ShareDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Element {
+fn ShareDialog(
+    team_dialog_signal: Signal<PopUpWindow>,
+    project_id: Uuid,
+    share_config_option: Option<ShareTeamConfig>,
+    number_of_teams: usize,
+) -> Element {
+    let share_config = match share_config_option.clone() {
+        Some(config) => config,
+        None => ShareTeamConfig::default(),
+    };
+
+    let mut share_config_signal = use_signal(|| share_config.clone());
+
+    let mut share_config_date = use_signal(|| {
+        share_config_signal
+            .read()
+            .registration_deadline
+            .map(|dt| dt.date())
+    });
+    let mut share_config_time = use_signal(|| {
+        share_config_signal
+            .read()
+            .registration_deadline
+            .map(|dt| dt.time())
+    });
+
     let share_url: Signal<String> = use_signal(|| {
         let window = web_sys::window().expect("no global `window` exists");
         let location = window.location();
         let base_url = location.origin().unwrap_or_else(|_| "unknown".to_string());
         format!("{}/cook-and-run/{}/share", base_url, project_id)
     });
-    let mut is_edit_share_signal = use_signal(|| true);
 
-    let mut is_active_signal = use_signal(|| true);
+    let deadline_passed = share_config_signal
+        .read()
+        .registration_deadline
+        .map_or(false, |deadline| deadline < Utc::now().naive_utc());
+
+    let is_share_config_some = share_config_option.is_some();
+    let mut current_config_signal = use_signal(|| (is_share_config_some && !deadline_passed));
+
+    let max_teams_text = share_config_signal
+        .read()
+        .max_teams
+        .map(|max_teams| {
+            if max_teams == 0 {
+                "∞".to_string()
+            } else {
+                max_teams.to_string()
+            }
+        })
+        .unwrap_or_else(|| "∞".to_string());
+
+    let max_teams_reached = number_of_teams
+        >= share_config_signal
+            .read()
+            .max_teams
+            .map(|max_teams| {
+                if max_teams == 0 {
+                    usize::MAX
+                } else {
+                    max_teams as usize
+                }
+            })
+            .unwrap_or_else(|| usize::MAX);
+
+    let is_active_signal = use_signal(|| !max_teams_reached);
 
     let qr_data_uri = use_memo(move || {
-        // 1. QR Code Instanz erstellen
         let code = match QrCode::new(share_url.read().as_bytes()) {
             Ok(c) => c,
-            Err(_) => return String::new(), // Leerer String bei Fehler
+            Err(_) => return String::new(),
         };
 
-        // 2. Als SVG-String rendern
         let svg_xml = code
             .render::<svg::Color>()
             .min_dimensions(200, 200)
@@ -318,9 +464,39 @@ fn ShareDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Ele
             .light_color(svg::Color("#ffffff"))
             .build();
 
-        // 3. Nach Base64 kodieren für die Verwendung im src-Attribut
         let encoded = general_purpose::STANDARD.encode(svg_xml);
         format!("data:image/svg+xml;base64,{}", encoded)
+    });
+
+    let mut storage_signal = use_context::<Signal<StorageManager>>();
+    let save_update_share_config: AsyncAction = async_action!({
+        if let Some(date) = share_config_date.read().clone() {
+            let time = share_config_time
+                .read()
+                .unwrap_or(chrono::NaiveTime::from_hms_opt(23, 59, 59).unwrap());
+            share_config_signal.write().registration_deadline = Some(date.and_time(time));
+        } else {
+            share_config_signal.write().registration_deadline = None;
+        }
+
+        let config = share_config_signal.read().clone();
+
+        let create_config = config.to_create();
+        let mut storage = storage_signal.write().clone();
+        let result = if !is_share_config_some {
+            storage
+                .create_cook_and_run_share_config(project_id, &create_config)
+                .await
+        } else {
+            storage
+                .update_cook_and_run_share_config(project_id, &create_config)
+                .await
+        };
+        if let Err(e) = result {
+            console::error_1(&format!("Error saving share config: {}", e).into());
+        } else {
+            team_dialog_signal.set(PopUpWindow::Share(Some(config)));
+        }
     });
 
     rsx! {
@@ -329,40 +505,27 @@ fn ShareDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Ele
                 // Title
                 h2 { class: "text-2xl font-semibold text-black-600 mb-4", "Share config" }
 
-
                 div { class: "flex border-b border-gray-300 mb-4 items-center justify-between",
                     div { class: "flex",
                         button {
                             r#type: "button",
                             onclick: move |_| {
-                                is_edit_share_signal.set(true);
+                                current_config_signal.set(true);
                             },
-                            class: if *is_edit_share_signal.read() { "px-4 py-2 font-semibold text-sm text-[#C66741] border-b-2 border-[#C66741]" } else { "px-4 py-2 font-semibold text-sm text-gray-600 hover:text-[#C66741]" },
+                            disabled: share_config_option.is_none() || deadline_passed,
+                            class: if share_config_option.is_none() || deadline_passed { "px-4 py-2 font-semibold text-sm text-gray-400 cursor-not-allowed opacity-50" } else if *current_config_signal.read() { "px-4 py-2 font-semibold text-sm text-[#C66741] border-b-2 border-[#C66741]" } else { "px-4 py-2 font-semibold text-sm text-gray-600 hover:text-[#C66741]" },
                             "Info"
                         }
                         button {
                             r#type: "button",
                             onclick: move |_| {
-                                is_edit_share_signal.set(false);
+                                current_config_signal.set(false);
                             },
-                            class: if !*is_edit_share_signal.read() { "px-4 py-2 font-semibold text-sm text-[#C66741] border-b-2 border-[#C66741]" } else { "px-4 py-2 font-semibold text-sm text-gray-600 hover:text-[#C66741]" },
+                            class: if !*current_config_signal.read() { "px-4 py-2 font-semibold text-sm text-[#C66741] border-b-2 border-[#C66741]" } else { "px-4 py-2 font-semibold text-sm text-gray-600 hover:text-[#C66741]" },
                             "Config"
                         }
                     }
-                    div {
-                        div { class: "flex items-center space-x-2",
-                            label { class: "text-sm text-gray-600", "Activate:" }
-                            input {
-                                r#type: "checkbox",
-                                checked: is_active_signal,
-                                class: "text-[#C66741] rounded",
-                                onclick: move |_| {
-                                    let new_value = !*is_active_signal.read();
-                                    is_active_signal.set(new_value);
-                                },
-                            }
-                        }
-                    }
+                
                 }
 
                 // Close button
@@ -372,20 +535,28 @@ fn ShareDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Ele
                     },
                 }
 
-                if *is_edit_share_signal.read() {
-                    div { class: if *is_active_signal.read() { "flex flex-col space-y-4" } else { "flex flex-col space-y-4 opacity-50 pointer-events-none" },
-                        // Registered Teams Info
-                        div { class: "grid grid-cols-2 gap-4",
-                            div { class: "p-4 bg-blue-50 rounded-lg",
-                                p { class: "text-sm text-gray-600 mb-1", "Teams Registered" }
-                                p { class: "text-2xl font-bold text-[#C66741]", "12" }
-                            }
-                            div { class: "p-4 bg-blue-50 rounded-lg",
-                                p { class: "text-sm text-gray-600 mb-1", "Teams Allowed" }
-                                p { class: "text-2xl font-bold text-[#C66741]", "∞" }
+                if *current_config_signal.read() {
+                    // Always visible: Teams info
+                    div { class: "grid grid-cols-2 gap-4 mb-4",
+                        div { class: if max_teams_reached { "p-4 bg-red-50 rounded-lg border-2 border-red-300" } else { "p-4 bg-blue-50 rounded-lg" },
+                            p { class: "text-sm text-gray-600 mb-1", "Teams Registered" }
+                            p { class: "text-2xl font-bold text-[#C66741]", "{number_of_teams}" }
+                        }
+                        div { class: if max_teams_reached { "p-4 bg-red-50 rounded-lg border-2 border-red-300" } else { "p-4 bg-blue-50 rounded-lg" },
+                            p { class: "text-sm text-gray-600 mb-1", "Teams Allowed" }
+                            p { class: "text-2xl font-bold text-[#C66741]", "{max_teams_text}" }
+                        }
+                    }
+                    if max_teams_reached {
+                        div { class: "p-3 bg-red-100 border border-red-400 rounded-lg mb-4",
+                            p { class: "text-sm text-red-700 font-semibold",
+                                "⚠️ Maximum team limit reached. No more teams can be created through the share link."
                             }
                         }
+                    }
 
+                    // Hidden when inactive: QR code and share link
+                    div { class: if *is_active_signal.read() { "flex flex-col space-y-4" } else { "flex flex-col space-y-4 opacity-50 pointer-events-none" },
                         // QR Code Section
                         div { class: "flex flex-col items-center p-4 bg-gray-50 rounded-lg",
                             label { class: "block text-sm font-semibold text-gray-700 mb-3",
@@ -401,7 +572,20 @@ fn ShareDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Ele
                             button {
                                 class: "mt-3 px-4 py-2 bg-[#C66741] hover:bg-[#b8563a] text-white rounded-lg transition-all",
                                 disabled: !*is_active_signal.read(),
-                                onclick: move |_| {},
+                                onclick: move |_| {
+                                    let qr_data = qr_data_uri.read().clone();
+                                    if !qr_data.is_empty() {
+                                        if let Some(window) = web_sys::window() {
+                                            let document = window.document().unwrap();
+                                            let link = document.create_element("a").unwrap();
+                                            link.set_attribute("href", &qr_data).unwrap();
+                                            link.set_attribute("download", "qr-code.svg").unwrap();
+                                            document.body().unwrap().append_child(&link).unwrap();
+                                            link.dyn_ref::<web_sys::HtmlElement>().unwrap().click();
+                                            document.body().unwrap().remove_child(&link).unwrap();
+                                        }
+                                    }
+                                },
                                 "Download QR Code"
                             }
                         }
@@ -436,10 +620,12 @@ fn ShareDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Ele
                                 "Invitation Text"
                             }
                             InputMultirow {
-                                place_holer: Some("Enter an invitation text...".to_string()),
-                                value: use_signal(|| "".to_string()),
+                                place_holer: "Enter an invitation text...".to_string(),
+                                value: share_config_signal.read().invite_text.clone(),
                                 is_error: false,
-                                oninput: move |_: Event<FormData>| {},
+                                oninput: move |data: Event<FormData>| {
+                                    share_config_signal.write().invite_text = data.value().trim().to_string();
+                                },
                             }
                         }
 
@@ -451,9 +637,12 @@ fn ShareDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Ele
                                 title: "Teams must be logged in to join",
                                 input {
                                     r#type: "checkbox",
-                                    checked: false,
+                                    checked: share_config_signal.read().needs_login,
                                     class: "w-4 h-4 text-[#C66741] rounded cursor-pointer",
-                                    onclick: move |_| {},
+                                    onclick: move |_| {
+                                        let current = share_config_signal.read().needs_login;
+                                        share_config_signal.write().needs_login = !current;
+                                    },
                                 }
                                 label { class: "text-sm font-medium text-gray-700 cursor-pointer",
                                     "Login required"
@@ -469,9 +658,12 @@ fn ShareDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Ele
                                 title: "New teams require verification before participation",
                                 input {
                                     r#type: "checkbox",
-                                    checked: false,
+                                    checked: share_config_signal.read().default_needs_check,
                                     class: "w-4 h-4 text-[#C66741] rounded cursor-pointer",
-                                    onclick: move |_| {},
+                                    onclick: move |_| {
+                                        let current = share_config_signal.read().default_needs_check;
+                                        share_config_signal.write().default_needs_check = !current;
+                                    },
                                 }
                                 label { class: "text-sm font-medium text-gray-700 cursor-pointer",
                                     "Verification required"
@@ -493,9 +685,27 @@ fn ShareDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Ele
                                     title: "Teams must provide an email address",
                                     input {
                                         r#type: "checkbox",
-                                        checked: true,
+                                        checked: share_config_signal.read().required_fields.contains(&storage::RequiredField::Mail),
                                         class: "w-4 h-4 text-[#C66741] rounded cursor-pointer",
-                                        onclick: move |_| {},
+                                        onclick: move |_| {
+                                            let pos = share_config_signal
+                                                .read()
+                                                .required_fields
+                                                .iter()
+                                                .position(|req| req.eq(&storage::RequiredField::Mail));
+                                            match pos {
+                                                Some(index) => {
+                                                    share_config_signal.write().required_fields.remove(index);
+                                                }
+                                                None => {
+                                                    share_config_signal
+                                                        .write()
+                                                        .required_fields
+                                                        .push(storage::RequiredField::Mail);
+                                                }
+                                            }
+
+                                        },
                                     }
                                     label { class: "text-sm text-gray-700 cursor-pointer",
                                         "Email"
@@ -509,9 +719,26 @@ fn ShareDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Ele
                                     title: "Teams must provide a phone number",
                                     input {
                                         r#type: "checkbox",
-                                        checked: false,
+                                        checked: share_config_signal.read().required_fields.contains(&storage::RequiredField::Phone),
                                         class: "w-4 h-4 text-[#C66741] rounded cursor-pointer",
-                                        onclick: move |_| {},
+                                        onclick: move |_| {
+                                            let pos = share_config_signal
+                                                .read()
+                                                .required_fields
+                                                .iter()
+                                                .position(|req| req.eq(&storage::RequiredField::Phone));
+                                            match pos {
+                                                Some(index) => {
+                                                    share_config_signal.write().required_fields.remove(index);
+                                                }
+                                                None => {
+                                                    share_config_signal
+                                                        .write()
+                                                        .required_fields
+                                                        .push(storage::RequiredField::Phone);
+                                                }
+                                            }
+                                        },
                                     }
                                     label { class: "text-sm text-gray-700 cursor-pointer",
                                         "Phone"
@@ -525,9 +752,29 @@ fn ShareDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Ele
                                     title: "Teams must specify number of members",
                                     input {
                                         r#type: "checkbox",
-                                        checked: false,
+                                        checked: share_config_signal
+                                            .read()
+                                            .required_fields
+                                            .contains(&storage::RequiredField::Members),
                                         class: "w-4 h-4 text-[#C66741] rounded cursor-pointer",
-                                        onclick: move |_| {},
+                                        onclick: move |_| {
+                                            let pos = share_config_signal
+                                                .read()
+                                                .required_fields
+                                                .iter()
+                                                .position(|req| req.eq(&storage::RequiredField::Members));
+                                            match pos {
+                                                Some(index) => {
+                                                    share_config_signal.write().required_fields.remove(index);
+                                                }
+                                                None => {
+                                                    share_config_signal
+                                                        .write()
+                                                        .required_fields
+                                                        .push(storage::RequiredField::Members);
+                                                }
+                                            }
+                                        },
                                     }
                                     label { class: "text-sm text-gray-700 cursor-pointer",
                                         "Number of Members"
@@ -538,18 +785,35 @@ fn ShareDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Ele
                                 }
                                 div {
                                     class: "flex items-center space-x-3 cursor-help group relative",
-                                    title: "Teams must provide dietary requirements",
+                                    title: "Teams can provide dietary requirements",
                                     input {
                                         r#type: "checkbox",
-                                        checked: false,
+                                        checked: share_config_signal.read().required_fields.contains(&storage::RequiredField::Diets),
                                         class: "w-4 h-4 text-[#C66741] rounded cursor-pointer",
-                                        onclick: move |_| {},
+                                        onclick: move |_| {
+                                            let pos = share_config_signal
+                                                .read()
+                                                .required_fields
+                                                .iter()
+                                                .position(|req| req.eq(&storage::RequiredField::Diets));
+                                            match pos {
+                                                Some(index) => {
+                                                    share_config_signal.write().required_fields.remove(index);
+                                                }
+                                                None => {
+                                                    share_config_signal
+                                                        .write()
+                                                        .required_fields
+                                                        .push(storage::RequiredField::Diets);
+                                                }
+                                            }
+                                        },
                                     }
                                     label { class: "text-sm text-gray-700 cursor-pointer",
-                                        "Dietary Requirements"
+                                        "Dietary Requirements can be provided"
                                     }
                                     div { class: "absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10",
-                                        "Teams must provide dietary requirements"
+                                        "Teams can provide dietary requirements"
                                     }
                                 }
                             }
@@ -563,9 +827,19 @@ fn ShareDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Ele
                                 }
                                 InputNumber {
                                     place_holer: Some("0 = unlimited".to_string()),
-                                    value: use_signal(|| "".to_string()),
+                                    value: share_config_signal
+                                        .read()
+                                        .max_teams
+                                        .map_or_else(|| "0".to_string(), |v| v.to_string()),
                                     is_error: false,
-                                    oninput: move |_e: Event<FormData>| {},
+                                    oninput: move |_e: Event<FormData>| {
+                                        let input_value = _e.value().trim().to_string();
+                                        if input_value.is_empty() || input_value == "0" {
+                                            share_config_signal.write().max_teams = None;
+                                        } else if let Ok(num) = input_value.parse::<u32>() {
+                                            share_config_signal.write().max_teams = Some(num);
+                                        }
+                                    },
                                 }
                                 div { class: "absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10",
                                     "Maximum number of teams allowed to join (0 = unlimited)"
@@ -579,22 +853,49 @@ fn ShareDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Ele
                                     input {
                                         r#type: "date",
                                         class: "flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C66741] transition-all",
+                                        value: share_config_date.read().map_or_else(|| "".to_string(), |v| v.to_string()),
+                                        onchange: move |e: Event<FormData>| {
+                                            let date_str = e.value();
+
+                                            if let Ok(date) = date_str.parse::<chrono::NaiveDate>() {
+                                                share_config_date.set(Some(date));
+                                            } else {
+                                                share_config_date.set(None);
+                                            }
+                                        },
                                     }
                                     input {
                                         r#type: "time",
                                         class: "flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C66741] transition-all",
+                                        value: share_config_time.read().map_or_else(|| "".to_string(), |v| v.to_string()),
+                                        onchange: move |e: Event<FormData>| {
+                                            let time_str = e.value();
+
+                                            if let Ok(time) = time_str.parse::<chrono::NaiveTime>() {
+                                                share_config_time.set(Some(time));
+                                            } else {
+                                                share_config_time.set(None);
+                                            }
+                                        },
                                     }
                                 }
                                 div { class: "absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10",
                                     "Configuration expires at this date and time"
+                                }
+                                if deadline_passed {
+                                    div { class: "p-3 bg-red-100 border border-red-400 rounded-lg mt-3",
+                                        p { class: "text-sm text-red-700 font-semibold",
+                                            "⚠️ The registration deadline has passed. Registrations via the share link are no longer possible."
+                                        }
+                                    }
                                 }
                             }
                         }
 
                         div { class: "flex justify-center mt-2 pt-2",
                             ConfirmButton {
-                                text: "Save Configuration".to_string(),
-                                action: async_action!({}),
+                                text: if share_config_option.is_none() { "Create & Activate".to_string() } else { "Update".to_string() },
+                                action: save_update_share_config.clone(),
                             }
                         }
                     }
@@ -758,7 +1059,6 @@ fn EditTeamDialog(
                 // Title
                 h2 { class: "text-2xl font-semibold text-black-600 mb-4", "Edit Team" }
 
-
                 div { class: "flex border-b border-gray-300 mb-4 items-center justify-between",
                     div { class: "flex",
                         button {
@@ -818,7 +1118,6 @@ fn EditTeamDialog(
                         diets_signal,
                         address_param,
                     }
-
 
                     div { class: "flex justify-center mt-4",
                         ConfirmButton {

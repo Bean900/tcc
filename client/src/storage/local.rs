@@ -579,6 +579,29 @@ impl Storage for LocalStorage {
         let cook_and_run = self.select_cook_and_run(cook_and_run_id).await?;
         Ok(cook_and_run.course_list)
     }
+
+    async fn select_cook_and_run_share_config(
+        &self,
+        _: Uuid,
+    ) -> Result<Option<super::ShareTeamConfig>, String> {
+        Err("Local storage can't hold share config!".to_string())
+    }
+
+    async fn create_cook_and_run_share_config(
+        &mut self,
+        _: Uuid,
+        _: &super::ShareTeamConfigCreate,
+    ) -> Result<(), String> {
+        Err("Local storage can't hold share config!".to_string())
+    }
+
+    async fn update_cook_and_run_share_config(
+        &mut self,
+        _: Uuid,
+        _: &super::ShareTeamConfigCreate,
+    ) -> Result<(), String> {
+        Err("Local storage can't hold share config!".to_string())
+    }
 }
 fn update_meta(
     cook_and_run: &mut CookAndRunData,

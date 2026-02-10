@@ -127,7 +127,7 @@ pub fn get_share_config_cook_and_run(
     );
 }
 
-fn assert_share_config_json(
+pub fn assert_share_config_json(
     json: &serde_json::Value,
     expected_needs_login: bool,
     expected_default_needs_check: bool,

@@ -1,6 +1,6 @@
 use chrono::NaiveDateTime;
 use diesel::result::DatabaseErrorKind;
-use tracing::{error, event, warn};
+use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -111,6 +111,34 @@ pub fn create(
             error!("Could not create share in database: {}", e);
             return Err(RestError::InternalServer {
                 message: "Could not create share in database".to_string(),
+            });
+        }
+    }
+}
+
+pub fn update(
+    db: &mut Database,
+    cook_and_run_id: &Uuid,
+    user_id: &str,
+    data: &ShareTeamConfig,
+) -> Result<(), RestError> {
+    match db.update_share(cook_and_run_id, user_id, &data.to_db()) {
+        Ok(_) => Ok(()),
+        Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _)) => {
+            warn!("Could not update share in database due to unique violation");
+            return Ok(());
+        }
+        Err(diesel::result::Error::NotFound) => {
+            return Err(map_not_found_cook_and_run(
+                cook_and_run_id,
+                "Update share",
+                diesel::result::Error::NotFound,
+            ));
+        }
+        Err(e) => {
+            error!("Could not update share in database: {}", e);
+            return Err(RestError::InternalServer {
+                message: "Could not update share in database".to_string(),
             });
         }
     }

@@ -36,6 +36,34 @@ impl Database {
         Ok(())
     }
 
+    pub fn update_share(
+        &mut self,
+        cook_and_run_id_filter: &Uuid,
+        user_id_filter: &str,
+        data: &Share,
+    ) -> Result<(), diesel::result::Error> {
+        self.get_connection()?.transaction(|t| {
+            insert_into(share::table)
+                .values(data)
+                .on_conflict(share::id)
+                .do_update()
+                .set(data)
+                .execute(t)?;
+
+            let affected = update(c_a_r::table.filter(c_a_r::dsl::id.eq(cook_and_run_id_filter)))
+                .filter(c_a_r::dsl::user_id.eq(user_id_filter))
+                .set(c_a_r::share_team_config.eq(data.id))
+                .execute(t)?;
+
+            if affected == 0 {
+                return Err(diesel::result::Error::NotFound);
+            }
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+
     pub fn select_share(
         &mut self,
         cook_and_run_id_filter: &Uuid,

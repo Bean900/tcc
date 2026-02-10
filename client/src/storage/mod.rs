@@ -509,6 +509,50 @@ impl StorageManager {
         }
     }
 
+    pub async fn create_cook_and_run_share_config(
+        &mut self,
+        cook_and_run_id: Uuid,
+        share_config: &ShareTeamConfigCreate,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .create_cook_and_run_share_config(cook_and_run_id, share_config)
+                .await
+        } else {
+            self.cloud
+                .create_cook_and_run_share_config(cook_and_run_id, share_config)
+                .await
+        }
+    }
+
+    pub async fn update_cook_and_run_share_config(
+        &mut self,
+        cook_and_run_id: Uuid,
+        share_config: &ShareTeamConfigCreate,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .update_cook_and_run_share_config(cook_and_run_id, share_config)
+                .await
+        } else {
+            self.cloud
+                .update_cook_and_run_share_config(cook_and_run_id, share_config)
+                .await
+        }
+    }
+
     pub async fn select_cook_and_run_start_point(
         &self,
         id: Uuid,
@@ -554,6 +598,30 @@ impl StorageManager {
             Err(e_local) => match self
                 .cloud
                 .select_cook_and_run_course_list(cook_and_run_id)
+                .await
+            {
+                Ok(data) => Ok(data),
+                Err(e_cloud) => Err(format!(
+                    "Cook and run with id {} not found in local or cloud storage: {} | {}",
+                    cook_and_run_id, e_local, e_cloud
+                )),
+            },
+        }
+    }
+
+    pub async fn select_cook_and_run_share_config(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Option<ShareTeamConfig>, String> {
+        match self
+            .local
+            .select_cook_and_run_share_config(cook_and_run_id)
+            .await
+        {
+            Ok(data) => Ok(data),
+            Err(e_local) => match self
+                .cloud
+                .select_cook_and_run_share_config(cook_and_run_id)
                 .await
             {
                 Ok(data) => Ok(data),
@@ -650,6 +718,18 @@ pub trait Storage {
         end_point: &Option<MeetingPointData>,
     ) -> Result<(), String>;
 
+    async fn create_cook_and_run_share_config(
+        &mut self,
+        cook_and_run_id: Uuid,
+        share_config: &ShareTeamConfigCreate,
+    ) -> Result<(), String>;
+
+    async fn update_cook_and_run_share_config(
+        &mut self,
+        cook_and_run_id: Uuid,
+        share_config: &ShareTeamConfigCreate,
+    ) -> Result<(), String>;
+
     async fn select_cook_and_run_meta_list(&self) -> Result<Vec<CookAndRunMetaData>, String>;
     async fn select_cook_and_run(&self, id: Uuid) -> Result<CookAndRunData, String>;
     async fn select_cook_and_run_meta(&self, id: Uuid) -> Result<CookAndRunMetaData, String>;
@@ -669,6 +749,10 @@ pub trait Storage {
         &self,
         cook_and_run_id: Uuid,
     ) -> Result<Vec<CourseData>, String>;
+    async fn select_cook_and_run_share_config(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<ShareTeamConfig>, String>;
 }
 
 #[derive(Debug, Serialize)]
@@ -917,4 +1001,65 @@ impl CookAndRunMetaData {
 #[derive(Debug, Clone)]
 pub struct CookAndRunCreate {
     pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RequiredField {
+    Mail,
+    Phone,
+    Members,
+    Diets,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct ShareTeamConfig {
+    pub invite_text: String,
+    pub needs_login: bool,
+    pub default_needs_check: bool,
+    pub required_fields: Vec<RequiredField>,
+    pub max_teams: Option<u32>,
+    pub registration_deadline: Option<NaiveDateTime>,
+    pub created: NaiveDateTime,
+}
+
+impl ShareTeamConfig {
+    pub fn to_create(&self) -> ShareTeamConfigCreate {
+        ShareTeamConfigCreate {
+            invite_text: self.invite_text.clone(),
+            needs_login: self.needs_login,
+            default_needs_check: self.default_needs_check,
+            required_fields: self.required_fields.clone(),
+            max_teams: self.max_teams,
+            registration_deadline: self.registration_deadline,
+        }
+    }
+}
+
+impl Default for ShareTeamConfig {
+    fn default() -> Self {
+        Self {
+            invite_text: "".to_string(),
+            needs_login: false,
+            default_needs_check: true,
+            required_fields: vec![RequiredField::Mail, RequiredField::Diets],
+            max_teams: None,
+            registration_deadline: Utc::now()
+                .naive_utc()
+                .date()
+                .and_hms_opt(18, 0, 0)
+                .and_then(|dt| dt.checked_add_signed(chrono::Duration::days(28))),
+            created: Utc::now().naive_utc(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ShareTeamConfigCreate {
+    pub invite_text: String,
+    pub needs_login: bool,
+    pub default_needs_check: bool,
+    pub required_fields: Vec<RequiredField>,
+    pub max_teams: Option<u32>,
+    pub registration_deadline: Option<NaiveDateTime>,
 }

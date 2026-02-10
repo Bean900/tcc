@@ -1,5 +1,6 @@
 mod delete_test;
 mod get_test;
+mod patch_test;
 mod post_team_test;
 mod post_test;
 use chrono::NaiveDateTime;

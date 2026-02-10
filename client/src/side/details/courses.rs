@@ -89,7 +89,11 @@ pub fn Courses(cook_and_run_id: Uuid) -> Element {
             LoadingPage {}
         ),
         Some(Err(e)) => rsx!(
-            ErrorPage { error_text: e }
+            ErrorPage {
+                error_text: "Could not load project. You may need to log in or the servers may be offline."
+                    .to_string(),
+                error_details: e.clone(),
+            }
         ),
         Some(Ok(course_list)) => rsx!(
             CoursesContent { cook_and_run_id, course_list: course_list.clone() }

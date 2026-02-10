@@ -90,12 +90,18 @@ fn LoadingPage() -> Element {
 }
 
 #[component]
-fn ErrorPage(error_text: String) -> Element {
+fn ErrorPage(error_text: String, error_details: String) -> Element {
     rsx! {
         div { class: "flex items-center justify-center h-screen w-full",
             div { class: "text-center",
                 h2 { class: "text-2xl font-semibold text-red-600", "Oops!" }
                 p { class: "mt-4 text-lg text-[#70513E]", "Error: {error_text}" }
+                details { class: "mt-4",
+                    summary { class: "cursor-pointer text-sm text-gray-500 hover:text-gray-700",
+                        "Details"
+                    }
+                    p { class: "mt-2 text-sm text-gray-500 whitespace-pre-wrap", "{error_details}" }
+                }
             }
         }
     }

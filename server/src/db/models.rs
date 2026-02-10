@@ -140,7 +140,7 @@ where
     }
 }
 
-#[derive(Queryable, Selectable, Insertable)]
+#[derive(Queryable, Selectable, Insertable, AsChangeset)]
 #[diesel(belongs_to(CookAndRun))]
 #[diesel(table_name = crate::db::schema::share)]
 #[diesel(check_for_backend(diesel::pg::Pg))]

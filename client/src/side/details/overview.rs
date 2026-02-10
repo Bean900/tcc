@@ -109,7 +109,11 @@ pub fn Overview(cook_and_run_id: Uuid) -> Element {
             LoadingPage {}
         ),
         Some(Err(e)) => rsx!(
-            ErrorPage { error_text: e }
+            ErrorPage {
+                error_text: "Could not load project. You may need to log in or the servers may be offline."
+                    .to_string(),
+                error_details: e.clone(),
+            }
         ),
         Some(Ok(cook_and_run_meta)) => rsx!(
             OverviewContent { cook_and_run_meta: cook_and_run_meta.clone() }
@@ -241,7 +245,6 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
                         error_signal: error_login_signal.clone(),
                     }
                 }
-
 
                 SecondaryButton {
                     action: async_action!(

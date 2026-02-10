@@ -103,7 +103,7 @@ struct CourseListResponse {
 impl CloudStorage {
     pub fn new(auth_state: AuthState) -> Self {
         CloudStorage {
-            base_url: "http://0.0.0.0:3000".to_string(),
+            base_url: "http://127.0.0.1:3000".to_string(),
             auth_state,
         }
     }
@@ -767,6 +767,91 @@ impl Storage for CloudStorage {
                 .json::<CourseListResponse>()
                 .await
                 .map_or_else(|e| Err(e.to_string()), |data| Ok(data.data)),
+            Ok(response) => Err(format!("Request failed: {}", response.status())),
+            Err(e) => Err(format!("Request error: {}", e)),
+        }
+    }
+
+    async fn select_cook_and_run_share_config(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<super::ShareTeamConfig>, String> {
+        let session_data = match self.get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+
+        let url = format!("{}/cook_and_run/{}/share_team_config", self.base_url, id);
+        let client = reqwest::Client::new();
+        let res = client
+            .get(&url)
+            .bearer_auth(session_data.access_token)
+            .send()
+            .await;
+
+        match res {
+            Ok(response) if response.status().is_success() => response
+                .json::<super::ShareTeamConfig>()
+                .await
+                .map_err(|e| e.to_string())
+                .map(Some),
+            Ok(response) if response.status() == StatusCode::NOT_FOUND => Ok(None),
+            Ok(response) => Err(format!("Request failed: {}", response.status())),
+            Err(e) => Err(format!("Request error: {}", e)),
+        }
+    }
+
+    async fn create_cook_and_run_share_config(
+        &mut self,
+        cook_and_run_id: Uuid,
+        share_config: &super::ShareTeamConfigCreate,
+    ) -> Result<(), String> {
+        let session_data = match self.get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+
+        let url = format!(
+            "{}/cook_and_run/{}/share_team_config",
+            self.base_url, cook_and_run_id
+        );
+        let client = reqwest::Client::new();
+        let res = client
+            .post(&url)
+            .bearer_auth(session_data.access_token)
+            .json(share_config)
+            .send()
+            .await;
+
+        match res {
+            Ok(response) if response.status().is_success() => Ok(()),
+            Ok(response) => Err(format!("Request failed: {}", response.status())),
+            Err(e) => Err(format!("Request error: {}", e)),
+        }
+    }
+
+    async fn update_cook_and_run_share_config(
+        &mut self,
+        cook_and_run_id: Uuid,
+        share_config: &super::ShareTeamConfigCreate,
+    ) -> Result<(), String> {
+        let session_data = match self.get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+        let url = format!(
+            "{}/cook_and_run/{}/share_team_config",
+            self.base_url, cook_and_run_id
+        );
+        let client = reqwest::Client::new();
+        let res = client
+            .patch(&url)
+            .bearer_auth(session_data.access_token)
+            .json(share_config)
+            .send()
+            .await;
+        match res {
+            Ok(response) if response.status().is_success() => Ok(()),
             Ok(response) => Err(format!("Request failed: {}", response.status())),
             Err(e) => Err(format!("Request error: {}", e)),
         }
