@@ -1,7 +1,12 @@
+use std::vec;
+
 use dioxus::prelude::*;
 use uuid::Uuid;
 
-use crate::side::Headline1;
+use crate::{
+    calculator::{Calculator, Point, SchemaCalculator},
+    side::Headline1,
+};
 
 #[component]
 pub fn Calculate(cook_and_run_id: Uuid) -> Element {
@@ -22,6 +27,20 @@ fn CalculateSettings(cook_and_run_id: Uuid) -> Element {
     //Titel,
     // Beschreibung
     //sprache kann eingestellt werden, z.B. deutsch oder englisch
+
+    let list_1 = vec![];
+    let list_2 = vec![];
+    let calculator = SchemaCalculator::new(
+        &Point {
+            latitude: 0.0,
+            longitude: 0.0,
+        },
+        &list_1,
+        &list_2,
+    )
+    .expect("bla");
+
+    calculator.calculate();
     rsx!(
         div { class: "p-6",
             // Here we would add the actual calculation UI components, such as settings, plans, and preview.

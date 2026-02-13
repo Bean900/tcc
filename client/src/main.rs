@@ -1,7 +1,6 @@
 mod address_connector;
 pub mod auth0;
 mod calculator;
-mod schema_calculator;
 mod side;
 mod storage;
 use dioxus::prelude::*;

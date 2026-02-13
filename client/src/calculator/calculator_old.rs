@@ -632,7 +632,7 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        calculator::{Calculator, MeetingTracker},
+        calculator_old::{Calculator, MeetingTracker},
         storage::{CookAndRunData, CourseData, TeamData},
     };
 

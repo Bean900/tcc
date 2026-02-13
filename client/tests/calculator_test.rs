@@ -9,7 +9,7 @@ mod data;
 use chrono::NaiveTime;
 use data::{get_course_list, get_team_list};
 use tcc::storage::{mapper::Plan, AddressData, CourseData, MeetingPointData, TeamData};
-use tcc::{calculator::Calculator, storage::mapper::Hosting};
+use tcc::{calculator_old::Calculator, storage::mapper::Hosting};
 use uuid::Uuid;
 
 use crate::data::{get_cook_and_run, real_live_data};
