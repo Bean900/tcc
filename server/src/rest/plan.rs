@@ -34,6 +34,20 @@ pub fn routes(app_state: AppState) -> Router<AppState> {
                 require_permission(UPDATE_PERMISSION),
             )),
         )
+        .route(
+            "/cook_and_run/:cook_and_run_id/planconfig",
+            get(get_event_plan).layer(from_fn_with_state(
+                app_state.clone(),
+                require_permission(READ_PERMISSION),
+            )),
+        )
+        .route(
+            "/cook_and_run/:cook_and_run_id/planconfig",
+            patch(update_event_plan).layer(from_fn_with_state(
+                app_state.clone(),
+                require_permission(UPDATE_PERMISSION),
+            )),
+        )
 }
 
 /// Get complete event plan

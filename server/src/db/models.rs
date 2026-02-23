@@ -1,5 +1,9 @@
-use chrono::NaiveDateTime;
+use std::collections::HashMap;
+
+use chrono::{NaiveDate, NaiveDateTime};
 use diesel::{deserialize::FromSqlRow, expression::AsExpression, prelude::*};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 // ========================================
@@ -78,20 +82,6 @@ pub struct Course {
 }
 
 // ========================================
-// Hosting
-// ========================================
-#[derive(Queryable, Selectable, Insertable)]
-#[diesel(belongs_to(Plan))]
-#[diesel(table_name = crate::db::schema::hosting)]
-pub struct Hosting {
-    pub id: Uuid,
-    pub plan_id: Uuid,
-    pub course_id: Uuid,
-    pub team_id: Uuid,
-    pub guest_team_ids: serde_json::Value,
-}
-
-// ========================================
 // Share
 // ========================================
 #[derive(Debug, Clone, Copy, AsExpression)]
@@ -156,7 +146,7 @@ pub struct Share {
 }
 
 // ========================================
-// Plan
+// Plan config
 // ========================================
 #[derive(Debug, Clone, Copy, AsExpression, FromSqlRow)]
 #[diesel(sql_type = crate::db::schema::sql_types::Access)]
@@ -198,20 +188,105 @@ where
     }
 }
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub struct WalkingPathStep {
-    pub course_id: Uuid,
-    pub host_team_id: Uuid,
+#[derive(Debug, Clone, Copy, AsExpression, FromSqlRow)]
+#[diesel(sql_type = crate::db::schema::sql_types::Language)]
+#[diesel(postgres_type(name = "language"))]
+pub enum Language {
+    DEUTSCH,
+    ENGLISH,
+}
+
+impl<DB> diesel::deserialize::FromSql<crate::db::schema::sql_types::Language, DB> for Language
+where
+    DB: diesel::backend::Backend,
+    String: diesel::deserialize::FromSql<diesel::sql_types::Text, DB>,
+{
+    fn from_sql(bytes: DB::RawValue<'_>) -> diesel::deserialize::Result<Self> {
+        let s = String::from_sql(bytes)?;
+        match s.as_str() {
+            "deu" => Ok(Language::DEUTSCH),
+            "eng" => Ok(Language::ENGLISH),
+            _ => Err(format!("Unknown variant: {}", s).into()),
+        }
+    }
+}
+
+impl<DB> diesel::serialize::ToSql<crate::db::schema::sql_types::Language, DB> for Language
+where
+    DB: diesel::backend::Backend,
+    str: diesel::serialize::ToSql<diesel::sql_types::Text, DB>,
+{
+    fn to_sql<'b>(
+        &'b self,
+        out: &mut diesel::serialize::Output<'b, '_, DB>,
+    ) -> diesel::serialize::Result {
+        let s = match self {
+            Language::DEUTSCH => "deu",
+            Language::ENGLISH => "eng",
+        };
+        s.to_sql(out)
+    }
 }
 
 #[derive(Queryable, Selectable, Insertable)]
+#[diesel(table_name = crate::db::schema::plan_config)]
 #[diesel(belongs_to(CookAndRun))]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct PlanConfig {
+    pub id: Uuid,
+    pub access: Vec<Option<Access>>,
+    pub title: String,
+    pub description: String,
+    pub date: NaiveDate,
+    pub language: Language,
+}
+
+// ========================================
+// Plan
+// ========================================
+// --- 1. The JSON Content ---
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HostingData {
+    pub id: Uuid,
+    pub name: Uuid,            // Course ID
+    pub host: Uuid,            // Team ID
+    pub guest_list: Vec<Uuid>, // Team ID
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PlanData {
+    pub hosting_list: Vec<HostingData>,
+    pub walking_path: HashMap<Uuid, Vec<Uuid>>,
+}
+
+// --- 2. The Database Row Model ---
+
+#[derive(Queryable, Selectable, Insertable)]
 #[diesel(table_name = crate::db::schema::plan)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+#[diesel(belongs_to(CookAndRun))]
+pub struct PlanRow {
+    id: Uuid,
+    data: Value,
+}
+
+impl PlanRow {
+    pub fn from_plan(plan: Plan) -> Result<PlanRow, serde_json::Error> {
+        let data = serde_json::to_value(plan.data)?;
+        Ok(PlanRow { id: plan.id, data })
+    }
+}
+
 pub struct Plan {
     pub id: Uuid,
-    pub access: Option<Vec<Option<Access>>>,
-    pub introduction: Option<String>,
-    pub walking_paths: serde_json::Value,
+    pub data: PlanData,
+}
+
+impl Plan {
+    pub fn from_plan_row(row: PlanRow) -> Result<Self, serde_json::Error> {
+        let data: PlanData = serde_json::from_value(row.data)?;
+        Ok(Plan { id: row.id, data })
+    }
 }
 
 // ========================================

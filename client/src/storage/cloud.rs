@@ -75,7 +75,7 @@ pub struct TeamCreateRequest {
     pub address: AddressData,
     pub mail: Option<String>,
     pub phone: Option<String>,
-    pub members: Option<u32>,
+    pub members: Option<u8>,
     pub diets: Option<String>,
     pub needs_check: bool,
 }

@@ -2,9 +2,9 @@ mod cloud;
 mod local;
 pub mod mapper;
 
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap, hash::Hash, ops::Add};
 
-use chrono::{NaiveDateTime, NaiveTime, Utc};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -780,12 +780,15 @@ pub struct CourseData {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HostingData {
     pub id: Uuid,
-    pub name: Uuid, /*Course ID*/
-    pub host: Uuid, /*Team ID */
-    pub guest_list: Vec<Uuid /*Team ID */>,
+    /*Course ID*/
+    pub name: Uuid,
+    /*Team ID */
+    pub host: Uuid,
+    /*Team ID */
+    pub guest_list: Vec<Uuid>,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
 pub struct TeamData {
     pub id: Uuid,
     pub name: String,
@@ -794,10 +797,28 @@ pub struct TeamData {
     pub address: AddressData,
     pub mail: Option<String>,
     pub phone: Option<String>,
-    pub members: Option<u32>,
+    pub members: Option<u8>,
     pub diets: Option<String>,
     pub needs_check: bool,
     pub note_list: Vec<NoteData>,
+}
+
+impl Default for TeamData {
+    fn default() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            name: "[Team Name]".to_string(),
+            created: Utc::now().naive_utc(),
+            edited: Utc::now().naive_utc(),
+            address: AddressData::default(),
+            mail: Some("[mail address]".to_string()),
+            phone: Some("[phone number]".to_string()),
+            members: Some(2),
+            diets: Some("[some diets]".to_string()),
+            needs_check: false,
+            note_list: vec![],
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -806,7 +827,7 @@ pub struct TeamCreate {
     pub address: AddressData,
     pub mail: Option<String>,
     pub phone: Option<String>,
-    pub members: Option<u32>,
+    pub members: Option<u8>,
     pub diets: Option<String>,
     pub needs_check: bool,
 }
@@ -817,12 +838,12 @@ pub struct TeamUpdate {
     pub address: AddressData,
     pub mail: Option<String>,
     pub phone: Option<String>,
-    pub members: Option<u32>,
+    pub members: Option<u8>,
     pub diets: Option<String>,
     pub needs_check: bool,
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddressData {
     pub address: String,
     pub latitude: f64,
@@ -866,6 +887,16 @@ impl AddressData {
     }
 }
 
+impl Default for AddressData {
+    fn default() -> Self {
+        Self {
+            address: "[Address]".to_string(),
+            latitude: 0.0,
+            longitude: 0.0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct NoteCreate {
     pub headline: String,
@@ -900,10 +931,66 @@ pub struct MeetingPointData {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlanData {
-    pub id: Uuid,
     pub hosting_list: Vec<HostingData>,
     pub walking_path: HashMap<Uuid /*Team ID */, Vec<Uuid /*Hosting ID */>>,
-    pub greatest_distance: f64,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlanConfigData {
+    pub titel: String,
+    pub date: NaiveDate,
+    pub description: String,
+    pub language: Language,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Language {
+    English,
+    German,
+}
+
+impl Default for Language {
+    fn default() -> Self {
+        Language::English
+    }
+}
+
+impl<'de> Deserialize<'de> for Language {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let iso = String::deserialize(deserializer)?;
+        Self::from_iso639_3(&iso)
+            .ok_or_else(|| serde::de::Error::custom(format!("Unknown language code: {}", iso)))
+    }
+}
+
+impl Serialize for Language {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let iso = self.to_iso639_3();
+        serializer.serialize_str(iso)
+    }
+}
+
+impl Language {
+    pub fn to_iso639_3(&self) -> &str {
+        match self {
+            Language::English => "eng",
+            Language::German => "deu",
+        }
+    }
+
+    pub fn from_iso639_3(iso: &str) -> Option<Self> {
+        match iso {
+            "eng" => Some(Language::English),
+            "deu" => Some(Language::German),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -2,7 +2,7 @@ mod address;
 pub mod calculate;
 pub mod courses;
 pub mod overview;
-//mod share_team;
+mod run_schedule;
 pub mod startend;
 pub mod teams;
 

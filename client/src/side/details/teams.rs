@@ -28,12 +28,12 @@ fn map_string(value: String) -> Option<String> {
     }
 }
 
-fn map_u32(value: String) -> Option<u32> {
+fn map_u8(value: String) -> Option<u8> {
     let value = value.trim();
     if value.is_empty() {
         None
     } else {
-        value.parse::<u32>().map_or_else(|_| None, |v| Some(v))
+        value.parse::<u8>().map_or_else(|_| None, |v| Some(v))
     }
 }
 
@@ -52,7 +52,7 @@ async fn add_team(
         mail: map_string(mail),
         diets: map_string(diets),
         phone: map_string(phone),
-        members: map_u32(members),
+        members: map_u8(members),
         needs_check: false,
     };
 
@@ -80,7 +80,7 @@ async fn update_team(
         mail: map_string(mail),
         diets: map_string(diets),
         phone: map_string(phone),
-        members: map_u32(members),
+        members: map_u8(members),
         needs_check: needs_check,
     };
 

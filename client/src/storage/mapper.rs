@@ -29,11 +29,7 @@ impl Hosting {
             guest_list: hosting_data
                 .guest_list
                 .iter()
-                .map(|&g| {
-                    find_team(g, team_list)
-                        .expect("Expect team")
-                        .clone()
-                })
+                .map(|&g| find_team(g, team_list).expect("Expect team").clone())
                 .collect(),
         }
     }
@@ -41,10 +37,8 @@ impl Hosting {
 
 #[derive(Default, Debug, Clone)]
 pub struct Plan {
-    pub id: Uuid,
     pub hosting_list: Vec<Hosting>,
     pub walking_path: HashMap<TeamData, Vec<Hosting>>,
-    pub greatest_distance: f64,
 }
 
 impl Plan {
@@ -53,7 +47,6 @@ impl Plan {
         course_list: &Vec<CourseData>,
         team_list: &Vec<TeamData>,
     ) -> Self {
-        let id = plan_data.id;
         let hosting_list: Vec<Hosting> = plan_data
             .hosting_list
             .iter()
@@ -63,9 +56,7 @@ impl Plan {
             .walking_path
             .iter()
             .map(|(&team_id, hosting_ids)| {
-                let team = find_team(team_id, team_list)
-                    .expect("Expect team")
-                    .clone();
+                let team = find_team(team_id, team_list).expect("Expect team").clone();
                 let hostings: Vec<Hosting> = hosting_ids
                     .iter()
                     .map(|&hosting_id| {
@@ -78,13 +69,10 @@ impl Plan {
                 (team, hostings)
             })
             .collect();
-        let greatest_distance = plan_data.greatest_distance;
 
         Plan {
-            id,
             hosting_list,
             walking_path,
-            greatest_distance,
         }
     }
 }

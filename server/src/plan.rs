@@ -1,9 +1,13 @@
 use std::collections::HashMap;
 
+use chrono::NaiveDate;
 use tracing::event;
 use uuid::Uuid;
 
-use crate::{db, error::RestError};
+use crate::{
+    db::{self, Database},
+    error::RestError,
+};
 
 #[derive(Debug, Clone)]
 pub enum Access {
@@ -19,37 +23,75 @@ impl Access {
         }
     }
 
-    fn from_list(db_field_list: Option<Vec<Option<db::models::Access>>>) -> Vec<Self> {
-        db_field_list.map_or_else(
-            || vec![],
-            |list| {
-                list.into_iter()
-                    .filter_map(|f| f.map(Access::from))
-                    .collect()
-            },
-        )
+    fn from_list(db_field_list: Vec<Option<db::models::Access>>) -> Vec<Self> {
+        db_field_list
+            .into_iter()
+            .filter_map(|f| f.map(Access::from))
+            .collect()
+    }
+
+    fn to_db(&self) -> db::models::Access {
+        match self {
+            Access::Link => db::models::Access::Link,
+            Access::Account => db::models::Access::Account,
+        }
+    }
+
+    fn to_db_list(access_list: &[Access]) -> Vec<Option<db::models::Access>> {
+        access_list.iter().map(|a| Some(a.to_db())).collect()
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Plan {
-    pub access: Vec<Access>,
-    pub introduction: Option<String>,
-    pub hosting_assignments: Vec<Hosting>,
-    pub walking_paths: HashMap<Uuid, Vec<WalkingPathStep>>,
+pub enum Language {
+    DEUTSCH,
+    ENGLISH,
 }
 
-impl Plan {
-    pub fn from(
-        db_plan: crate::db::models::Plan,
-        hosting_list: Vec<Hosting>,
-        walking_paths: HashMap<Uuid, Vec<WalkingPathStep>>,
-    ) -> Self {
-        Plan {
-            access: Access::from_list(db_plan.access),
-            introduction: db_plan.introduction,
-            hosting_assignments: hosting_list,
-            walking_paths,
+impl Language {
+    fn from(db_field: db::models::Language) -> Self {
+        match db_field {
+            db::models::Language::DEUTSCH => Language::DEUTSCH,
+            db::models::Language::ENGLISH => Language::ENGLISH,
+        }
+    }
+
+    fn to_db(&self) -> db::models::Language {
+        match self {
+            Language::DEUTSCH => db::models::Language::DEUTSCH,
+            Language::ENGLISH => db::models::Language::ENGLISH,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PlanConfig {
+    access: Vec<Access>,
+    title: String,
+    description: String,
+    date: NaiveDate,
+    language: Language,
+}
+
+impl PlanConfig {
+    pub fn from(db_plan_config: db::models::PlanConfig) -> Self {
+        PlanConfig {
+            access: Access::from_list(db_plan_config.access),
+            title: db_plan_config.title,
+            description: db_plan_config.description,
+            date: db_plan_config.date,
+            language: Language::from(db_plan_config.language),
+        }
+    }
+
+    pub fn to_db(&self, id: Uuid) -> db::models::PlanConfig {
+        db::models::PlanConfig {
+            id,
+            access: Access::to_db_list(&self.access),
+            title: self.title.clone(),
+            description: self.description.clone(),
+            date: self.date,
+            language: self.language.to_db(),
         }
     }
 }
@@ -57,90 +99,143 @@ impl Plan {
 #[derive(Debug, Clone)]
 pub struct Hosting {
     pub id: Uuid,
-    pub course_id: Uuid,
-    pub team_id: Uuid,
-    pub guest_team_ids: Vec<Uuid>,
+    pub name: Uuid,            // Course ID
+    pub host: Uuid,            // Team ID
+    pub guest_list: Vec<Uuid>, // Team ID
 }
 
 impl Hosting {
-    fn from(db_hosting: crate::db::models::Hosting) -> Self {
-        let guest_team_ids: Vec<Uuid> = serde_json::from_value(db_hosting.guest_team_ids)
-            .expect("Failed to deserialize guest_team_ids");
+    pub fn from(db_hosting: db::models::HostingData) -> Self {
         Hosting {
             id: db_hosting.id,
-            course_id: db_hosting.course_id,
-            team_id: db_hosting.team_id,
-            guest_team_ids,
+            name: db_hosting.name,
+            host: db_hosting.host,
+            guest_list: db_hosting.guest_list,
+        }
+    }
+
+    pub fn to_db(&self) -> db::models::HostingData {
+        db::models::HostingData {
+            id: self.id,
+            name: self.name,
+            host: self.host,
+            guest_list: self.guest_list.clone(),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct WalkingPathStep {
-    pub course_id: Uuid,
-    pub host_team_id: Uuid,
+pub struct Plan {
+    pub id: Uuid,
+    pub hosting_list: Vec<Hosting>,
+    pub walking_path: HashMap<Uuid, Vec<Uuid>>,
 }
 
-impl WalkingPathStep {
-    fn from_map(db_step: serde_json::Value) -> HashMap<Uuid, Vec<Self>> {
-        let walking_path: HashMap<Uuid, Vec<crate::db::models::WalkingPathStep>> =
-            serde_json::from_value(db_step).expect("Failed to deserialize WalkingPathStep");
-
-        walking_path
-            .into_iter()
-            .map(|(key, steps)| {
-                let step_list = steps.into_iter().map(WalkingPathStep::from).collect();
-                (key, step_list)
-            })
-            .collect()
+impl Plan {
+    pub fn from(db_plan: db::models::Plan) -> Self {
+        Plan {
+            id: db_plan.id,
+            hosting_list: db_plan
+                .data
+                .hosting_list
+                .into_iter()
+                .map(Hosting::from)
+                .collect(),
+            walking_path: db_plan.data.walking_path,
+        }
     }
 
-    fn from(db_step: crate::db::models::WalkingPathStep) -> Self {
-        WalkingPathStep {
-            course_id: db_step.course_id,
-            host_team_id: db_step.host_team_id,
+    pub fn to_db(&self, id: Uuid) -> db::models::Plan {
+        db::models::Plan {
+            id,
+            data: db::models::PlanData {
+                hosting_list: self.hosting_list.iter().map(Hosting::to_db).collect(),
+                walking_path: self.walking_path.clone(),
+            },
         }
     }
 }
 
-pub fn get_by_id(db: &mut crate::db::Database, plan_id: &Uuid) -> Result<Plan, RestError> {
-    let db_plan = db.select_plan(plan_id).map_err(|e| {
+pub fn get_by_id(
+    db: &mut Database,
+    cook_and_run_id: &Uuid,
+    user_id: &str,
+) -> Result<Plan, RestError> {
+    let db_plan = db.select_plan(cook_and_run_id, user_id).map_err(|e| {
         event!(
             tracing::Level::ERROR,
-            "Database error while selecting plan for id {}: {}",
-            plan_id,
+            "Database error while selecting plan for cook_and_run_id: {}, user_id: {}: {}",
+            cook_and_run_id,
+            user_id,
             e
         );
         RestError::InternalServer {
             message: "Database error while selecting plan!".to_string(),
         }
     })?;
+    Ok(Plan::from(db_plan))
+}
 
-    let hosting_assignments = db
-        .select_all_hosting(plan_id)
-        .map_err(|e| {
+pub fn get_config_by_id(
+    db: &mut Database,
+    cook_and_run_id: &Uuid,
+    user_id: &str,
+) -> Result<PlanConfig, RestError> {
+    let db_plan_config = db.select_plan_config(cook_and_run_id, user_id)  .map_err(|e| {
             event!(
                 tracing::Level::ERROR,
-                "Database error while selecting hosting assignments for plan id {}: {}",
-                plan_id,
+                "Database error while selecting plan config for cook_and_run_id: {}, user_id: {}: {}",
+                cook_and_run_id,
+                user_id,
                 e
             );
             RestError::InternalServer {
-                message: "Database error while selecting hosting assignments!".to_string(),
+                message: "Database error while selecting plan config!".to_string(),
             }
-        })?
-        .into_iter()
-        .map(Hosting::from)
-        .collect();
+        })?;
+    Ok(PlanConfig::from(db_plan_config))
+}
 
-    let walking_paths = WalkingPathStep::from_map(db_plan.walking_paths);
+pub fn create_or_update(
+    db: &mut Database,
+    plan: Plan,
+    cook_and_run_id: &Uuid,
+    user_id: &str,
+) -> Result<(), RestError> {
+    let plan_id = Uuid::new_v4();
+    db.create_plan(plan.to_db(plan_id), cook_and_run_id, user_id)
+        .map_err(|e| {
+            event!(
+                tracing::Level::ERROR,
+                "Database error while creating/updating plan for cook_and_run_id: {}, user_id: {}: {}",
+                cook_and_run_id,
+                user_id,
+                e
+            );
+            RestError::InternalServer {
+                message: "Database error while creating/updating plan!".to_string(),
+            }
+        })
+}
 
-    let access = Access::from_list(db_plan.access);
-
-    Ok(Plan {
-        access,
-        introduction: db_plan.introduction,
-        hosting_assignments,
-        walking_paths,
-    })
+pub fn create_or_update_config(
+    db: &mut Database,
+    plan_config: PlanConfig,
+    cook_and_run_id: &Uuid,
+    user_id: &str,
+) -> Result<(), RestError> {
+    let plan_config_id = Uuid::new_v4();
+    db.create_plan_config(plan_config.to_db(plan_config_id), cook_and_run_id, user_id)
+        .map_err(|e| {
+            event!(
+                tracing::Level::ERROR,
+                "Database error while creating/updating plan config for cook_and_run_id: {}, user_id: {}: {}",
+                cook_and_run_id,
+                user_id,
+                e
+            );
+            RestError::InternalServer {
+                message: "Database error while creating/updating plan config!".to_string(),
+            }
+        })
 }

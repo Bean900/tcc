@@ -19,17 +19,79 @@ CREATE TABLE "point" (
 );
 
 -- ========================================
--- Plan
+-- Planconfig
 -- ========================================
 CREATE TYPE access as enum(
     'link','account' 
 );
 
+CREATE TYPE language as enum(
+    'deu','eng' 
+);
+
+CREATE TABLE "plan_config" (
+    "id" UUID PRIMARY KEY,
+    "access" access[] NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "date" DATE NOT NULL,
+    "language" language NOT NULL
+);
+
+-- ========================================
+-- Plan
+-- ========================================
 CREATE TABLE "plan" (
     "id" UUID PRIMARY KEY,
-    "access" access[] NULL,
-    "introduction" TEXT NULL,
-    "walking_paths" JSONB NOT NULL
+    "data" JSONB NOT NULL,
+
+    -- 1. Validate root structure (data must be an object containing specific keys)
+    CONSTRAINT chk_plan_root CHECK (
+        jsonb_typeof(data) = 'object' AND
+        jsonb_typeof(data->'hosting_list') = 'array' AND
+        jsonb_typeof(data->'walking_path') = 'object'
+    ),
+
+    -- 2. Validate Hosting elements (Must be objects & contain required fields)
+    CONSTRAINT chk_hosting_list_elements CHECK (
+        -- Fails if any element is NOT an object or a required field is missing
+        NOT jsonb_path_exists(data, '
+            $.hosting_list[*] ? (
+                @.type() != "object" || 
+                !exists(@.id) || 
+                !exists(@.name) || 
+                !exists(@.host) || 
+                !exists(@.guest_list)
+            )
+        ')
+    ),
+
+    -- 3. Validate data types within Hosting (IDs as strings, guest_list as array)
+    CONSTRAINT chk_hosting_list_types CHECK (
+        NOT jsonb_path_exists(data, '
+            $.hosting_list[*] ? (
+                @.id.type() != "string" || 
+                @.name.type() != "string" || 
+                @.host.type() != "string" || 
+                @.guest_list.type() != "array"
+            )
+        ')
+    ),
+
+    -- 4. Validate items INSIDE guest_list (Must be strings/UUIDs)
+    CONSTRAINT chk_guest_list_items CHECK (
+        NOT jsonb_path_exists(data, '$.hosting_list[*].guest_list[*] ? (@.type() != "string")')
+    ),
+
+    -- 5. Validate values in walking_path HashMap (Must be arrays)
+    CONSTRAINT chk_walking_path_values CHECK (
+        NOT jsonb_path_exists(data, '$.walking_path.* ? (@.type() != "array")')
+    ),
+
+    -- 6. Validate items INSIDE walking_path arrays (Must be strings/UUIDs)
+    CONSTRAINT chk_walking_path_items CHECK (
+        NOT jsonb_path_exists(data, '$.walking_path.*[*] ? (@.type() != "string")')
+    )
 );
 
 -- ========================================
@@ -63,7 +125,8 @@ CREATE TABLE "cook_and_run" (
     "start_point" UUID NULL REFERENCES "point" ("id") ON DELETE SET NULL,
     "end_point" UUID NULL REFERENCES "point" ("id") ON DELETE SET NULL,
     "share_team_config" UUID NULL REFERENCES "share" ("id") ON DELETE SET NULL,
-    "plan" UUID NULL REFERENCES "plan" ("id") ON DELETE SET NULL        
+    "plan" UUID NULL REFERENCES "plan" ("id") ON DELETE SET NULL,        
+    "plan_config" UUID NULL REFERENCES "plan_config" ("id") ON DELETE SET NULL        
 );
 
 CREATE INDEX idx_cookandrun_user_id ON "cook_and_run" ("user_id");

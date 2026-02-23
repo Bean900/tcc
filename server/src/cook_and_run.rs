@@ -7,7 +7,7 @@ use crate::{
     course::{self, Course},
     db::{self, models::CookAndRunUpdate, Database},
     error::{map_not_found_cook_and_run, RestError},
-    plan::{self, Plan},
+    plan::{self, Plan, PlanConfig},
     point::{self, Point},
     sharing::{self, ShareTeamConfig},
     team::{self, Team},
@@ -80,6 +80,7 @@ pub struct CookAndRun {
     pub end_point: Option<Point>,
     pub share_team_config: Option<ShareTeamConfig>,
     pub plan: Option<Plan>,
+    pub plan_config: Option<PlanConfig>,
 }
 
 impl CookAndRun {
@@ -91,6 +92,7 @@ impl CookAndRun {
         end_point: Option<Point>,
         share_team_config: Option<ShareTeamConfig>,
         plan: Option<Plan>,
+        plan_config: Option<PlanConfig>,
     ) -> Self {
         CookAndRun {
             id: cook_and_run.id,
@@ -105,6 +107,7 @@ impl CookAndRun {
             end_point,
             share_team_config,
             plan,
+            plan_config,
         }
     }
 }
@@ -168,11 +171,6 @@ pub fn get_cook_and_run(
         .map(|_| sharing::get_by_id(db, cook_and_run_id, user_id))
         .transpose()?;
 
-    let plan = cook_and_run
-        .plan
-        .map(|p| plan::get_by_id(db, &p))
-        .transpose()?;
-
     Ok(CookAndRun::from(
         cook_and_run,
         team,
@@ -180,7 +178,8 @@ pub fn get_cook_and_run(
         start_point,
         end_point,
         share_team_config,
-        plan,
+        None,
+        None,
     ))
 }
 
