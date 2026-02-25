@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use chrono::NaiveDate;
-use tracing::event;
+use tracing::error;
 use uuid::Uuid;
 
 use crate::{
     db::{self, Database},
-    error::RestError,
+    error::{map_not_found_cook_and_run, RestError},
 };
 
 #[derive(Debug, Clone)]
@@ -66,11 +66,11 @@ impl Language {
 
 #[derive(Debug, Clone)]
 pub struct PlanConfig {
-    access: Vec<Access>,
-    title: String,
-    description: String,
-    date: NaiveDate,
-    language: Language,
+    pub access: Vec<Access>,
+    pub title: String,
+    pub description: String,
+    pub date: NaiveDate,
+    pub language: Language,
 }
 
 impl PlanConfig {
@@ -126,7 +126,6 @@ impl Hosting {
 
 #[derive(Debug, Clone)]
 pub struct Plan {
-    pub id: Uuid,
     pub hosting_list: Vec<Hosting>,
     pub walking_path: HashMap<Uuid, Vec<Uuid>>,
 }
@@ -134,7 +133,6 @@ pub struct Plan {
 impl Plan {
     pub fn from(db_plan: db::models::Plan) -> Self {
         Plan {
-            id: db_plan.id,
             hosting_list: db_plan
                 .data
                 .hosting_list
@@ -161,18 +159,25 @@ pub fn get_by_id(
     cook_and_run_id: &Uuid,
     user_id: &str,
 ) -> Result<Plan, RestError> {
-    let db_plan = db.select_plan(cook_and_run_id, user_id).map_err(|e| {
-        event!(
-            tracing::Level::ERROR,
-            "Database error while selecting plan for cook_and_run_id: {}, user_id: {}: {}",
-            cook_and_run_id,
-            user_id,
-            e
-        );
-        RestError::InternalServer {
-            message: "Database error while selecting plan!".to_string(),
-        }
-    })?;
+    let db_plan = db
+        .select_plan(cook_and_run_id, user_id)
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => {
+                map_not_found_cook_and_run(cook_and_run_id, "loading plan", e)
+            }
+            _ => {
+                error!(
+                    "Could not get plan in project with id {} from database: {}",
+                    cook_and_run_id, e
+                );
+                RestError::InternalServer {
+                    message: format!(
+                        "Could not get plan in cook and run project with id {} from database",
+                        cook_and_run_id
+                    ),
+                }
+            }
+        })?;
     Ok(Plan::from(db_plan))
 }
 
@@ -181,16 +186,23 @@ pub fn get_config_by_id(
     cook_and_run_id: &Uuid,
     user_id: &str,
 ) -> Result<PlanConfig, RestError> {
-    let db_plan_config = db.select_plan_config(cook_and_run_id, user_id)  .map_err(|e| {
-            event!(
-                tracing::Level::ERROR,
-                "Database error while selecting plan config for cook_and_run_id: {}, user_id: {}: {}",
-                cook_and_run_id,
-                user_id,
-                e
-            );
-            RestError::InternalServer {
-                message: "Database error while selecting plan config!".to_string(),
+    let db_plan_config = db
+        .select_plan_config(cook_and_run_id, user_id)
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => {
+                map_not_found_cook_and_run(cook_and_run_id, "loading plan config", e)
+            }
+            _ => {
+                error!(
+                    "Could not get plan config in project with id {} from database: {}",
+                    cook_and_run_id, e
+                );
+                RestError::InternalServer {
+                    message: format!(
+                        "Could not get plan config in cook and run project with id {} from database",
+                        cook_and_run_id
+                    ),
+                }
             }
         })?;
     Ok(PlanConfig::from(db_plan_config))
@@ -204,16 +216,21 @@ pub fn create_or_update(
 ) -> Result<(), RestError> {
     let plan_id = Uuid::new_v4();
     db.create_plan(plan.to_db(plan_id), cook_and_run_id, user_id)
-        .map_err(|e| {
-            event!(
-                tracing::Level::ERROR,
-                "Database error while creating/updating plan for cook_and_run_id: {}, user_id: {}: {}",
-                cook_and_run_id,
-                user_id,
-                e
-            );
-            RestError::InternalServer {
-                message: "Database error while creating/updating plan!".to_string(),
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => {
+                map_not_found_cook_and_run(cook_and_run_id, "loading plan", e)
+            }
+            _ => {
+                error!(
+                    "Could not get plan in project with id {} from database: {}",
+                    cook_and_run_id, e
+                );
+                RestError::InternalServer {
+                    message: format!(
+                        "Could not get plan in cook and run project with id {} from database",
+                        cook_and_run_id
+                    ),
+                }
             }
         })
 }
@@ -226,16 +243,67 @@ pub fn create_or_update_config(
 ) -> Result<(), RestError> {
     let plan_config_id = Uuid::new_v4();
     db.create_plan_config(plan_config.to_db(plan_config_id), cook_and_run_id, user_id)
-        .map_err(|e| {
-            event!(
-                tracing::Level::ERROR,
-                "Database error while creating/updating plan config for cook_and_run_id: {}, user_id: {}: {}",
-                cook_and_run_id,
-                user_id,
-                e
-            );
-            RestError::InternalServer {
-                message: "Database error while creating/updating plan config!".to_string(),
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => {
+                map_not_found_cook_and_run(cook_and_run_id, "loading plan", e)
+            }
+            _ => {
+                error!(
+                    "Could not get plan in project with id {} from database: {}",
+                    cook_and_run_id, e
+                );
+                RestError::InternalServer {
+                    message: format!(
+                        "Could not get plan in cook and run project with id {} from database",
+                        cook_and_run_id
+                    ),
+                }
+            }
+        })
+}
+
+pub fn delete(db: &mut Database, cook_and_run_id: &Uuid, user_id: &str) -> Result<(), RestError> {
+    db.delete_plan(cook_and_run_id, user_id)
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => {
+                map_not_found_cook_and_run(cook_and_run_id, "loading plan", e)
+            }
+            _ => {
+                error!(
+                    "Could not get plan in project with id {} from database: {}",
+                    cook_and_run_id, e
+                );
+                RestError::InternalServer {
+                    message: format!(
+                        "Could not get plan in cook and run project with id {} from database",
+                        cook_and_run_id
+                    ),
+                }
+            }
+        })
+}
+
+pub fn delete_config(
+    db: &mut Database,
+    cook_and_run_id: &Uuid,
+    user_id: &str,
+) -> Result<(), RestError> {
+    db.delete_plan_config(cook_and_run_id, user_id)
+        .map_err(|e| match e {
+            diesel::result::Error::NotFound => {
+                map_not_found_cook_and_run(cook_and_run_id, "loading plan", e)
+            }
+            _ => {
+                error!(
+                    "Could not get plan in project with id {} from database: {}",
+                    cook_and_run_id, e
+                );
+                RestError::InternalServer {
+                    message: format!(
+                        "Could not get plan in cook and run project with id {} from database",
+                        cook_and_run_id
+                    ),
+                }
             }
         })
 }

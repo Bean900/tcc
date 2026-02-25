@@ -164,8 +164,8 @@ where
     fn from_sql(bytes: DB::RawValue<'_>) -> diesel::deserialize::Result<Self> {
         let s = String::from_sql(bytes)?;
         match s.as_str() {
-            "Link" => Ok(Access::Link),
-            "Account" => Ok(Access::Account),
+            "link" => Ok(Access::Link),
+            "account" => Ok(Access::Account),
             _ => Err(format!("Unknown variant: {}", s).into()),
         }
     }
@@ -181,8 +181,8 @@ where
         out: &mut diesel::serialize::Output<'b, '_, DB>,
     ) -> diesel::serialize::Result {
         let s = match self {
-            Access::Link => "Link",
-            Access::Account => "Account",
+            Access::Link => "link",
+            Access::Account => "account",
         };
         s.to_sql(out)
     }
@@ -266,8 +266,8 @@ pub struct PlanData {
 #[diesel(check_for_backend(diesel::pg::Pg))]
 #[diesel(belongs_to(CookAndRun))]
 pub struct PlanRow {
-    id: Uuid,
-    data: Value,
+    pub id: Uuid,
+    pub data: Value,
 }
 
 impl PlanRow {
@@ -325,4 +325,5 @@ pub struct CookAndRun {
     pub end_point: Option<Uuid>,
     pub share_team_config: Option<Uuid>,
     pub plan: Option<Uuid>,
+    pub plan_config: Option<Uuid>,
 }

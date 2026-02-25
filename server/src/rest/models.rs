@@ -3,12 +3,15 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use chrono::NaiveDateTime;
+use chrono::{NaiveDate, NaiveDateTime};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::rest::auth::{AuthUser, AuthenticatedUser};
+use crate::{
+    plan,
+    rest::auth::{AuthUser, AuthenticatedUser},
+};
 
 // Common types
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -175,6 +178,7 @@ pub struct CookAndRun {
     pub end_point: Option<Point>,
     pub share_team_config: Option<ShareTeamConfig>,
     pub plan: Option<Plan>,
+    pub plan_config: Option<PlanConfig>,
 }
 
 impl CookAndRun {
@@ -196,6 +200,7 @@ impl CookAndRun {
             end_point: cook_and_run.end_point.map(Point::from),
             share_team_config: cook_and_run.share_team_config.map(ShareTeamConfig::from),
             plan: cook_and_run.plan.map(Plan::from),
+            plan_config: cook_and_run.plan_config.map(PlanConfig::from),
         }
     }
 }
@@ -506,6 +511,7 @@ impl RequiredField {
     }
 }
 
+// Plan models
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Access {
@@ -514,80 +520,147 @@ pub enum Access {
 }
 
 impl Access {
-    fn from_list(db_access: Vec<crate::plan::Access>) -> Vec<Self> {
-        db_access.into_iter().map(Access::from).collect()
-    }
-    fn from(db_access: crate::plan::Access) -> Self {
-        match db_access {
-            crate::plan::Access::Link => Access::Link,
-            crate::plan::Access::Account => Access::Account,
+    fn from(field: plan::Access) -> Self {
+        match field {
+            plan::Access::Link => Access::Link,
+            plan::Access::Account => Access::Account,
         }
+    }
+
+    fn from_list(db_field_list: Vec<plan::Access>) -> Vec<Self> {
+        db_field_list.into_iter().map(Access::from).collect()
+    }
+
+    fn to(&self) -> plan::Access {
+        match self {
+            Access::Link => plan::Access::Link,
+            Access::Account => plan::Access::Account,
+        }
+    }
+
+    fn to_list(access_list: &[Access]) -> Vec<plan::Access> {
+        access_list.iter().map(Access::to).collect()
     }
 }
 
-// Plan models
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Plan {
-    pub access: Vec<Access>,
-    pub introduction: Option<String>,
-    pub hosting_assignments: Vec<Hosting>,
-    pub walking_paths: HashMap<Uuid, Vec<WalkingPathStep>>,
+#[serde(rename_all = "snake_case")]
+pub enum Language {
+    Deu,
+    Eng,
 }
 
-impl Plan {
-    pub fn from(db_plan: crate::plan::Plan) -> Self {
-        Plan {
-            access: Access::from_list(db_plan.access),
-            introduction: db_plan.introduction,
-            hosting_assignments: db_plan
-                .hosting_assignments
-                .into_iter()
-                .map(Hosting::from)
-                .collect(),
-            walking_paths: WalkingPathStep::from_map(db_plan.walking_paths),
+impl Language {
+    fn from(field: plan::Language) -> Self {
+        match field {
+            plan::Language::DEUTSCH => Language::Deu,
+            plan::Language::ENGLISH => Language::Eng,
         }
+    }
+
+    fn to(&self) -> plan::Language {
+        match self {
+            Language::Deu => plan::Language::DEUTSCH,
+            Language::Eng => plan::Language::ENGLISH,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlanConfig {
+    access: Vec<Access>,
+    title: String,
+    description: String,
+    date: NaiveDate,
+    language: Language,
+}
+
+impl PlanConfig {
+    pub fn from(plan_config: plan::PlanConfig) -> Self {
+        PlanConfig {
+            access: Access::from_list(plan_config.access),
+            title: plan_config.title,
+            description: plan_config.description,
+            date: plan_config.date,
+            language: Language::from(plan_config.language),
+        }
+    }
+
+    pub fn to(&self) -> plan::PlanConfig {
+        plan::PlanConfig {
+            access: Access::to_list(&self.access),
+            title: self.title.clone(),
+            description: self.description.clone(),
+            date: self.date,
+            language: self.language.to(),
+        }
+    }
+}
+
+impl IntoResponse for PlanConfig {
+    fn into_response(self) -> Response {
+        (StatusCode::OK, Json(self)).into_response()
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Hosting {
     pub id: Uuid,
-    pub course_id: Uuid,
-    pub team_id: Uuid,
-    pub guest_team_ids: Vec<Uuid>,
+    pub name: Uuid,            // Course ID
+    pub host: Uuid,            // Team ID
+    pub guest_list: Vec<Uuid>, // Team ID
 }
 
 impl Hosting {
-    fn from(db_hosting: crate::plan::Hosting) -> Self {
+    pub fn from(db_hosting: plan::Hosting) -> Self {
         Hosting {
             id: db_hosting.id,
-            course_id: db_hosting.course_id,
-            team_id: db_hosting.team_id,
-            guest_team_ids: db_hosting.guest_team_ids,
+            name: db_hosting.name,
+            host: db_hosting.host,
+            guest_list: db_hosting.guest_list,
         }
+    }
+
+    pub fn to(&self) -> plan::Hosting {
+        plan::Hosting {
+            id: self.id,
+            name: self.name,
+            host: self.host,
+            guest_list: self.guest_list.clone(),
+        }
+    }
+}
+
+impl IntoResponse for Hosting {
+    fn into_response(self) -> Response {
+        (StatusCode::OK, Json(self)).into_response()
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WalkingPathStep {
-    pub course_id: Uuid,
-    pub host_team_id: Uuid,
+pub struct Plan {
+    pub hosting_list: Vec<Hosting>,
+    pub walking_path: HashMap<Uuid, Vec<Uuid>>,
 }
 
-impl WalkingPathStep {
-    fn from_map(
-        db_steps: HashMap<Uuid, Vec<crate::plan::WalkingPathStep>>,
-    ) -> HashMap<Uuid, Vec<Self>> {
-        db_steps
-            .into_iter()
-            .map(|(k, v)| (k, v.into_iter().map(WalkingPathStep::from).collect()))
-            .collect()
+impl Plan {
+    pub fn from(plan: plan::Plan) -> Self {
+        Plan {
+            hosting_list: plan.hosting_list.into_iter().map(Hosting::from).collect(),
+            walking_path: plan.walking_path.clone(),
+        }
     }
 
-    fn from(db_step: crate::plan::WalkingPathStep) -> Self {
-        WalkingPathStep {
-            course_id: db_step.course_id,
-            host_team_id: db_step.host_team_id,
+    pub fn to(&self) -> plan::Plan {
+        plan::Plan {
+            hosting_list: self.hosting_list.iter().map(Hosting::to).collect(),
+            walking_path: self.walking_path.clone(),
         }
+    }
+}
+
+impl IntoResponse for Plan {
+    fn into_response(self) -> Response {
+        (StatusCode::OK, Json(self)).into_response()
     }
 }

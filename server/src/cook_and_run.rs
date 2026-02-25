@@ -171,6 +171,16 @@ pub fn get_cook_and_run(
         .map(|_| sharing::get_by_id(db, cook_and_run_id, user_id))
         .transpose()?;
 
+    let plan = cook_and_run
+        .plan
+        .map(|_| plan::get_by_id(db, cook_and_run_id, user_id))
+        .transpose()?;
+
+    let plan_config = cook_and_run
+        .plan_config
+        .map(|_| plan::get_config_by_id(db, cook_and_run_id, user_id))
+        .transpose()?;
+
     Ok(CookAndRun::from(
         cook_and_run,
         team,
@@ -178,8 +188,8 @@ pub fn get_cook_and_run(
         start_point,
         end_point,
         share_team_config,
-        None,
-        None,
+        plan,
+        plan_config,
     ))
 }
 
