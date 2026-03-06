@@ -86,3 +86,27 @@ For local testing, the following steps must then be followed:
    ```
 
 This will start the application in development mode with hot reloading enabled for both Rust and CSS changes.
+
+### Setup Server
+
+#### Setup Database
+1. Install Docker
+
+2. start postgres with docker 
+```bash
+docker run --name tcc-postgres -e POSTGRES_PASSWORD=mysecretpassword -d -p 5432:5432 postgres
+```
+3. Export connection string to DATABASE_URL. if not the default postgresql://postgres:mysecretpassword@localhost:5432/postgres is set
+
+### Setup 0auth
+1. Create account account at auth0.com
+2. fill .env file
+
+
+### Setup code
+1. Fill .env file
+2. cd into server folder
+3. install libpq. Ubuntu -> sudo apt install libpq-dev
+3. Run `cargo build`
+4. run tcc server `cargo run`
+5. run tests on tcc server `cargo test`
