@@ -38,7 +38,7 @@ async fn main() {
     //  tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/postgres".to_string());
+        .unwrap_or_else(|_| "postgresql://postgres:mysecretpassword@localhost:5432/postgres".to_string());
     //let domain = std::env::var("DOMAIN").expect("DOMAIN must be set");
     //let audience = std::env::var("AUDIENCE").expect("AUDIENCE must be set");
     let addr = std::env::var("ADDR").unwrap_or_else(|_| "0.0.0.0:3000".to_string());

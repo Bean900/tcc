@@ -85,7 +85,7 @@ CREATE TABLE "plan" (
 
     -- 5. Validate values in walking_path HashMap (Must be arrays)
     CONSTRAINT chk_walking_path_values CHECK (
-        NOT jsonb_path_exists(data, '$.walking_path.* ? (@.type() != "array")')
+        NOT jsonb_path_exists(data, '$.walking_path.keyvalue() ? (@.value.type() != "array")')
     ),
 
     -- 6. Validate items INSIDE walking_path arrays (Must be strings/UUIDs)

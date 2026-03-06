@@ -52,7 +52,6 @@ fn test_patch_plan_wrong_user() {
         "Response: {:#?}",
         response
     );
-    patch_plan(&cook_and_run_id, &token_2);
 
     let response = execute_get(&cook_and_run_id, &token_1);
     assert_eq!(
@@ -63,6 +62,14 @@ fn test_patch_plan_wrong_user() {
     );
 
     let response = execute_patch_plan(&cook_and_run_id, &token_2);
+    assert_eq!(
+        response.status(),
+        StatusCode::NOT_FOUND,
+        "Response: {:#?}",
+        response
+    );
+
+    let response = execute_get(&cook_and_run_id, &token_1);
     assert_eq!(
         response.status(),
         StatusCode::NOT_FOUND,

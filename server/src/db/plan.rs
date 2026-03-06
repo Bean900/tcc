@@ -1,5 +1,7 @@
 use diesel::dsl::{insert_into, update};
 use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
+use serde::de;
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::db::models::{Plan, PlanConfig, PlanRow};
@@ -53,7 +55,9 @@ impl Database {
 
         let conn = &mut self.get_connection()?;
         conn.transaction(|t| {
-            insert_into(plan::table).values(plan_row).execute(t)?;
+            let insert_query = insert_into(plan::table).values(plan_row);
+            debug!("Executing query: {:?}", diesel::debug_query::<diesel::pg::Pg, _>(&insert_query));
+            insert_query.execute(t)?;
             let affected = update(c_a_r::table.find(cook_and_run_id_filter))
                 .filter(c_a_r::user_id.eq(user_id_filter))
                 .set(c_a_r::plan.eq(plan_id))
