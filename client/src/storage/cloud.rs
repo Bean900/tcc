@@ -294,31 +294,6 @@ impl Storage for CloudStorage {
         }
     }
 
-    async fn update_plan_of_cook_and_run(
-        &mut self,
-        cook_and_run_id: Uuid,
-        plan: &super::PlanData,
-    ) -> Result<(), String> {
-        let session_data = match self.get_access_token() {
-            Ok(sd) => sd,
-            Err(_) => return Err("No auth data!".to_string()),
-        };
-
-        let url = format!("{}/cook_and_run/{}/plan", self.base_url, cook_and_run_id);
-        let client = reqwest::Client::new();
-        let res = client
-            .patch(&url)
-            .bearer_auth(session_data.access_token)
-            .json(plan)
-            .send()
-            .await;
-
-        match res {
-            Ok(response) if response.status().is_success() => Ok(()),
-            Ok(response) => Err(format!("Request failed: {}", response.status())),
-            Err(e) => Err(format!("Request error: {}", e)),
-        }
-    }
     async fn create_course_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
@@ -850,6 +825,164 @@ impl Storage for CloudStorage {
             .json(share_config)
             .send()
             .await;
+        match res {
+            Ok(response) if response.status().is_success() => Ok(()),
+            Ok(response) => Err(format!("Request failed: {}", response.status())),
+            Err(e) => Err(format!("Request error: {}", e)),
+        }
+    }
+
+    async fn update_plan_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        plan: &super::PlanData,
+    ) -> Result<(), String> {
+        let session_data = match self.get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+        let url = format!("{}/cook_and_run/{}/plan", self.base_url, cook_and_run_id);
+        let client = reqwest::Client::new();
+        let res = client
+            .patch(&url)
+            .bearer_auth(session_data.access_token)
+            .json(plan)
+            .send()
+            .await;
+
+        match res {
+            Ok(response) if response.status().is_success() => Ok(()),
+            Ok(response) => Err(format!("Request failed: {}", response.status())),
+            Err(e) => Err(format!("Request error: {}", e)),
+        }
+    }
+
+    async fn select_plan_of_cook_and_run(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Option<super::PlanData>, String> {
+        let session_data = match self.get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+        let url = format!("{}/cook_and_run/{}/plan", self.base_url, cook_and_run_id);
+        let client = reqwest::Client::new();
+        let res = client
+            .get(&url)
+            .bearer_auth(session_data.access_token)
+            .send()
+            .await;
+
+        match res {
+            Ok(response) if response.status().is_success() => response
+                .json::<super::PlanData>()
+                .await
+                .map(Some)
+                .map_err(|e| e.to_string()),
+            Ok(response) if response.status() == reqwest::StatusCode::NOT_FOUND => Ok(None),
+            Ok(response) => Err(format!("Request failed: {}", response.status())),
+            Err(e) => Err(format!("Request error: {}", e)),
+        }
+    }
+
+    async fn delete_plan_of_cook_and_run(&mut self, cook_and_run_id: Uuid) -> Result<(), String> {
+        let session_data = match self.get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+        let url = format!("{}/cook_and_run/{}/plan", self.base_url, cook_and_run_id);
+        let client = reqwest::Client::new();
+        let res = client
+            .delete(&url)
+            .bearer_auth(session_data.access_token)
+            .send()
+            .await;
+
+        match res {
+            Ok(response) if response.status().is_success() => Ok(()),
+            Ok(response) => Err(format!("Request failed: {}", response.status())),
+            Err(e) => Err(format!("Request error: {}", e)),
+        }
+    }
+
+    async fn select_plan_config_of_cook_and_run(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Option<super::PlanConfigData>, String> {
+        let session_data = match self.get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+        let url = format!(
+            "{}/cook_and_run/{}/plan_config",
+            self.base_url, cook_and_run_id
+        );
+        let client = reqwest::Client::new();
+        let res = client
+            .get(&url)
+            .bearer_auth(session_data.access_token)
+            .send()
+            .await;
+
+        match res {
+            Ok(response) if response.status().is_success() => response
+                .json::<super::PlanConfigData>()
+                .await
+                .map(Some)
+                .map_err(|e| e.to_string()),
+            Ok(response) if response.status() == reqwest::StatusCode::NOT_FOUND => Ok(None),
+            Ok(response) => Err(format!("Request failed: {}", response.status())),
+            Err(e) => Err(format!("Request error: {}", e)),
+        }
+    }
+
+    async fn update_plan_config_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        plan_config: &super::PlanConfigData,
+    ) -> Result<(), String> {
+        let session_data = match self.get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+        let url = format!(
+            "{}/cook_and_run/{}/plan_config",
+            self.base_url, cook_and_run_id
+        );
+        let client = reqwest::Client::new();
+        let res = client
+            .patch(&url)
+            .bearer_auth(session_data.access_token)
+            .json(plan_config)
+            .send()
+            .await;
+
+        match res {
+            Ok(response) if response.status().is_success() => Ok(()),
+            Ok(response) => Err(format!("Request failed: {}", response.status())),
+            Err(e) => Err(format!("Request error: {}", e)),
+        }
+    }
+
+    async fn delete_plan_config_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+    ) -> Result<(), String> {
+        let session_data = match self.get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+        let url = format!(
+            "{}/cook_and_run/{}/plan_config",
+            self.base_url, cook_and_run_id
+        );
+        let client = reqwest::Client::new();
+        let res = client
+            .delete(&url)
+            .bearer_auth(session_data.access_token)
+            .send()
+            .await;
+
         match res {
             Ok(response) if response.status().is_success() => Ok(()),
             Ok(response) => Err(format!("Request failed: {}", response.status())),

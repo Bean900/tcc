@@ -182,6 +182,118 @@ impl StorageManager {
         }
     }
 
+    pub async fn select_plan_of_cook_and_run(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Option<PlanData>, String> {
+        match self
+            .local
+            .select_plan_of_cook_and_run(cook_and_run_id)
+            .await
+        {
+            Ok(data) => Ok(data),
+            Err(e_local) => match self
+                .cloud
+                .select_plan_of_cook_and_run(cook_and_run_id)
+                .await
+            {
+                Ok(data) => Ok(data),
+                Err(e_cloud) => Err(format!(
+                    "Cook and run with id {} not found in local or cloud storage: {} | {}",
+                    cook_and_run_id, e_local, e_cloud
+                )),
+            },
+        }
+    }
+
+    pub async fn delete_plan_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .delete_plan_of_cook_and_run(cook_and_run_id)
+                .await
+        } else {
+            self.cloud
+                .delete_plan_of_cook_and_run(cook_and_run_id)
+                .await
+        }
+    }
+
+    pub async fn update_plan_config_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        plan_config: &PlanConfigData,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .update_plan_config_of_cook_and_run(cook_and_run_id, plan_config)
+                .await
+        } else {
+            self.cloud
+                .update_plan_config_of_cook_and_run(cook_and_run_id, plan_config)
+                .await
+        }
+    }
+
+    pub async fn select_plan_config_of_cook_and_run(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Option<PlanConfigData>, String> {
+        match self
+            .local
+            .select_plan_config_of_cook_and_run(cook_and_run_id)
+            .await
+        {
+            Ok(data) => Ok(data),
+            Err(e_local) => match self
+                .cloud
+                .select_plan_config_of_cook_and_run(cook_and_run_id)
+                .await
+            {
+                Ok(data) => Ok(data),
+                Err(e_cloud) => Err(format!(
+                    "Cook and run with id {} not found in local or cloud storage: {} | {}",
+                    cook_and_run_id, e_local, e_cloud
+                )),
+            },
+        }
+    }
+
+    pub async fn delete_plan_config_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+    ) -> Result<(), String> {
+        let exists_local = self
+            .local
+            .select_cook_and_run(cook_and_run_id)
+            .await
+            .is_ok();
+
+        if exists_local {
+            self.local
+                .delete_plan_config_of_cook_and_run(cook_and_run_id)
+                .await
+        } else {
+            self.cloud
+                .delete_plan_config_of_cook_and_run(cook_and_run_id)
+                .await
+        }
+    }
+
     pub async fn create_course_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
@@ -646,10 +758,28 @@ pub trait Storage {
         cook_and_run_id: Uuid,
         cook_and_run_meta: &CookAndRunMetaUpdate,
     ) -> Result<(), String>;
+    async fn select_plan_of_cook_and_run(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Option<PlanData>, String>;
     async fn update_plan_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
         plan: &PlanData,
+    ) -> Result<(), String>;
+    async fn delete_plan_of_cook_and_run(&mut self, cook_and_run_id: Uuid) -> Result<(), String>;
+    async fn select_plan_config_of_cook_and_run(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Option<PlanConfigData>, String>;
+    async fn update_plan_config_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        plan_config: &PlanConfigData,
+    ) -> Result<(), String>;
+    async fn delete_plan_config_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
     ) -> Result<(), String>;
     async fn create_course_of_cook_and_run(
         &mut self,
@@ -1007,6 +1137,7 @@ pub struct CookAndRunData {
     pub start_point: Option<MeetingPointData>,
     pub end_point: Option<MeetingPointData>,
     pub top_plan: Option<PlanData>,
+    pub plan_config: Option<PlanConfigData>,
     pub plan_text: Option<String>,
     pub invite_allowed: bool,
     pub invite_text: Option<String>,
@@ -1027,6 +1158,7 @@ impl CookAndRunData {
             start_point: None,
             end_point: None,
             top_plan: None,
+            plan_config: None,
             plan_text: None,
             invite_allowed: false,
             invite_text: None,

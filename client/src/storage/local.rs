@@ -89,6 +89,7 @@ impl CookAndRunCreate {
             start_point: None,
             end_point: None,
             top_plan: None,
+            plan_config: None,
             plan_text: None,
             invite_allowed: false,
             invite_text: None,
@@ -601,6 +602,70 @@ impl Storage for LocalStorage {
         _: &super::ShareTeamConfigCreate,
     ) -> Result<(), String> {
         Err("Local storage can't hold share config!".to_string())
+    }
+
+    async fn select_plan_of_cook_and_run(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Option<PlanData>, String> {
+        let cook_and_run = self.select_cook_and_run(cook_and_run_id).await?;
+        Ok(cook_and_run.top_plan)
+    }
+
+    async fn delete_plan_of_cook_and_run(&mut self, cook_and_run_id: Uuid) -> Result<(), String> {
+        let mut cook_and_run = self
+            .get_cook_and_run_data_by_id(cook_and_run_id)
+            .ok_or_else(|| format!("Cook and run project with ID {} not found", cook_and_run_id))?;
+
+        if cook_and_run.top_plan.is_none() {
+            return Err(format!(
+                "Plan not found in Cook and Run project with ID {}",
+                cook_and_run_id
+            ));
+        }
+
+        cook_and_run.top_plan = None;
+        self.update_cook_and_run_data(&cook_and_run)
+    }
+
+    async fn select_plan_config_of_cook_and_run(
+        &self,
+        cook_and_run_id: Uuid,
+    ) -> Result<Option<super::PlanConfigData>, String> {
+        let cook_and_run = self.select_cook_and_run(cook_and_run_id).await?;
+        Ok(cook_and_run.plan_config)
+    }
+
+    async fn update_plan_config_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+        plan_config: &super::PlanConfigData,
+    ) -> Result<(), String> {
+        let mut cook_and_run = self
+            .get_cook_and_run_data_by_id(cook_and_run_id)
+            .ok_or_else(|| format!("Cook and run project with ID {} not found", cook_and_run_id))?;
+
+        cook_and_run.plan_config = Some(plan_config.clone());
+        self.update_cook_and_run_data(&cook_and_run)
+    }
+
+    async fn delete_plan_config_of_cook_and_run(
+        &mut self,
+        cook_and_run_id: Uuid,
+    ) -> Result<(), String> {
+        let mut cook_and_run = self
+            .get_cook_and_run_data_by_id(cook_and_run_id)
+            .ok_or_else(|| format!("Cook and run project with ID {} not found", cook_and_run_id))?;
+
+        if cook_and_run.plan_config.is_none() {
+            return Err(format!(
+                "Plan config not found in Cook and Run project with ID {}",
+                cook_and_run_id
+            ));
+        }
+
+        cook_and_run.plan_config = None;
+        self.update_cook_and_run_data(&cook_and_run)
     }
 }
 fn update_meta(
