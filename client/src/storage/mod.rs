@@ -1065,12 +1065,23 @@ pub struct PlanData {
     pub walking_path: HashMap<Uuid /*Team ID */, Vec<Uuid /*Hosting ID */>>,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlanConfigData {
-    pub titel: String,
-    pub date: NaiveDate,
+    pub title: String,
     pub description: String,
+    pub date: NaiveDate,
     pub language: Language,
+}
+
+impl Default for PlanConfigData {
+    fn default() -> Self {
+        Self {
+            title: "Plan".to_string(),
+            description: "This is the plan for the cook and run event.".to_string(),
+            date: Utc::now().naive_utc().date(),
+            language: Language::English,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

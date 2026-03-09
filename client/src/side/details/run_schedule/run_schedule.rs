@@ -1,13 +1,36 @@
 use chrono::NaiveDate;
 use dioxus::prelude::*;
+use pulldown_cmark::{html, Parser};
 
 use crate::{
     side::{
         details::run_schedule::{Course, MeetingPoint, Schedule, Team},
         AddressSVG, PersonSVG, PhoneSVG, StartSVG, WarningSVG,
     },
-    storage::PlanConfigData,
+    storage::{Language, PlanConfigData},
 };
+
+enum TextModule {
+    You,
+    Guests,
+    Timeline,
+    DietaryRestrictions,
+}
+
+impl TextModule {
+    fn get_text(&self, language: &Language) -> &str {
+        match (self, language) {
+            (TextModule::You, Language::English) => "You",
+            (TextModule::You, Language::German) => "Du",
+            (TextModule::Guests, Language::English) => "Guests",
+            (TextModule::Guests, Language::German) => "Gäste",
+            (TextModule::Timeline, Language::English) => "Timeline",
+            (TextModule::Timeline, Language::German) => "Zeitplan",
+            (TextModule::DietaryRestrictions, Language::English) => "No restrictions",
+            (TextModule::DietaryRestrictions, Language::German) => "Keine Einschränkungen",
+        }
+    }
+}
 
 const POT: Asset = asset!("/assets/pot.png");
 const SPATULA: Asset = asset!("/assets/spatula.png");
@@ -18,6 +41,22 @@ const CARROT: Asset = asset!("/assets/carrot.png");
 
 #[component]
 pub fn RunSchedule(plan_config: PlanConfigData, schedule: Schedule) -> Element {
+    let titel_html = {
+        let text = plan_config.title.as_str();
+        let parser = Parser::new(text);
+        let mut html_output = String::new();
+        html::push_html(&mut html_output, parser);
+        html_output
+    };
+
+    let description_html = {
+        let text = plan_config.description.as_str();
+        let parser = Parser::new(text);
+        let mut html_output = String::new();
+        html::push_html(&mut html_output, parser);
+        html_output
+    };
+
     rsx!(
 
         div {
@@ -40,23 +79,24 @@ pub fn RunSchedule(plan_config: PlanConfigData, schedule: Schedule) -> Element {
                 }
                 div { class: "text-center",
                     h1 { class: "font-chewy text-9xl text-[#543D2B] tracking-wide",
-                        {plan_config.titel.as_str()}
+                        dangerous_inner_html:titel_html
                     }
                 }
 
-                p { class: "font-gluten text-[#543D2B] mt-2", {plan_config.description.as_str()} }
+                p { class: "font-gluten text-[#543D2B] mt-2", dangerous_inner_html:description_html }
 
                 // MyInfo
                 div { class: "grid grid-cols1 md:grid-cols-2 md:gap-x-4",
                     div {
-                        MyInfo { team: schedule.host }
+                        MyInfo {    language: plan_config.language.clone(),team: schedule.host }
                     }
                     div {
-                        MyHosting { guest_list: schedule.guest_list }
+                        MyHosting {   language: plan_config.language.clone(), guest_list: schedule.guest_list }
                     }
                 }
 
                 TimeLine {
+                    language: plan_config.language.clone(),
                     cook_and_run_date: plan_config.date,
                     start_point: schedule.start_point,
                     end_point: schedule.end_point,
@@ -69,12 +109,17 @@ pub fn RunSchedule(plan_config: PlanConfigData, schedule: Schedule) -> Element {
 
 #[component]
 fn TimeLine(
+    language: Language,
     cook_and_run_date: NaiveDate,
     start_point: Option<MeetingPoint>,
     end_point: Option<MeetingPoint>,
     walking_path: Vec<(Course, Team)>,
 ) -> Element {
-    let headline = format!("{} - {}", "Timeline", cook_and_run_date);
+    let headline = format!(
+        "{} - {}",
+        TextModule::Timeline.get_text(&language),
+        cook_and_run_date
+    );
 
     let start_name = start_point.as_ref().map_or("Start", |s| s.name.as_str());
     let start_time = start_point.as_ref().map_or("", |s| s.time.as_str());
@@ -156,9 +201,9 @@ fn TimeLine(
 
 #[component]
 fn Placeholder() -> Element {
-    rsx!(
-        div { class: "flex-1 text-center items-center" }
-    )
+    rsx!(div {
+        class: "flex-1 text-center items-center"
+    })
 }
 
 #[component]
@@ -213,7 +258,7 @@ fn TimeLineElement(
                         span { "{address}" }
                     }
                 }
-            
+
             }
         )
     };
@@ -239,11 +284,11 @@ fn TimeLineElement(
 }
 
 #[component]
-fn MyHosting(guest_list: Vec<Team>) -> Element {
+fn MyHosting(language: Language, guest_list: Vec<Team>) -> Element {
     rsx!(
         div { class: "flex items-center my-4",
             div { class: "flex-grow h-1 bg-[#C66741]" }
-            span { class: "mx-4 text-xl font-gluten text-[#543D2B]", "Guests" }
+            span { class: "mx-4 text-xl font-gluten text-[#543D2B]", "{TextModule::Guests.get_text(&language)}" }
             div { class: "flex-grow h-1 bg-[#C66741]" }
         }
 
@@ -282,11 +327,11 @@ fn MyHosting(guest_list: Vec<Team>) -> Element {
 }
 
 #[component]
-fn MyInfo(team: Team) -> Element {
+fn MyInfo(language: Language, team: Team) -> Element {
     rsx!(
         div { class: "flex items-center my-4",
             div { class: "flex-grow h-1 bg-[#C66741]" }
-            span { class: "mx-4 text-xl font-gluten text-[#543D2B]", "You" }
+            span { class: "mx-4 text-xl font-gluten text-[#543D2B]", "{TextModule::You.get_text(&language)}" }
             div { class: "flex-grow h-1 bg-[#C66741]" }
         }
 
