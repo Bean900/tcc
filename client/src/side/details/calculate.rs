@@ -1,21 +1,24 @@
 use std::vec;
 
-use chrono::NaiveDate;
-use dioxus::prelude::*;
-use uuid::Uuid;
-
 use crate::{
+    async_action,
+    calculator::{Calculator, Course, DataMapper, Point, SchemaCalculator, Team},
     side::{
         details::{
             run_schedule::{run_schedule::RunSchedule, Schedule},
             ErrorPage, LoadingPage,
         },
-        Headline1, Input,
+        AsyncAction, ConfirmButton, Headline1, Input,
     },
     storage::{
         CourseData, Language, MeetingPointData, PlanConfigData, PlanData, StorageManager, TeamData,
     },
 };
+use chrono::NaiveDate;
+use dioxus::prelude::*;
+use reqwest::Error;
+use uuid::Uuid;
+use web_sys::console;
 
 #[component]
 pub fn Calculate(cook_and_run_id: Uuid) -> Element {
@@ -87,14 +90,19 @@ pub fn Calculate(cook_and_run_id: Uuid) -> Element {
         }
     };
 
-    let mut plan_config_signal = use_signal(|| plan_config);
+    let plan_config_signal = use_signal(|| plan_config);
 
     let calculate_settings = rsx!(CalculateSettings {
         cook_and_run_id,
         plan_config_signal: plan_config_signal.clone(),
     });
 
-    let calculate_plans = rsx!(CalculatePlans { cook_and_run_id });
+    let calculate_plans = rsx!(CalculatePlans {
+        cook_and_run_id,
+        course_list: course_list.clone(),
+        start_point: start_point.clone(),
+        end_point: end_point.clone()
+    });
 
     let calculate_preview = rsx!(CalculatePreview {
         cook_and_run_id,
@@ -184,14 +192,22 @@ fn CalculateSettings(cook_and_run_id: Uuid, plan_config_signal: Signal<PlanConfi
             }
 
             div { class: "flex gap-3 mt-6",
-                button {
-                class: "px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium",
-                onclick: move |_| {
-                    // Handle save - call storage manager to update plan_config
-                    // storage.write().update_plan_config(cook_and_run_id, plan_config_signal.read().clone()).await
-                },
-                "Save Changes"
-                }
+               ConfirmButton {
+                        action: async_action!(
+                            {
+                                let mut storage = use_context::<Signal<StorageManager>>().write().clone();
+                                let result = storage
+                                    .update_plan_config_of_cook_and_run(cook_and_run_id, &plan_config_signal.read())
+                                    .await;
+                                if let Err(e) = &result {
+                                     console::error_1(&format!("Error updating plan config: {}", e) .into());
+                                }else {
+                                     console::log_1(&"Plan configuration updated successfully".into());
+                                }
+                             }
+                        ),
+                        text: "Save Settings".to_string(),
+                    }
 
             }
             }
@@ -200,7 +216,38 @@ fn CalculateSettings(cook_and_run_id: Uuid, plan_config_signal: Signal<PlanConfi
 }
 
 #[component]
-fn CalculatePlans(cook_and_run_id: Uuid) -> Element {
+fn CalculatePlans(
+    cook_and_run_id: Uuid,
+    course_list: Vec<CourseData>,
+    start_point: Option<MeetingPointData>,
+    end_point: Option<MeetingPointData>,
+) -> Element {
+    // Check start and end point times vs course times
+    let all_course_times = course_list.iter().map(|c| c.time).collect::<Vec<_>>();
+
+    if !all_course_times.is_empty() {
+        if let Some(start) = start_point.as_ref().map(|mp| mp.time) {
+            if start > *all_course_times.iter().min().unwrap() {
+                return rsx!(ErrorPage {
+                    error_text: "The start point time must be before all course times.".to_string(),
+                    error_details:
+                        "Please adjust the start point time to be before the earliest course time."
+                            .to_string(),
+                });
+            }
+        }
+        if let Some(end) = end_point.as_ref().map(|mp| mp.time) {
+            if end < *all_course_times.iter().max().unwrap() {
+                return rsx!(ErrorPage {
+                    error_text: "The end point time must be after all course times.".to_string(),
+                    error_details:
+                        "Please adjust the end point time to be after the latest course time."
+                            .to_string(),
+                });
+            }
+        }
+    }
+
     let storage = use_context::<Signal<StorageManager>>();
     let team_list_result: Resource<Result<Vec<TeamData>, String>> = use_resource(move || {
         let storage = storage.clone();
@@ -234,6 +281,23 @@ fn CalculatePlans(cook_and_run_id: Uuid) -> Element {
         Some(Ok(team_list)) => team_list.clone(),
     };
 
+    let end_point_signal = use_signal(|| end_point.map(|mp| Point::from_data(&mp.address)));
+    let team_list_signal: Signal<Vec<Team>> =
+        use_signal(|| team_list.iter().map(|team| Team::from_data(team)).collect());
+    let course_list_signal: Signal<Vec<Course>> = use_signal(|| {
+        course_list
+            .iter()
+            .map(|course| Course::from_data(course))
+            .collect()
+    });
+
+    if end_point_signal.read().is_none() {
+        return rsx!(div { class: "flex items-center gap-2 text-gray-500",
+         "No plan found for this Cook and Run project. Please run the calculation to generate a plan."
+            "No end point found for this project. Please set an end point to generate a plan."
+        });
+    };
+
     let plan = match &*plan_result.read_unchecked() {
         None => return rsx!(LoadingPage {}),
         Some(Err(e)) => {
@@ -247,7 +311,41 @@ fn CalculatePlans(cook_and_run_id: Uuid) -> Element {
         Some(Ok(None)) => {
             return rsx!(div { class: "flex items-center gap-2 text-gray-500",
                 "No plan found for this Cook and Run project. Please run the calculation to generate a plan."
-            })
+
+                      ConfirmButton {
+                        action: async_action!(
+                            {
+                                let end_point = end_point_signal.as_ref() .expect("End point is not available");
+
+                                let team_list = team_list_signal.read() ;
+                                let course_list = course_list_signal.read() ;
+                                let calculator_result = SchemaCalculator::new(&end_point, &team_list, &course_list);
+
+                                let calculator = match calculator_result {
+                                    Ok(calculator) => calculator,
+                                    Err(e) => {
+                                        console::error_1(&format!("Error creating calculator: {}", e).into());
+                                        return;
+                                    }
+                                };
+
+                                let plan = calculator.calculate();
+                                let plan_data = plan.to_data();
+                                let mut storage = use_context::<Signal<StorageManager>>().write().clone();
+                                let result = storage
+                                    .update_plan_of_cook_and_run(cook_and_run_id, &plan_data)
+                                    .await;
+                                if let Err(e) = &result {
+                                    console::error_1(&format!("Error updating plan config: {}", e).into());
+                                } else {
+                                    console::log_1(&"Plan updated successfully".into());
+                                }
+
+                             }
+                        ),
+                        text: "Calculate".to_string(),
+                    }
+            });
         }
         Some(Ok(Some(plan))) => plan.clone(),
     };

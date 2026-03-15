@@ -85,19 +85,17 @@ pub fn Courses(cook_and_run_id: Uuid) -> Element {
     });
 
     match &*course_list.read_unchecked() {
-        None => rsx!(
-            LoadingPage {}
-        ),
-        Some(Err(e)) => rsx!(
-            ErrorPage {
-                error_text: "Could not load project. You may need to log in or the servers may be offline."
+        None => rsx!(LoadingPage {}),
+        Some(Err(e)) => rsx!(ErrorPage {
+            error_text:
+                "Could not load project. You may need to log in or the servers may be offline."
                     .to_string(),
-                error_details: e.clone(),
-            }
-        ),
-        Some(Ok(course_list)) => rsx!(
-            CoursesContent { cook_and_run_id, course_list: course_list.clone() }
-        ),
+            error_details: e.clone(),
+        }),
+        Some(Ok(course_list)) => rsx!(CoursesContent {
+            cook_and_run_id,
+            course_list: course_list.clone()
+        }),
     }
 }
 
@@ -267,8 +265,17 @@ fn check_time(course_param: &mut CourseParam, new_time: &str) -> bool {
             true
         }
         Err(_) => {
-            course_param.time_error = "Invalid time format!".to_string();
-            false
+            if let Ok(time_with_sec) = NaiveTime::parse_from_str(new_time, "%H:%M:%S") {
+                course_param.time_error = "".to_string();
+                if course_param.time != time_with_sec {
+                    course_param.is_updated = true;
+                }
+                course_param.time = time_with_sec;
+                true
+            } else {
+                course_param.time_error = "Invalid time format!".to_string();
+                false
+            }
         }
     }
 }

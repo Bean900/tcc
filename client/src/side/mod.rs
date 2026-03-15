@@ -396,6 +396,7 @@ pub(crate) fn InputTime(
             placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
             value,
             oninput: move |e| {
+
                 oninput.call(e);
             },
         }
