@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::vec;
 
 use uuid::Uuid;
+use web_sys::console;
 
 use crate::calculator::{Calculator, Course, Hosting, Plan, Point, Team};
 
@@ -47,9 +48,19 @@ impl Schema {
         let mut team_idx = 0 as u8;
 
         self.plan.keys().for_each(|idx| {
+            console::log_1(&format!("Creating mapping for host index {:?} ", idx).into());
             mapping.insert(*idx, sorted_team_list[team_idx as usize].id);
             team_idx += 1;
         });
+
+        console::log_1(
+            &format!(
+                "Size of mapping: {}, size of team list: {}",
+                mapping.len(),
+                sorted_team_list.len()
+            )
+            .into(),
+        );
 
         mapping
     }
@@ -110,19 +121,19 @@ impl<'a> SchemaCalculator<'a> {
                                 },
                             ),
                             (
-                                5,
-                                SchemaCourse {
-                                    course_type: CourseType::MainCourse,
-                                    host: 5,
-                                    guest_list: vec![1, 9],
-                                },
-                            ),
-                            (
                                 2,
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 2,
                                     guest_list: vec![6, 7],
+                                },
+                            ),
+                            (
+                                5,
+                                SchemaCourse {
+                                    course_type: CourseType::MainCourse,
+                                    host: 5,
+                                    guest_list: vec![9, 1],
                                 },
                             ),
                             (
@@ -138,7 +149,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 3,
-                                    guest_list: vec![5, 7],
+                                    guest_list: vec![7, 5],
                                 },
                             ),
                             (
@@ -150,7 +161,7 @@ impl<'a> SchemaCalculator<'a> {
                                 },
                             ),
                             (
-                                9 as u8,
+                                9,
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 9,
@@ -189,19 +200,19 @@ impl<'a> SchemaCalculator<'a> {
                                 },
                             ),
                             (
-                                5,
-                                SchemaCourse {
-                                    course_type: CourseType::MainCourse,
-                                    host: 5,
-                                    guest_list: vec![1, 9],
-                                },
-                            ),
-                            (
                                 2,
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 2,
-                                    guest_list: vec![7],
+                                    guest_list: vec![6, 7],
+                                },
+                            ),
+                            (
+                                5,
+                                SchemaCourse {
+                                    course_type: CourseType::MainCourse,
+                                    host: 5,
+                                    guest_list: vec![9, 1],
                                 },
                             ),
                             (
@@ -209,7 +220,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 8,
-                                    guest_list: vec![3, 4],
+                                    guest_list: vec![3],
                                 },
                             ),
                             (
@@ -217,7 +228,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 10,
-                                    guest_list: vec![6],
+                                    guest_list: vec![4],
                                 },
                             ),
                             (
@@ -225,7 +236,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 3,
-                                    guest_list: vec![5, 7],
+                                    guest_list: vec![7, 5, 10],
                                 },
                             ),
                             (
@@ -241,7 +252,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 9,
-                                    guest_list: vec![4, 2, 10],
+                                    guest_list: vec![4, 2],
                                 },
                             ),
                         ]),
@@ -264,7 +275,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Appetizer,
                                     host: 4,
-                                    guest_list: vec![5, 6, 11],
+                                    guest_list: vec![5, 6],
                                 },
                             ),
                             (
@@ -272,15 +283,15 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Appetizer,
                                     host: 7,
-                                    guest_list: vec![8, 9, 10],
+                                    guest_list: vec![8, 9],
                                 },
                             ),
                             (
-                                5,
+                                10,
                                 SchemaCourse {
-                                    course_type: CourseType::MainCourse,
-                                    host: 5,
-                                    guest_list: vec![1, 9],
+                                    course_type: CourseType::Appetizer,
+                                    host: 10,
+                                    guest_list: vec![11],
                                 },
                             ),
                             (
@@ -288,7 +299,15 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 2,
-                                    guest_list: vec![7, 6],
+                                    guest_list: vec![6, 7],
+                                },
+                            ),
+                            (
+                                5,
+                                SchemaCourse {
+                                    course_type: CourseType::MainCourse,
+                                    host: 5,
+                                    guest_list: vec![9, 1],
                                 },
                             ),
                             (
@@ -296,15 +315,15 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 8,
-                                    guest_list: vec![3, 4],
+                                    guest_list: vec![3, 10],
                                 },
                             ),
                             (
-                                10,
+                                11,
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
-                                    host: 10,
-                                    guest_list: vec![11],
+                                    host: 11,
+                                    guest_list: vec![4],
                                 },
                             ),
                             (
@@ -312,7 +331,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 3,
-                                    guest_list: vec![5, 7, 11],
+                                    guest_list: vec![7, 5, 11],
                                 },
                             ),
                             (
@@ -371,19 +390,19 @@ impl<'a> SchemaCalculator<'a> {
                                 },
                             ),
                             (
-                                5,
-                                SchemaCourse {
-                                    course_type: CourseType::MainCourse,
-                                    host: 5,
-                                    guest_list: vec![1, 10],
-                                },
-                            ),
-                            (
                                 2,
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 2,
-                                    guest_list: vec![7, 12],
+                                    guest_list: vec![6, 10],
+                                },
+                            ),
+                            (
+                                5,
+                                SchemaCourse {
+                                    course_type: CourseType::MainCourse,
+                                    host: 5,
+                                    guest_list: vec![9, 1],
                                 },
                             ),
                             (
@@ -391,7 +410,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 8,
-                                    guest_list: vec![3, 4],
+                                    guest_list: vec![12, 4],
                                 },
                             ),
                             (
@@ -399,7 +418,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 11,
-                                    guest_list: vec![6, 9],
+                                    guest_list: vec![3, 7],
                                 },
                             ),
                             (
@@ -407,7 +426,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 3,
-                                    guest_list: vec![7, 11],
+                                    guest_list: vec![10, 5],
                                 },
                             ),
                             (
@@ -415,7 +434,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 6,
-                                    guest_list: vec![1, 4],
+                                    guest_list: vec![1, 8],
                                 },
                             ),
                             (
@@ -423,7 +442,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 9,
-                                    guest_list: vec![2, 10],
+                                    guest_list: vec![4, 11],
                                 },
                             ),
                             (
@@ -431,7 +450,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 12,
-                                    guest_list: vec![5, 8],
+                                    guest_list: vec![7, 2],
                                 },
                             ),
                         ]),
@@ -462,7 +481,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Appetizer,
                                     host: 7,
-                                    guest_list: vec![8, 9, 13],
+                                    guest_list: vec![8, 9],
                                 },
                             ),
                             (
@@ -470,7 +489,15 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Appetizer,
                                     host: 10,
-                                    guest_list: vec![11, 12],
+                                    guest_list: vec![11, 12, 13],
+                                },
+                            ),
+                            (
+                                3,
+                                SchemaCourse {
+                                    course_type: CourseType::MainCourse,
+                                    host: 3,
+                                    guest_list: vec![6, 10],
                                 },
                             ),
                             (
@@ -478,15 +505,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 5,
-                                    guest_list: vec![1],
-                                },
-                            ),
-                            (
-                                2,
-                                SchemaCourse {
-                                    course_type: CourseType::MainCourse,
-                                    host: 2,
-                                    guest_list: vec![7, 12],
+                                    guest_list: vec![9, 1],
                                 },
                             ),
                             (
@@ -494,7 +513,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 8,
-                                    guest_list: vec![3, 4],
+                                    guest_list: vec![12, 4],
                                 },
                             ),
                             (
@@ -502,15 +521,15 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 11,
-                                    guest_list: vec![6, 9],
+                                    guest_list: vec![3],
                                 },
                             ),
                             (
-                                13,
+                                14,
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
-                                    host: 13,
-                                    guest_list: vec![10],
+                                    host: 14,
+                                    guest_list: vec![7],
                                 },
                             ),
                             (
@@ -518,7 +537,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 3,
-                                    guest_list: vec![7, 11],
+                                    guest_list: vec![10, 5],
                                 },
                             ),
                             (
@@ -526,7 +545,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 6,
-                                    guest_list: vec![1, 4, 13],
+                                    guest_list: vec![1, 8, 13],
                                 },
                             ),
                             (
@@ -534,7 +553,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 9,
-                                    guest_list: vec![2, 10],
+                                    guest_list: vec![4, 11, 14],
                                 },
                             ),
                             (
@@ -542,7 +561,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 12,
-                                    guest_list: vec![5, 8],
+                                    guest_list: vec![7, 2],
                                 },
                             ),
                         ]),
@@ -565,7 +584,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Appetizer,
                                     host: 4,
-                                    guest_list: vec![5, 6, 13],
+                                    guest_list: vec![5, 6],
                                 },
                             ),
                             (
@@ -573,7 +592,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Appetizer,
                                     host: 7,
-                                    guest_list: vec![8, 9, 14],
+                                    guest_list: vec![8, 9],
                                 },
                             ),
                             (
@@ -581,7 +600,15 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Appetizer,
                                     host: 10,
-                                    guest_list: vec![11, 12],
+                                    guest_list: vec![11, 12, 13],
+                                },
+                            ),
+                            (
+                                3,
+                                SchemaCourse {
+                                    course_type: CourseType::MainCourse,
+                                    host: 3,
+                                    guest_list: vec![6, 10],
                                 },
                             ),
                             (
@@ -589,15 +616,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 5,
-                                    guest_list: vec![1, 10],
-                                },
-                            ),
-                            (
-                                2,
-                                SchemaCourse {
-                                    course_type: CourseType::MainCourse,
-                                    host: 2,
-                                    guest_list: vec![7, 12],
+                                    guest_list: vec![9, 1],
                                 },
                             ),
                             (
@@ -605,7 +624,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 8,
-                                    guest_list: vec![3, 4],
+                                    guest_list: vec![12, 4],
                                 },
                             ),
                             (
@@ -613,7 +632,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 11,
-                                    guest_list: vec![6, 9],
+                                    guest_list: vec![3],
                                 },
                             ),
                             (
@@ -621,7 +640,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 13,
-                                    guest_list: vec![14],
+                                    guest_list: vec![7],
                                 },
                             ),
                             (
@@ -629,7 +648,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 3,
-                                    guest_list: vec![7, 11, 13],
+                                    guest_list: vec![10, 5],
                                 },
                             ),
                             (
@@ -637,7 +656,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 6,
-                                    guest_list: vec![1, 4, 14],
+                                    guest_list: vec![1, 8, 13],
                                 },
                             ),
                             (
@@ -645,7 +664,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 9,
-                                    guest_list: vec![2, 10],
+                                    guest_list: vec![4, 11],
                                 },
                             ),
                             (
@@ -653,7 +672,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 12,
-                                    guest_list: vec![5, 8],
+                                    guest_list: vec![7, 2],
                                 },
                             ),
                         ]),
@@ -704,19 +723,19 @@ impl<'a> SchemaCalculator<'a> {
                                 },
                             ),
                             (
-                                5,
-                                SchemaCourse {
-                                    course_type: CourseType::MainCourse,
-                                    host: 5,
-                                    guest_list: vec![10, 13],
-                                },
-                            ),
-                            (
                                 2,
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 2,
-                                    guest_list: vec![7, 15],
+                                    guest_list: vec![6, 13],
+                                },
+                            ),
+                            (
+                                5,
+                                SchemaCourse {
+                                    course_type: CourseType::MainCourse,
+                                    host: 5,
+                                    guest_list: vec![9, 1],
                                 },
                             ),
                             (
@@ -724,7 +743,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 8,
-                                    guest_list: vec![3, 4],
+                                    guest_list: vec![12, 4],
                                 },
                             ),
                             (
@@ -732,7 +751,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 11,
-                                    guest_list: vec![6, 9],
+                                    guest_list: vec![15, 7],
                                 },
                             ),
                             (
@@ -740,7 +759,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 14,
-                                    guest_list: vec![1, 12],
+                                    guest_list: vec![3, 10],
                                 },
                             ),
                             (
@@ -748,7 +767,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 3,
-                                    guest_list: vec![7, 11],
+                                    guest_list: vec![13, 5],
                                 },
                             ),
                             (
@@ -756,7 +775,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 6,
-                                    guest_list: vec![1, 13],
+                                    guest_list: vec![1, 8],
                                 },
                             ),
                             (
@@ -764,7 +783,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 9,
-                                    guest_list: vec![10, 14],
+                                    guest_list: vec![4, 11],
                                 },
                             ),
                             (
@@ -772,7 +791,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 12,
-                                    guest_list: vec![2, 5],
+                                    guest_list: vec![7, 14],
                                 },
                             ),
                             (
@@ -780,7 +799,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 15,
-                                    guest_list: vec![4, 8],
+                                    guest_list: vec![10, 2],
                                 },
                             ),
                         ]),
@@ -795,7 +814,142 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Appetizer,
                                     host: 1,
-                                    guest_list: vec![2, 3, 16],
+                                    guest_list: vec![2, 3],
+                                },
+                            ),
+                            (
+                                4,
+                                SchemaCourse {
+                                    course_type: CourseType::Appetizer,
+                                    host: 4,
+                                    guest_list: vec![5, 6],
+                                },
+                            ),
+                            (
+                                7,
+                                SchemaCourse {
+                                    course_type: CourseType::Appetizer,
+                                    host: 7,
+                                    guest_list: vec![8, 9],
+                                },
+                            ),
+                            (
+                                10,
+                                SchemaCourse {
+                                    course_type: CourseType::Appetizer,
+                                    host: 10,
+                                    guest_list: vec![11, 12],
+                                },
+                            ),
+                            (
+                                13,
+                                SchemaCourse {
+                                    course_type: CourseType::Appetizer,
+                                    host: 13,
+                                    guest_list: vec![14, 15, 16],
+                                },
+                            ),
+                            (
+                                2,
+                                SchemaCourse {
+                                    course_type: CourseType::MainCourse,
+                                    host: 2,
+                                    guest_list: vec![6, 13],
+                                },
+                            ),
+                            (
+                                5,
+                                SchemaCourse {
+                                    course_type: CourseType::MainCourse,
+                                    host: 5,
+                                    guest_list: vec![9, 1],
+                                },
+                            ),
+                            (
+                                8,
+                                SchemaCourse {
+                                    course_type: CourseType::MainCourse,
+                                    host: 8,
+                                    guest_list: vec![12, 4],
+                                },
+                            ),
+                            (
+                                11,
+                                SchemaCourse {
+                                    course_type: CourseType::MainCourse,
+                                    host: 11,
+                                    guest_list: vec![15, 7],
+                                },
+                            ),
+                            (
+                                14,
+                                SchemaCourse {
+                                    course_type: CourseType::MainCourse,
+                                    host: 14,
+                                    guest_list: vec![3],
+                                },
+                            ),
+                            (
+                                16,
+                                SchemaCourse {
+                                    course_type: CourseType::MainCourse,
+                                    host: 16,
+                                    guest_list: vec![10],
+                                },
+                            ),
+                            (
+                                3,
+                                SchemaCourse {
+                                    course_type: CourseType::Dessert,
+                                    host: 3,
+                                    guest_list: vec![13, 5],
+                                },
+                            ),
+                            (
+                                6,
+                                SchemaCourse {
+                                    course_type: CourseType::Dessert,
+                                    host: 6,
+                                    guest_list: vec![1, 8, 16],
+                                },
+                            ),
+                            (
+                                9,
+                                SchemaCourse {
+                                    course_type: CourseType::Dessert,
+                                    host: 9,
+                                    guest_list: vec![4, 11],
+                                },
+                            ),
+                            (
+                                12,
+                                SchemaCourse {
+                                    course_type: CourseType::Dessert,
+                                    host: 12,
+                                    guest_list: vec![7, 14],
+                                },
+                            ),
+                            (
+                                15,
+                                SchemaCourse {
+                                    course_type: CourseType::Dessert,
+                                    host: 15,
+                                    guest_list: vec![10, 2],
+                                },
+                            ),
+                        ]),
+                    },
+                ),
+                (
+                    17,
+                    Schema {
+                        plan: HashMap::from([
+                            (
+                                1,
+                                SchemaCourse {
+                                    course_type: CourseType::Appetizer,
+                                    host: 1,
+                                    guest_list: vec![2, 3],
                                 },
                             ),
                             (
@@ -831,11 +985,11 @@ impl<'a> SchemaCalculator<'a> {
                                 },
                             ),
                             (
-                                5,
+                                16,
                                 SchemaCourse {
-                                    course_type: CourseType::MainCourse,
-                                    host: 5,
-                                    guest_list: vec![10, 13],
+                                    course_type: CourseType::Appetizer,
+                                    host: 16,
+                                    guest_list: vec![17],
                                 },
                             ),
                             (
@@ -843,126 +997,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 2,
-                                    guest_list: vec![7],
-                                },
-                            ),
-                            (
-                                8,
-                                SchemaCourse {
-                                    course_type: CourseType::MainCourse,
-                                    host: 8,
-                                    guest_list: vec![3, 4],
-                                },
-                            ),
-                            (
-                                11,
-                                SchemaCourse {
-                                    course_type: CourseType::MainCourse,
-                                    host: 11,
-                                    guest_list: vec![6, 9],
-                                },
-                            ),
-                            (
-                                14,
-                                SchemaCourse {
-                                    course_type: CourseType::MainCourse,
-                                    host: 14,
-                                    guest_list: vec![1, 12],
-                                },
-                            ),
-                            (
-                                16,
-                                SchemaCourse {
-                                    course_type: CourseType::MainCourse,
-                                    host: 16,
-                                    guest_list: vec![15],
-                                },
-                            ),
-                            (
-                                3,
-                                SchemaCourse {
-                                    course_type: CourseType::Dessert,
-                                    host: 3,
-                                    guest_list: vec![7, 11],
-                                },
-                            ),
-                            (
-                                6,
-                                SchemaCourse {
-                                    course_type: CourseType::Dessert,
-                                    host: 6,
-                                    guest_list: vec![1, 13],
-                                },
-                            ),
-                            (
-                                9,
-                                SchemaCourse {
-                                    course_type: CourseType::Dessert,
-                                    host: 9,
-                                    guest_list: vec![10, 14, 16],
-                                },
-                            ),
-                            (
-                                12,
-                                SchemaCourse {
-                                    course_type: CourseType::Dessert,
-                                    host: 12,
-                                    guest_list: vec![2, 5],
-                                },
-                            ),
-                            (
-                                15,
-                                SchemaCourse {
-                                    course_type: CourseType::Dessert,
-                                    host: 15,
-                                    guest_list: vec![4, 8],
-                                },
-                            ),
-                        ]),
-                    },
-                ),
-                (
-                    17,
-                    Schema {
-                        plan: HashMap::from([
-                            (
-                                1,
-                                SchemaCourse {
-                                    course_type: CourseType::Appetizer,
-                                    host: 1,
-                                    guest_list: vec![2, 3, 16],
-                                },
-                            ),
-                            (
-                                4,
-                                SchemaCourse {
-                                    course_type: CourseType::Appetizer,
-                                    host: 4,
-                                    guest_list: vec![5, 6, 17],
-                                },
-                            ),
-                            (
-                                7,
-                                SchemaCourse {
-                                    course_type: CourseType::Appetizer,
-                                    host: 7,
-                                    guest_list: vec![8, 9],
-                                },
-                            ),
-                            (
-                                10,
-                                SchemaCourse {
-                                    course_type: CourseType::Appetizer,
-                                    host: 10,
-                                    guest_list: vec![11, 12],
-                                },
-                            ),
-                            (
-                                13,
-                                SchemaCourse {
-                                    course_type: CourseType::Appetizer,
-                                    host: 13,
-                                    guest_list: vec![14, 15],
+                                    guest_list: vec![6, 13],
                                 },
                             ),
                             (
@@ -970,15 +1005,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 5,
-                                    guest_list: vec![10, 13],
-                                },
-                            ),
-                            (
-                                2,
-                                SchemaCourse {
-                                    course_type: CourseType::MainCourse,
-                                    host: 2,
-                                    guest_list: vec![7],
+                                    guest_list: vec![9, 1],
                                 },
                             ),
                             (
@@ -986,7 +1013,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 8,
-                                    guest_list: vec![3, 4],
+                                    guest_list: vec![12, 4],
                                 },
                             ),
                             (
@@ -994,7 +1021,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 11,
-                                    guest_list: vec![6, 9],
+                                    guest_list: vec![15, 7],
                                 },
                             ),
                             (
@@ -1002,15 +1029,15 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
                                     host: 14,
-                                    guest_list: vec![1, 12],
+                                    guest_list: vec![3, 16],
                                 },
                             ),
                             (
-                                16,
+                                17,
                                 SchemaCourse {
                                     course_type: CourseType::MainCourse,
-                                    host: 16,
-                                    guest_list: vec![15, 17],
+                                    host: 17,
+                                    guest_list: vec![10],
                                 },
                             ),
                             (
@@ -1018,7 +1045,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 3,
-                                    guest_list: vec![7, 11],
+                                    guest_list: vec![13, 5],
                                 },
                             ),
                             (
@@ -1026,7 +1053,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 6,
-                                    guest_list: vec![1, 13],
+                                    guest_list: vec![1, 8, 17],
                                 },
                             ),
                             (
@@ -1034,7 +1061,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 9,
-                                    guest_list: vec![10, 14, 16],
+                                    guest_list: vec![4, 11, 16],
                                 },
                             ),
                             (
@@ -1042,7 +1069,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 12,
-                                    guest_list: vec![2, 5, 17],
+                                    guest_list: vec![7, 14],
                                 },
                             ),
                             (
@@ -1050,7 +1077,7 @@ impl<'a> SchemaCalculator<'a> {
                                 SchemaCourse {
                                     course_type: CourseType::Dessert,
                                     host: 15,
-                                    guest_list: vec![4, 8],
+                                    guest_list: vec![10, 2],
                                 },
                             ),
                         ]),
@@ -1170,30 +1197,39 @@ impl<'a> SchemaCalculator<'a> {
         let mut assigned_course_list = vec![];
 
         for group in groups {
+            console::log_1(&format!("Group size: {}", group.sorted_team_list.len()).into());
             let schema = self
                 .schema_list
                 .get(&(group.sorted_team_list.len() as u8))
                 .expect("No schema found for group size");
 
             let mapping = schema.create_mapping(&group.sorted_team_list);
-
             schema.plan.values().for_each(|schema_course| {
+                console::log_1(
+                    &format!(
+                        "Host: {:?}, Guest list for host {:?}: {:?}",
+                        schema_course.host, schema_course.guest_list, mapping
+                    )
+                    .into(),
+                );
+                let host = mapping
+                    .get(&schema_course.host)
+                    .expect("Host index not found in mapping")
+                    .clone();
+                let guest_list = schema_course
+                    .guest_list
+                    .iter()
+                    .map(|guest_idx| {
+                        mapping
+                            .get(guest_idx)
+                            .expect("Guest index not found in mapping")
+                            .clone()
+                    })
+                    .collect();
                 let assigned_course = AssignedCourse {
                     course_type: schema_course.course_type,
-                    host: mapping
-                        .get(&schema_course.host)
-                        .expect("Host index not found in mapping")
-                        .clone(),
-                    guest_list: schema_course
-                        .guest_list
-                        .iter()
-                        .map(|guest_idx| {
-                            mapping
-                                .get(guest_idx)
-                                .expect("Guest index not found in mapping")
-                                .clone()
-                        })
-                        .collect(),
+                    host,
+                    guest_list,
                 };
                 assigned_course_list.push(assigned_course);
             });
