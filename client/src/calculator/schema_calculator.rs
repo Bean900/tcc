@@ -1113,8 +1113,9 @@ impl<'a> SchemaCalculator<'a> {
         let mut walking_path = HashMap::new();
 
         for assigned_course in assigned_course_list {
+            let hosting_id = Uuid::new_v4();
             hosting_list.insert(
-                assigned_course.host,
+                hosting_id,
                 Hosting {
                     course: course_mapping
                         .get(&assigned_course.course_type)
@@ -1124,11 +1125,15 @@ impl<'a> SchemaCalculator<'a> {
                     guest_list: assigned_course.guest_list.clone(),
                 },
             );
+            walking_path
+                .entry(assigned_course.host)
+                .or_insert_with(Vec::new)
+                .push(hosting_id);
             for guest in assigned_course.guest_list {
                 walking_path
                     .entry(guest)
                     .or_insert_with(Vec::new)
-                    .push(assigned_course.host);
+                    .push(hosting_id);
             }
         }
 

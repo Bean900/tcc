@@ -1,4 +1,4 @@
-use std::vec;
+use std::{collections::HashMap, vec};
 
 use crate::{
     async_action,
@@ -8,7 +8,7 @@ use crate::{
             run_schedule::{run_schedule::RunSchedule, Schedule},
             ErrorPage, LoadingPage,
         },
-        AsyncAction, ConfirmButton, Headline1, Input,
+        AsyncAction, ConfirmButton, Headline1, Headline2, Input,
     },
     storage::{
         CourseData, Language, MeetingPointData, PlanConfigData, PlanData, StorageManager, TeamData,
@@ -16,9 +16,66 @@ use crate::{
 };
 use chrono::NaiveDate;
 use dioxus::prelude::*;
-use reqwest::Error;
 use uuid::Uuid;
 use web_sys::console;
+
+struct TabelContent {
+    host: TeamData,
+    guest_list: Vec<(TeamData, bool)>,
+}
+
+impl TabelContent {
+    fn new_list(team_list: &Vec<TeamData>, plan: &PlanData) -> Vec<Self> {
+        let team_map = team_list
+            .iter()
+            .map(|team| (team.id, team.clone()))
+            .collect::<std::collections::HashMap<_, _>>();
+
+        let hosting_map = plan
+            .hosting_list
+            .iter()
+            .map(|hosting| (hosting.id, hosting.host))
+            .collect::<std::collections::HashMap<_, _>>();
+
+        plan.walking_path
+            .iter()
+            .map(|(team_id, host_list_id)| {
+                let team_opt = team_map.get(team_id);
+                let host = if let Some(team) = team_opt {
+                    team.clone()
+                } else {
+                    console::error_1(&format!("Team with id {} not found!", team_id).into());
+                    TeamData::default()
+                };
+                let guest_list = host_list_id
+                    .iter()
+                    .map(|host_id| {
+                        let guest_id_opt = hosting_map.get(host_id);
+                        let guest_id = if let Some(guest_id) = guest_id_opt {
+                            guest_id
+                        } else {
+                            console::error_1(
+                                &format!("Hosting with id {} not found!", host_id).into(),
+                            );
+                            return (TeamData::default(), false);
+                        };
+
+                        let team_opt = team_map.get(guest_id);
+                        if let Some(team) = team_opt {
+                            (team.clone(), team_id == guest_id)
+                        } else {
+                            console::error_1(
+                                &format!("Team with id {} not found!", team_id).into(),
+                            );
+                            (TeamData::default(), false)
+                        }
+                    })
+                    .collect::<Vec<(TeamData, bool)>>();
+                TabelContent { host, guest_list }
+            })
+            .collect::<Vec<_>>()
+    }
+}
 
 #[component]
 pub fn Calculate(cook_and_run_id: Uuid) -> Element {
@@ -350,30 +407,147 @@ fn CalculatePlans(
         Some(Ok(Some(plan))) => plan.clone(),
     };
 
-    rsx!({
-        plan.hosting_list.iter().map(|hosting| {
-            let team = team_list.iter().find(|team| team.id == hosting.host);
-            if let Some(team) = team {
-                rsx!(div {
-                    class: "p-4 border rounded",
-                    div { class: "font-bold mb-2", "team.name.clone()" }
-                    // Here we would display the actual plan details for the team. For now, we can just display a placeholder.
-                    div { class: "mt-2 text-gray-500",
-                        "This is where the plan details for the team will be displayed."
-                    }
-                })
-            } else {
-                rsx!(div {
-                    class: "p-4 border rounded",
-                    div { class: "font-bold mb-2", "Team not found" }
-                    // Here we would display the actual plan details for the team. For now, we can just display a placeholder.
-                    div { class: "mt-2 text-gray-500",
-                        "This is where the plan details for the team will be displayed."
-                    }
-                })
+    let table_content = TabelContent::new_list(&team_list, &plan);
+
+    let headline_list = course_list
+        .iter()
+        .map(|course| course.name.clone())
+        .collect::<Vec<String>>();
+
+    let num_courses = headline_list.len();
+    let num_teams = table_content.len();
+
+    let grid_cols = format!(
+        "grid-template-columns: minmax(200px, 260px) repeat({num_courses}, minmax(160px, 1fr));"
+    );
+
+    rsx! {
+        div {
+
+            div { class: "mb-8 max-w-fit",
+
+                Headline2 { headline:"Walking path"  }
+
+                p { class: "text-zinc-500 text-sm",
+                    "{num_teams} Teams  ·  {num_courses} Courses"
+                }
             }
-        })
-    })
+
+            div { class: "overflow-x-auto rounded-2xl border border-zinc-800 shadow-[0_8px_40px_rgba(0,0,0,0.6)]",
+
+                div { class: "min-w-max w-full",
+
+                    div {
+                        class: "grid   border-b border-zinc-800",
+                        style: "{grid_cols}",
+
+                        div { class: "px-5 py-3.5 flex items-center gap-2.5",
+                            div { class: "w-1.5 h-5 rounded-full bg-amber-500/60" }
+                            span {
+                                class: "text-[11px] font-bold tracking-[0.18em] uppercase text-zinc-400",
+                                "Team"
+                            }
+                        }
+
+                        for (idx, course_name) in headline_list.iter().enumerate() {
+                            {
+                                rsx! {
+                                    div {
+                                        key: "{idx}",
+                                        class: "px-5 py-3.5 border-l border-zinc-800 flex items-center gap-2.5",
+
+                                        span {
+                                            class: "text-[11px] font-bold tracking-[0.18em] uppercase",
+                                            "{course_name}"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    for (row_idx, row) in table_content.iter().enumerate() {
+                        {
+                            let row_bg = if row_idx % 2 == 0 {
+                                "bg-[#F8EFE1]"
+                            } else {
+                                "bg-[#F8EFEF]"
+                            };
+
+                            rsx! {
+                                div {
+                                    key: "{row_idx}",
+                                    class: "grid border-b border-zinc-800/50 last:border-b-0 \
+                                            transition-colors duration-100 hover:bg-zinc-800/40 {row_bg}",
+                                    style: "{grid_cols}",
+
+                                    div {
+                                        class: "px-5 py-4 border-r border-zinc-800/50 flex items-start gap-3",
+
+                                        div {
+                                            class: "mt-1.5  w-6 h-6 shrink-0 rounded-md bg-[#D67229] \
+                                                    flex items-center justify-center border border-amber-500/25",
+                                            span {
+                                                class: "text-white text-[10px] font-bold",
+                                                "{row_idx + 1}"
+                                            }
+                                        }
+
+                                        div { class: "mt-2.25 flex flex-col min-w-0",
+                                            span {
+                                                class: "font-semibold text-sm leading-snug truncate",
+                                                "{row.host.name}"
+                                            }
+                                        }
+                                    }
+
+                                    for (idx, (guest,is_host)) in row.guest_list.iter().enumerate() {
+                                        {
+                                            let text_color = if *is_host { "text-[#C66741]".to_string() } else { "".to_string()  };
+                                            let border_color = if *is_host { "border-[#C66741]".to_string() } else { "border-zinc-800/50".to_string()  };
+
+                                            rsx! {
+                                                div {
+                                                    key: "guest-{idx}",
+                                                    class: "px-4 py-4 border-l  \
+                                                            flex flex-col justify-center gap-1",
+
+                                                    div {
+                                                        class: "inline-flex items-center gap-1.5 px-2.5 py-1 {border_color} \
+                                                                rounded-lg  border   \
+                                                                w-fit max-w-full",
+
+                                                        span {
+                                                            class: "text-xs font-semibold truncate {text_color}",
+                                                            "{guest.name}"
+                                                        }
+                                                    }
+
+                                                    span {
+                                                        class: "text-zinc-600 text-[11px] leading-tight pl-1 truncate",
+                                                        "{guest.address.address}"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    for fill_idx in row.guest_list.len()..num_courses {
+                                        div {
+                                            key: "fill-{fill_idx}",
+                                            class: "px-4 py-4 border-l border-zinc-800/50 flex items-center",
+                                            span { class: "text-zinc-700 text-base select-none", "—" }
+                                        }
+                                    }
+
+                                }
+                            }
+                        }
+                    }
+
+                }
+            }
+    }}
 }
 
 #[component]
