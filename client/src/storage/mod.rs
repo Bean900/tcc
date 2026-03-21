@@ -1077,7 +1077,8 @@ impl Default for PlanConfigData {
     fn default() -> Self {
         Self {
             title: "Plan".to_string(),
-            description: "This is the plan for the cook and run event.".to_string(),
+            description: "<center>This is the plan for the cook and run event.</center>"
+                .to_string(),
             date: Utc::now().naive_utc().date(),
             language: Language::English,
         }

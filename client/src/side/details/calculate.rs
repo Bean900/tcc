@@ -1,4 +1,4 @@
-use std::{collections::HashMap, vec};
+use std::vec;
 
 use crate::{
     async_action,
@@ -77,6 +77,10 @@ impl TabelContent {
     }
 }
 
+// ─────────────────────────────────────────────
+//  Root
+// ─────────────────────────────────────────────
+
 #[component]
 pub fn Calculate(cook_and_run_id: Uuid) -> Element {
     let storage = use_context::<Signal<StorageManager>>();
@@ -121,15 +125,14 @@ pub fn Calculate(cook_and_run_id: Uuid) -> Element {
         }
     });
 
-    let plan_config= match &*plan_config_result.read_unchecked() {
+    let plan_config = match &*plan_config_result.read_unchecked() {
         None => return rsx!(LoadingPage {}),
         Some(Err(e)) => return rsx!(ErrorPage {
-            error_text:
-                "Could not load plan configuration. You may need to log in or the servers may be offline."
-                    .to_string(),
+            error_text: "Could not load plan configuration. You may need to log in or the servers may be offline."
+                .to_string(),
             error_details: e.clone(),
         }),
-        Some(Ok(plan_config)) =>  plan_config.clone(),
+        Some(Ok(plan_config)) => plan_config.clone(),
     };
 
     let (course_list, start_point, end_point) = match &*course_list_result.read_unchecked() {
@@ -170,107 +173,131 @@ pub fn Calculate(cook_and_run_id: Uuid) -> Element {
     });
 
     rsx!(
-        div { class: "p-6",
+        div { class: "px-8 py-6 space-y-8",
+
+            // ── Page header ──────────────────────────────────────
             Headline1 { headline: "Calculation" }
-            // Here we would add the actual calculation UI components, such as settings, plans, and preview.
-            // For now, we can just display a placeholder.
-            div { class: "mt-4 text-gray-500",
-                "This is where the calculation settings, plans, and preview will be displayed."
-            }
-            div { class: "grid grid-cols-2 gap-6",
+
+            // ── Settings + Preview ────────────────────────────────
+            div { class: "grid grid-cols-2 gap-6 items-start",
                 {calculate_settings}
                 {calculate_preview}
             }
-            {calculate_plans}
 
+            // ── Walking-path table ────────────────────────────────
+            {calculate_plans}
         }
     )
 }
+
+// ─────────────────────────────────────────────
+//  Settings card
+// ─────────────────────────────────────────────
 
 #[component]
 fn CalculateSettings(cook_and_run_id: Uuid, plan_config_signal: Signal<PlanConfigData>) -> Element {
+    const LBL: &str =
+        "block text-[11px] font-semibold tracking-[0.12em] uppercase text-amber-700/70 mb-1.5";
+    const NATIVE_INPUT: &str =
+        "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 bg-white focus:ring-[#C66741]";
+
     rsx!(
-        div { class: "p-6 space-y-4",
-            div { class: "bg-white rounded-lg shadow p-4",
-            div { class: "text-lg font-semibold mb-4", "Plan Configuration" }
+        div { class: "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden",
 
-            div { class: "space-y-4",
-                div { class: "flex flex-col",
-                label { class: "text-sm font-medium text-gray-700 mb-1", "Title" }
-                Input {
-                                    place_holer: "Course name",
-                                    value: "{plan_config_signal.read().title.clone()}",
-                                    oninput: move |e: Event<FormData>| {
-                                        plan_config_signal.write().title = e.value() .to_string();
-                                    },
-                                }
+            // Card header
+            div { class: "px-5 py-3.5 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5",
+                div { class: "w-1.5 h-5 rounded-full bg-amber-400/70" }
+                span { class: "text-sm font-semibold text-zinc-800", "Plan Configuration" }
+            }
+
+            // Form body
+            div { class: "px-5 py-5 space-y-4",
+
+                // Title
+                div {
+                    label { class: "{LBL}", "Title" }
+                    Input {
+                        place_holer: "Plan title",
+                        value: "{plan_config_signal.read().title.clone()}",
+                        oninput: move |e: Event<FormData>| {
+                            plan_config_signal.write().title = e.value().to_string();
+                        },
+                    }
                 }
 
-                div { class: "flex flex-col",
-                label { class: "text-sm font-medium text-gray-700 mb-1", "Description" }
-               Input {
-                                    place_holer: "Course name",
-                                    value: "{plan_config_signal.read().description.clone()}",
-                                    oninput: move |e: Event<FormData>| {
-                                        plan_config_signal.write().description = e.value() .to_string();
-                                    },
-                                }
+                // Description
+                div {
+                    label { class: "{LBL}", "Description" }
+                    Input {
+                        place_holer: "Short description",
+                        value: "{plan_config_signal.read().description.clone()}",
+                        oninput: move |e: Event<FormData>| {
+                            plan_config_signal.write().description = e.value().to_string();
+                        },
+                    }
                 }
 
-                div { class: "flex flex-col",
-                label { class: "text-sm font-medium text-gray-700 mb-1", "Date" }
-                input {
-                    type: "date",
-                    class: "px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                    value: "{plan_config_signal.read().date}",
-                    onchange: move |e: Event<FormData>| {
-                        if let Ok(date) = NaiveDate::parse_from_str(&e.value(), "%Y-%m-%d") {
-                            plan_config_signal.write().date = date;
+                // Date + Language side by side
+                div { class: "grid grid-cols-2 gap-3",
+
+                    div {
+                        label { class: "{LBL}", "Date" }
+                        input {
+                            r#type: "date",
+                            class: "{NATIVE_INPUT}",
+                            value: "{plan_config_signal.read().date}",
+                            onchange: move |e: Event<FormData>| {
+                                if let Ok(date) = NaiveDate::parse_from_str(&e.value(), "%Y-%m-%d") {
+                                    plan_config_signal.write().date = date;
+                                }
+                            },
                         }
-                    },
-                }
-                }
+                    }
 
-                div { class: "flex flex-col",
-                label { class: "text-sm font-medium text-gray-700 mb-1", "Language" }
-                    select { onchange: move |e| {
-                       let selected_language = e.value();
-                        // Update the plan_config_signal with the selected language
-                        plan_config_signal.write().language = match selected_language.as_str() {
-                            "eng" => Language::English,
-                            "deu" => Language::German,
-                            _ => Language::English, // Default to English if something goes wrong
-                        };
-                    },
-                        option { value: "eng", "English" }
-                        option { value: "deu", "German" }
+                    div {
+                        label { class: "{LBL}", "Language" }
+                        select {
+                            class: "{NATIVE_INPUT} cursor-pointer",
+                            onchange: move |e| {
+                                plan_config_signal.write().language =
+                                    match e.value().as_str() {
+                                        "deu" => Language::German,
+                                        _ => Language::English,
+                                    };
+                            },
+                            option { value: "eng", "English" }
+                            option { value: "deu", "German" }
+                        }
                     }
                 }
             }
 
-            div { class: "flex gap-3 mt-6",
-               ConfirmButton {
-                        action: async_action!(
-                            {
-                                let mut storage = use_context::<Signal<StorageManager>>().write().clone();
-                                let result = storage
-                                    .update_plan_config_of_cook_and_run(cook_and_run_id, &plan_config_signal.read())
-                                    .await;
-                                if let Err(e) = &result {
-                                     console::error_1(&format!("Error updating plan config: {}", e) .into());
-                                }else {
-                                     console::log_1(&"Plan configuration updated successfully".into());
-                                }
-                             }
-                        ),
-                        text: "Save Settings".to_string(),
-                    }
-
-            }
+            // Card footer
+            div { class: "px-5 pb-5 pt-1",
+                ConfirmButton {
+                    action: async_action!(
+                        {
+                            let mut storage = use_context::<Signal<StorageManager>>().write().clone();
+                            let result = storage
+                                .update_plan_config_of_cook_and_run(cook_and_run_id, &plan_config_signal.read())
+                                .await;
+                            if let Err(e) = &result {
+                                console::error_1(&format!("Error updating plan config: {}", e).into());
+                            } else {
+                                console::log_1(&"Plan configuration updated successfully".into());
+                            }
+                        }
+                    ),
+                    text: "Save Settings".to_string(),
+                }
             }
         }
     )
 }
+
+// ─────────────────────────────────────────────
+//  Walking-path table
+// ─────────────────────────────────────────────
 
 #[component]
 fn CalculatePlans(
@@ -279,7 +306,7 @@ fn CalculatePlans(
     start_point: Option<MeetingPointData>,
     end_point: Option<MeetingPointData>,
 ) -> Element {
-    // Check start and end point times vs course times
+    // Validate time ordering
     let all_course_times = course_list.iter().map(|c| c.time).collect::<Vec<_>>();
 
     if !all_course_times.is_empty() {
@@ -348,34 +375,50 @@ fn CalculatePlans(
             .collect()
     });
 
+    // ── Empty state: no end point ─────────────────────────────────
     if end_point_signal.read().is_none() {
-        return rsx!(div { class: "flex items-center gap-2 text-gray-500",
-         "No plan found for this Cook and Run project. Please run the calculation to generate a plan."
-            "No end point found for this project. Please set an end point to generate a plan."
-        });
-    };
+        return rsx!(
+            div { class: "rounded-2xl border border-amber-100 bg-amber-50/40 px-6 py-8 text-center",
+                div { class: "w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-3",
+                    span { class: "text-amber-500 text-lg", "⚑" }
+                }
+                p { class: "text-sm font-medium text-zinc-700 mb-1", "No end point configured" }
+                p { class: "text-xs text-zinc-400",
+                    "Please set an end point for this project before generating a plan."
+                }
+            }
+        );
+    }
 
+    // ── Empty state: no plan yet ──────────────────────────────────
     let plan = match &*plan_result.read_unchecked() {
         None => return rsx!(LoadingPage {}),
         Some(Err(e)) => {
             return rsx!(ErrorPage {
-            error_text:
-                "Could not load team list. You may need to log in or the servers may be offline."
-                    .to_string(),
-            error_details: e.clone(),
-        })
+                error_text:
+                    "Could not load plan. You may need to log in or the servers may be offline."
+                        .to_string(),
+                error_details: e.clone(),
+            })
         }
         Some(Ok(None)) => {
-            return rsx!(div { class: "flex items-center gap-2 text-gray-500",
-                "No plan found for this Cook and Run project. Please run the calculation to generate a plan."
-
-                      ConfirmButton {
+            return rsx!(
+                div { class: "rounded-2xl border border-amber-100 bg-amber-50/40 px-6 py-8 flex flex-col items-center gap-4",
+                    div { class: "w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center",
+                        span { class: "text-amber-500 text-lg", "⊕" }
+                    }
+                    div { class: "text-center",
+                        p { class: "text-m font-medium text-zinc-700 mb-1", "No plan generated yet" }
+                        p { class: "text-s text-zinc-400",
+                            "Run the calculation to create a walking-path plan for this Cook & Run."
+                        }
+                    }
+                    ConfirmButton {
                         action: async_action!(
                             {
-                                let end_point = end_point_signal.as_ref() .expect("End point is not available");
-
-                                let team_list = team_list_signal.read() ;
-                                let course_list = course_list_signal.read() ;
+                                let end_point = end_point_signal.as_ref().expect("End point is not available");
+                                let team_list = team_list_signal.read();
+                                let course_list = course_list_signal.read();
                                 let calculator_result = SchemaCalculator::new(&end_point, &team_list, &course_list);
 
                                 let calculator = match calculator_result {
@@ -397,12 +440,12 @@ fn CalculatePlans(
                                 } else {
                                     console::log_1(&"Plan updated successfully".into());
                                 }
-
-                             }
+                            }
                         ),
                         text: "Calculate".to_string(),
                     }
-            });
+                }
+            );
         }
         Some(Ok(Some(plan))) => plan.clone(),
     };
@@ -424,21 +467,57 @@ fn CalculatePlans(
     rsx! {
         div {
 
-            div { class: "mb-8 max-w-fit",
+            // ── Section header ────────────────────────────────────
+            div { class: "mb-6 flex items-end justify-between",
+                div {
+                    Headline2 { headline: "Walking path" }
+                    p { class: "text-zinc-500 text-sm mt-0.5",
+                        "{num_teams} Teams  ·  {num_courses} Courses"
+                    }
+                }
 
-                Headline2 { headline:"Walking path"  }
+                // Re-calculate button
+                ConfirmButton {
+                    action: async_action!(
+                        {
+                            let end_point = end_point_signal.as_ref().expect("End point is not available");
+                            let team_list = team_list_signal.read();
+                            let course_list = course_list_signal.read();
+                            let calculator_result = SchemaCalculator::new(&end_point, &team_list, &course_list);
 
-                p { class: "text-zinc-500 text-sm",
-                    "{num_teams} Teams  ·  {num_courses} Courses"
+                            let calculator = match calculator_result {
+                                Ok(calculator) => calculator,
+                                Err(e) => {
+                                    console::error_1(&format!("Error creating calculator: {}", e).into());
+                                    return;
+                                }
+                            };
+
+                            let plan = calculator.calculate();
+                            let plan_data = plan.to_data();
+                            let mut storage = use_context::<Signal<StorageManager>>().write().clone();
+                            let result = storage
+                                .update_plan_of_cook_and_run(cook_and_run_id, &plan_data)
+                                .await;
+                            if let Err(e) = &result {
+                                console::error_1(&format!("Error updating plan config: {}", e).into());
+                            } else {
+                                console::log_1(&"Plan updated successfully".into());
+                            }
+                        }
+                    ),
+                    text: "Recalculate".to_string(),
                 }
             }
 
+            // ── Table ─────────────────────────────────────────────
             div { class: "overflow-x-auto rounded-2xl border border-zinc-800 shadow-[0_8px_40px_rgba(0,0,0,0.6)]",
 
                 div { class: "min-w-max w-full",
 
+                    // Header row
                     div {
-                        class: "grid   border-b border-zinc-800",
+                        class: "grid border-b border-zinc-800",
                         style: "{grid_cols}",
 
                         div { class: "px-5 py-3.5 flex items-center gap-2.5",
@@ -455,9 +534,8 @@ fn CalculatePlans(
                                     div {
                                         key: "{idx}",
                                         class: "px-5 py-3.5 border-l border-zinc-800 flex items-center gap-2.5",
-
                                         span {
-                                            class: "text-[11px] font-bold tracking-[0.18em] uppercase",
+                                            class: "text-[11px] font-bold tracking-[0.18em] uppercase text-zinc-400",
                                             "{course_name}"
                                         }
                                     }
@@ -466,6 +544,7 @@ fn CalculatePlans(
                         }
                     }
 
+                    // Data rows
                     for (row_idx, row) in table_content.iter().enumerate() {
                         {
                             let row_bg = if row_idx % 2 == 0 {
@@ -481,11 +560,12 @@ fn CalculatePlans(
                                             transition-colors duration-100 hover:bg-zinc-800/40 {row_bg}",
                                     style: "{grid_cols}",
 
+                                    // Host cell
                                     div {
                                         class: "px-5 py-4 border-r border-zinc-800/50 flex items-start gap-3",
 
                                         div {
-                                            class: "mt-1.5  w-6 h-6 shrink-0 rounded-md bg-[#D67229] \
+                                            class: "mt-1.5 w-6 h-6 shrink-0 rounded-md bg-[#D67229] \
                                                     flex items-center justify-center border border-amber-500/25",
                                             span {
                                                 class: "text-white text-[10px] font-bold",
@@ -493,28 +573,37 @@ fn CalculatePlans(
                                             }
                                         }
 
-                                        div { class: "mt-2.25 flex flex-col min-w-0",
+                                        div { class: "mt-0.5 flex flex-col min-w-0",
                                             span {
-                                                class: "font-semibold text-sm leading-snug truncate",
+                                                class: "font-semibold text-sm leading-snug truncate text-zinc-800",
                                                 "{row.host.name}"
                                             }
                                         }
                                     }
 
-                                    for (idx, (guest,is_host)) in row.guest_list.iter().enumerate() {
+                                    // Guest cells
+                                    for (idx, (guest, is_host)) in row.guest_list.iter().enumerate() {
                                         {
-                                            let text_color = if *is_host { "text-[#C66741]".to_string() } else { "".to_string()  };
-                                            let border_color = if *is_host { "border-[#C66741]".to_string() } else { "border-zinc-800/50".to_string()  };
+                                            let text_color = if *is_host {
+                                                "text-[#C66741]"
+                                            } else {
+                                                "text-zinc-700"
+                                            };
+                                            let border_color = if *is_host {
+                                                "border-[#C66741]"
+                                            } else {
+                                                "border-zinc-800/50"
+                                            };
 
                                             rsx! {
                                                 div {
                                                     key: "guest-{idx}",
-                                                    class: "px-4 py-4 border-l  \
+                                                    class: "px-4 py-4 border-l border-zinc-800/50 \
                                                             flex flex-col justify-center gap-1",
 
                                                     div {
-                                                        class: "inline-flex items-center gap-1.5 px-2.5 py-1 {border_color} \
-                                                                rounded-lg  border   \
+                                                        class: "inline-flex items-center gap-1.5 px-2.5 py-1 \
+                                                                rounded-lg border {border_color} \
                                                                 w-fit max-w-full",
 
                                                         span {
@@ -524,7 +613,7 @@ fn CalculatePlans(
                                                     }
 
                                                     span {
-                                                        class: "text-zinc-600 text-[11px] leading-tight pl-1 truncate",
+                                                        class: "text-zinc-500 text-[11px] leading-tight pl-1 truncate",
                                                         "{guest.address.address}"
                                                     }
                                                 }
@@ -532,23 +621,27 @@ fn CalculatePlans(
                                         }
                                     }
 
+                                    // Fill empty columns
                                     for fill_idx in row.guest_list.len()..num_courses {
                                         div {
                                             key: "fill-{fill_idx}",
                                             class: "px-4 py-4 border-l border-zinc-800/50 flex items-center",
-                                            span { class: "text-zinc-700 text-base select-none", "—" }
+                                            span { class: "text-zinc-600 text-base select-none", "—" }
                                         }
                                     }
-
                                 }
                             }
                         }
                     }
-
                 }
             }
-    }}
+        }
+    }
 }
+
+// ─────────────────────────────────────────────
+//  Schedule preview card
+// ─────────────────────────────────────────────
 
 #[component]
 fn CalculatePreview(
@@ -560,16 +653,38 @@ fn CalculatePreview(
 ) -> Element {
     if course_list.is_empty() {
         return rsx! {
-            div { class: "flex items-center gap-2 text-gray-500",
-                "At least one course is required to display the preview."
+            div { class: "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden",
+                div { class: "px-5 py-3.5 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5",
+                    div { class: "w-1.5 h-5 rounded-full bg-amber-400/70" }
+                    span { class: "text-sm font-semibold text-zinc-800", "Schedule Preview" }
+                }
+                div { class: "px-6 py-10 flex flex-col items-center gap-3 text-center",
+                    div { class: "w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center",
+                        span { class: "text-amber-500 text-lg", "◷" }
+                    }
+                    p { class: "text-sm font-medium text-zinc-700", "No courses configured yet" }
+                    p { class: "text-xs text-zinc-400",
+                        "Add at least one course to see the schedule preview."
+                    }
+                }
             }
         };
     }
 
     let schedule = Schedule::default(false, true, 3, 2, 2, true, true, true, true);
 
-    rsx!(RunSchedule {
-        plan_config: plan_config.read().clone(),
-        schedule
-    })
+    rsx!(
+        div { class: "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden",
+            div { class: "px-5 py-3.5 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5",
+                div { class: "w-1.5 h-5 rounded-full bg-amber-400/70" }
+                span { class: "text-sm font-semibold text-zinc-800", "Schedule Preview" }
+            }
+            div { class: "p-4",
+                RunSchedule {
+                    plan_config: plan_config.read().clone(),
+                    schedule
+                }
+            }
+        }
+    )
 }
