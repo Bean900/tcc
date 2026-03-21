@@ -21,15 +21,59 @@ use dioxus::signals::Signal;
 use gloo_timers::future::TimeoutFuture;
 use uuid::Uuid;
 
-const DISABLED_BUTTON: &str = "bg-gray-300 text-gray-500 rounded-lg px-2 py-2 cursor-not-allowed";
-const ENABLED_BUTTON_SECONDARY: &str =
-    "bg-[#5C7A99] text-[#FFFFFF] rounded-lg px-2 py-2 hover:bg-[#4C6883] transition-all cursor-pointer";
-const ENABLED_BUTTON_CONFIRM: &str =
-    "bg-[#4F7445] text-[#FFFFFF] rounded-lg px-2 py-2 hover:bg-[#3C5D36] transition-all cursor-pointer";
-const ENABLED_BUTTON_WARN: &str =
-    "bg-[#C1443F] text-[#FFFFFF] rounded-lg px-2 py-2 hover:bg-[#9E3533] transition-all cursor-pointer";
-const ENABLED_BUTTON_RED_HOLLOW: &str =
-    "border border-red-500 text-red-500 px-4 py-2 rounded hover:bg-red-100 cursor-pointer";
+// ─────────────────────────────────────────────
+//  Button style constants
+//
+//  All buttons share the same shape tokens (rounded-xl, px-4 py-2, text-sm
+//  font-medium) so the toolbar always looks like a coherent family.
+//
+//  Confirm  → amber  #D67229 / #C66741  (primary action)
+//  Secondary→ warm zinc-100 / zinc-200  (neutral secondary)
+//  Warn     → red-500 / red-600         (destructive)
+//  RedHollow→ red outline               (soft destructive)
+//  Disabled → amber-100 / amber-400     (warm, never cold gray)
+// ─────────────────────────────────────────────
+
+const DISABLED_BUTTON: &str = "bg-amber-100 text-amber-400 rounded-xl px-4 py-2 \
+     text-sm font-medium cursor-not-allowed";
+
+const ENABLED_BUTTON_SECONDARY: &str = "bg-zinc-100 text-zinc-700 rounded-xl px-4 py-2 \
+     text-sm font-medium hover:bg-zinc-200 \
+     transition-colors duration-150 cursor-pointer";
+
+const ENABLED_BUTTON_CONFIRM: &str = "bg-[#D67229] text-white rounded-xl px-4 py-2 \
+     text-sm font-medium hover:bg-[#C66741] \
+     transition-colors duration-150 cursor-pointer";
+
+const ENABLED_BUTTON_WARN: &str = "bg-red-500 text-white rounded-xl px-4 py-2 \
+     text-sm font-medium hover:bg-red-600 \
+     transition-colors duration-150 cursor-pointer";
+
+const ENABLED_BUTTON_RED_HOLLOW: &str = "border border-red-400 text-red-600 rounded-xl px-4 py-2 \
+     text-sm font-medium hover:bg-red-50 \
+     transition-colors duration-150 cursor-pointer";
+
+// ─────────────────────────────────────────────
+//  Input style constants
+//
+//  Normal  → amber-200 border, amber-50/40 bg, amber focus ring
+//  Error   → red-300 border, red-50/40 bg, red focus ring
+//  mb-3 instead of mb-4 for tighter vertical rhythm
+// ─────────────────────────────────────────────
+
+const INPUT_NORMAL: &str = "w-full px-3 py-2 border border-amber-200 rounded-xl bg-amber-50/40 \
+     text-sm text-zinc-800 placeholder-zinc-400 \
+     focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 \
+     transition-colors duration-150 mb-3";
+
+const INPUT_ERROR: &str = "w-full px-3 py-2 border border-red-300 rounded-xl bg-red-50/40 \
+     text-sm text-red-700 placeholder-red-300 \
+     focus:outline-none focus:ring-2 focus:ring-red-400/40 focus:border-red-400 \
+     transition-colors duration-150 mb-3";
+
+// ─────────────────────────────────────────────
+//  Async helper types
+// ─────────────────────────────────────────────
 
 pub type AsyncAction = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = ()>>>>;
 
@@ -38,12 +82,15 @@ macro_rules! async_action {
     ($logic:expr) => {
         std::sync::Arc::new(move || {
             let fut = async move { $logic };
-
             let boxed = std::boxed::Box::pin(fut);
             boxed as std::pin::Pin<Box<dyn std::future::Future<Output = ()>>>
         }) as AsyncAction
     };
 }
+
+// ─────────────────────────────────────────────
+//  Buttons
+// ─────────────────────────────────────────────
 
 #[derive(Clone, PartialEq)]
 enum ButtonColor {
@@ -139,16 +186,12 @@ fn CustomButton(props: CustomButtonProps) -> Element {
         if is_loading() || props.action.is_none() {
             return;
         }
-
         if props.error_signal.map_or(false, |s| !s.read().is_empty()) {
             return;
         }
-
         if let Some(action_fn) = &props.action {
             is_loading.set(true);
-
             let action_fn = action_fn.clone();
-
             spawn(async move {
                 (action_fn)().await;
                 is_loading.set(false);
@@ -165,11 +208,12 @@ fn CustomButton(props: CustomButtonProps) -> Element {
 
     rsx! {
         if *is_loading.read() {
+            // Amber spinner – matches ConfirmButton color
             div {
                 role: "status",
-                class: "flex justify-center items-center h-12",
+                class: "flex justify-center items-center h-9",
                 svg {
-                    class: "w-8 h-8 text-gray-200 animate-spin dark:text-gray-600 fill-blue-600",
+                    class: "w-6 h-6 text-amber-100 animate-spin fill-[#D67229]",
                     view_box: "0 0 100 101",
                     fill: "none",
                     xmlns: "http://www.w3.org/2000/svg",
@@ -186,7 +230,8 @@ fn CustomButton(props: CustomButtonProps) -> Element {
         } else {
             button {
                 class: if props.error_signal.is_some()
-    && !props.error_signal.expect("Expect signal").read().is_empty() { DISABLED_BUTTON } else { enable_button },
+                    && !props.error_signal.expect("Expect signal").read().is_empty()
+                    { DISABLED_BUTTON } else { enable_button },
                 disabled: props.error_signal.is_some()
                     && !props.error_signal.expect("Expect signal").read().is_empty(),
                 onclick: on_click_function,
@@ -196,17 +241,23 @@ fn CustomButton(props: CustomButtonProps) -> Element {
     }
 }
 
+// ─────────────────────────────────────────────
+//  Close button
+// ─────────────────────────────────────────────
+
 #[component]
 fn CloseButton(onclick: EventHandler<MouseEvent>) -> Element {
     rsx! {
         button {
-            class: "hover:text-gray-600 absolute top-3 right-3 cursor-pointer",
-            onclick: move |event| {
-                onclick.call(event);
-            },
+            class: "absolute top-3 right-3 p-1 rounded-lg \
+                    text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 \
+                    transition-colors duration-150 cursor-pointer",
+            onclick: move |event| { onclick.call(event); },
             svg {
-                class: "w-6 h-6",
+                class: "w-5 h-5",
                 stroke: "currentColor",
+                stroke_width: "2",
+                stroke_linecap: "round",
                 xmlns: "http://www.w3.org/2000/svg",
                 view_box: "0 0 24 24",
                 path { d: "M6 18L18 6M6 6l12 12" }
@@ -214,6 +265,10 @@ fn CloseButton(onclick: EventHandler<MouseEvent>) -> Element {
         }
     }
 }
+
+// ─────────────────────────────────────────────
+//  Delete button
+// ─────────────────────────────────────────────
 
 #[derive(Props, Clone)]
 pub struct DeleteButtonProps {
@@ -245,16 +300,12 @@ pub(crate) fn DeleteButton(props: DeleteButtonProps) -> Element {
         if is_loading() || props.action.is_none() {
             return;
         }
-
         if props.error_signal.map_or(false, |s| !s.read().is_empty()) {
             return;
         }
-
         if let Some(action_fn) = &props.action {
             is_loading.set(true);
-
             let action_fn = action_fn.clone();
-
             spawn(async move {
                 (action_fn)().await;
                 is_loading.set(false);
@@ -264,11 +315,12 @@ pub(crate) fn DeleteButton(props: DeleteButtonProps) -> Element {
 
     rsx! {
         if *is_loading.read() {
+            // Red spinner – signals destructive action in progress
             div {
                 role: "status",
-                class: "flex justify-center items-center h-12",
+                class: "flex justify-center items-center h-9",
                 svg {
-                    class: "w-8 h-8 text-gray-200 animate-spin dark:text-gray-600 fill-red-600",
+                    class: "w-6 h-6 text-red-100 animate-spin fill-red-500",
                     view_box: "0 0 100 101",
                     fill: "none",
                     xmlns: "http://www.w3.org/2000/svg",
@@ -283,14 +335,16 @@ pub(crate) fn DeleteButton(props: DeleteButtonProps) -> Element {
                 }
             }
         } else {
-            button { class: ENABLED_BUTTON_WARN, onclick: on_click_function,
+            button {
+                class: ENABLED_BUTTON_RED_HOLLOW,
+                onclick: on_click_function,
                 svg {
                     xmlns: "http://www.w3.org/2000/svg",
                     fill: "none",
                     view_box: "0 0 24 24",
                     stroke_width: "2",
                     stroke: "currentColor",
-                    class: "w-6 h-6",
+                    class: "w-5 h-5",
                     path {
                         stroke_linecap: "round",
                         stroke_linejoin: "round",
@@ -302,6 +356,11 @@ pub(crate) fn DeleteButton(props: DeleteButtonProps) -> Element {
     }
 }
 
+// ─────────────────────────────────────────────
+//  Input components
+//  All share INPUT_NORMAL / INPUT_ERROR constants above.
+// ─────────────────────────────────────────────
+
 #[component]
 pub(crate) fn Input(
     place_holer: Option<String>,
@@ -310,15 +369,12 @@ pub(crate) fn Input(
     oninput: EventHandler<dioxus::prelude::Event<FormData>>,
 ) -> Element {
     rsx! {
-
         input {
-            class: if is_error.is_some_and(|e| e) { "bg-white w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 bg-white focus:ring-[#C66741]" },
+            class: if is_error.is_some_and(|e| e) { INPUT_ERROR } else { INPUT_NORMAL },
             r#type: "text",
-            placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
+            placeholder: if place_holer.is_some() { place_holer.expect("Expected placeholder") } else { "" },
             value,
-            oninput: move |e| {
-                oninput.call(e);
-            },
+            oninput: move |e| { oninput.call(e); },
         }
     }
 }
@@ -332,13 +388,11 @@ pub(crate) fn InputMultirow(
 ) -> Element {
     rsx! {
         textarea {
-            class: if is_error.is_some_and(|e| e) { "bg-white w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 bg-white focus:ring-[#C66741]" },
-            placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
+            class: if is_error.is_some_and(|e| e) { INPUT_ERROR } else { INPUT_NORMAL },
+            placeholder: if place_holer.is_some() { place_holer.expect("Expected placeholder") } else { "" },
             rows: "3",
             value,
-            oninput: move |e| {
-                oninput.call(e);
-            },
+            oninput: move |e| { oninput.call(e); },
         }
     }
 }
@@ -352,13 +406,11 @@ pub(crate) fn InputNumber(
 ) -> Element {
     rsx! {
         input {
-            class: if is_error.is_some_and(|e| e) { "bg-white w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 bg-white focus:ring-[#C66741]" },
+            class: if is_error.is_some_and(|e| e) { INPUT_ERROR } else { INPUT_NORMAL },
             r#type: "number",
-            placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
+            placeholder: if place_holer.is_some() { place_holer.expect("Expected placeholder") } else { "" },
             value,
-            oninput: move |e| {
-                oninput.call(e);
-            },
+            oninput: move |e| { oninput.call(e); },
         }
     }
 }
@@ -372,13 +424,11 @@ pub(crate) fn InputPhoneNumber(
 ) -> Element {
     rsx! {
         input {
-            class: if is_error.is_some_and(|e| e) { "bg-white w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 bg-white focus:ring-[#C66741]" },
+            class: if is_error.is_some_and(|e| e) { INPUT_ERROR } else { INPUT_NORMAL },
             r#type: "tel",
-            placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
+            placeholder: if place_holer.is_some() { place_holer.expect("Expected placeholder") } else { "" },
             value,
-            oninput: move |e| {
-                oninput.call(e);
-            },
+            oninput: move |e| { oninput.call(e); },
         }
     }
 }
@@ -392,14 +442,11 @@ pub(crate) fn InputTime(
 ) -> Element {
     rsx! {
         input {
-            class: if is_error.is_some_and(|e| e) { "bg-white w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 bg-white focus:ring-[#C66741]" },
+            class: if is_error.is_some_and(|e| e) { INPUT_ERROR } else { INPUT_NORMAL },
             r#type: "time",
-            placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
+            placeholder: if place_holer.is_some() { place_holer.expect("Expected placeholder") } else { "" },
             value,
-            oninput: move |e| {
-
-                oninput.call(e);
-            },
+            oninput: move |e| { oninput.call(e); },
         }
     }
 }
@@ -413,28 +460,34 @@ pub(crate) fn InputDate(
 ) -> Element {
     rsx! {
         input {
-            class: if is_error.is_some_and(|e| e) { "bg-white w-full border border-red-500 text-red-500 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500" } else { "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 bg-white focus:ring-[#C66741]" },
+            class: if is_error.is_some_and(|e| e) { INPUT_ERROR } else { INPUT_NORMAL },
             r#type: "date",
-            placeholder: if place_holer.is_some() { place_holer.expect("Expected place holder") } else { "" },
+            placeholder: if place_holer.is_some() { place_holer.expect("Expected placeholder") } else { "" },
             value,
-            oninput: move |e| {
-                oninput.call(e);
-            },
+            oninput: move |e| { oninput.call(e); },
         }
     }
 }
+
+// ─────────────────────────────────────────────
+//  Input error message
+// ─────────────────────────────────────────────
 
 #[component]
 pub(crate) fn InputError(error: String) -> Element {
     rsx! {
         if !error.is_empty() {
-            div { class: "flex items-center text-red-500 text-sm mb-4",
+            div { class: "flex items-center gap-1.5 text-red-500 text-xs mb-3 -mt-1",
                 ErrorSVG {}
                 span { "{error}" }
             }
         }
     }
 }
+
+// ─────────────────────────────────────────────
+//  Saving indicator
+// ─────────────────────────────────────────────
 
 #[component]
 pub(crate) fn SavingIcon(saving: bool, error: String) -> Element {
@@ -443,24 +496,66 @@ pub(crate) fn SavingIcon(saving: bool, error: String) -> Element {
             div { title: error, ErrorSVG {} }
         } else if saving {
             div {
-                class: "loader w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin",
-                title: "Saving in progress...",
+                class: "w-5 h-5 border-2 border-amber-200 border-t-[#D67229] \
+                        rounded-full animate-spin",
+                title: "Saving…",
             }
         }
     }
 }
 
+// ─────────────────────────────────────────────
+//  Typography
+// ─────────────────────────────────────────────
+
+#[component]
+pub(crate) fn Headline1(headline: String) -> Element {
+    rsx!(
+        div { class: "text-zinc-900 font-sans leading-tight",
+            h1 { class: "text-3xl font-bold mb-2", "{headline}" }
+        }
+    )
+}
+
+#[component]
+pub(crate) fn Headline2(headline: String) -> Element {
+    rsx!(
+        div { class: "font-sans leading-tight",
+            h2 { class: "text-xl font-semibold text-[#70513E] mb-1", "{headline}" }
+        }
+    )
+}
+
+#[component]
+pub(crate) fn Headline3(headline: String) -> Element {
+    rsx!(
+        label { class: "block text-sm font-semibold text-[#70513E] ml-2", "{headline}" }
+    )
+}
+
+#[component]
+pub(crate) fn Text(text: String) -> Element {
+    rsx!(
+        div { class: "text-zinc-700 font-sans leading-relaxed",
+            p { class: "text-sm mb-3", {text} }
+        }
+    )
+}
+
+// ─────────────────────────────────────────────
+//  SVG icons
+// ─────────────────────────────────────────────
+
 #[component]
 pub(crate) fn StartSVG() -> Element {
     rsx!(
         svg {
-            class: "w-6 h-6",
+            class: "w-5 h-5",
             xmlns: "http://www.w3.org/2000/svg",
             fill: "none",
             view_box: "0 0 24 24",
             stroke_width: "2",
-            stroke: "#C66741",
-
+            stroke: "#D67229",
             path {
                 stroke_linecap: "round",
                 stroke_linejoin: "round",
@@ -474,13 +569,12 @@ pub(crate) fn StartSVG() -> Element {
 pub(crate) fn EndSVG() -> Element {
     rsx!(
         svg {
-            class: "w-6 h-6",
+            class: "w-5 h-5",
             xmlns: "http://www.w3.org/2000/svg",
             fill: "none",
             view_box: "0 0 24 24",
             stroke_width: "2",
-            stroke: "#C66741",
-
+            stroke: "#D67229",
             path {
                 stroke_linecap: "round",
                 stroke_linejoin: "round",
@@ -490,7 +584,7 @@ pub(crate) fn EndSVG() -> Element {
                 cx: "4",
                 cy: "20",
                 r: "1",
-                fill: "#C66741",
+                fill: "#D67229",
             }
         }
     )
@@ -500,7 +594,7 @@ pub(crate) fn EndSVG() -> Element {
 pub(crate) fn DownloadSVG() -> Element {
     rsx!(
         svg {
-            class: "w-6 h-6",
+            class: "w-5 h-5",
             fill: "none",
             stroke: "currentColor",
             stroke_width: "2",
@@ -515,11 +609,10 @@ pub(crate) fn DownloadSVG() -> Element {
 pub(crate) fn AddressSVG() -> Element {
     rsx!(
         svg {
-            class: "w-6 h-6",
+            class: "w-4 h-4 shrink-0",
             xmlns: "http://www.w3.org/2000/svg",
-            fill: "#C66741",
+            fill: "#D67229",
             view_box: "0 0 24 24",
-
             path { d: "M12 2C8.134 2 5 5.134 5 9c0 4.418 7 13 7 13s7-8.582 7-13c0-3.866-3.134-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" }
         }
     )
@@ -529,11 +622,11 @@ pub(crate) fn AddressSVG() -> Element {
 pub(crate) fn WarningSVG() -> Element {
     rsx!(
         svg {
-            class: "w-6 h-6 text-red-500",
+            class: "w-5 h-5",
             xmlns: "http://www.w3.org/2000/svg",
             fill: "none",
             view_box: "0 0 24 24",
-            stroke: "#C66741",
+            stroke: "#D67229",
             path {
                 stroke_linecap: "round",
                 stroke_linejoin: "round",
@@ -548,38 +641,15 @@ pub(crate) fn WarningSVG() -> Element {
 pub(crate) fn ErrorSVG() -> Element {
     rsx!(
         svg {
-            class: "w-6 h-6 text-red-600",
+            class: "w-4 h-4 text-red-500 shrink-0",
             xmlns: "http://www.w3.org/2000/svg",
             fill: "none",
             view_box: "0 0 24 24",
             stroke_width: "2",
             stroke: "currentColor",
-
-            circle {
-                cx: "12",
-                cy: "12",
-                r: "10",
-                stroke: "currentColor",
-                stroke_width: "2",
-            }
-            line {
-                x1: "12",
-                y1: "8",
-                x2: "12",
-                y2: "12",
-                stroke: "currentColor",
-                stroke_width: "2",
-                stroke_linecap: "round",
-            }
-            line {
-                x1: "12",
-                y1: "16",
-                x2: "12",
-                y2: "16",
-                stroke: "currentColor",
-                stroke_width: "2",
-                stroke_linecap: "round",
-            }
+            circle { cx: "12", cy: "12", r: "10", stroke: "currentColor", stroke_width: "2" }
+            line { x1: "12", y1: "8", x2: "12", y2: "12", stroke: "currentColor", stroke_width: "2", stroke_linecap: "round" }
+            line { x1: "12", y1: "16", x2: "12", y2: "16", stroke: "currentColor", stroke_width: "2", stroke_linecap: "round" }
         }
     )
 }
@@ -588,7 +658,7 @@ pub(crate) fn ErrorSVG() -> Element {
 pub(crate) fn InfoSVG() -> Element {
     rsx!(
         svg {
-            class: "w-6 h-6 text-blue-600",
+            class: "w-5 h-5 text-amber-500",
             xmlns: "http://www.w3.org/2000/svg",
             fill: "none",
             view_box: "0 0 24 24",
@@ -607,11 +677,11 @@ pub(crate) fn InfoSVG() -> Element {
 pub(crate) fn CourseSVG() -> Element {
     rsx!(
         svg {
-            class: "w-6 h-6",
+            class: "w-5 h-5",
             xmlns: "http://www.w3.org/2000/svg",
             fill: "none",
             view_box: "0 0 24 24",
-            stroke: "#C66741",
+            stroke: "#D67229",
             path {
                 stroke_linecap: "round",
                 stroke_linejoin: "round",
@@ -626,10 +696,10 @@ pub(crate) fn CourseSVG() -> Element {
 pub(crate) fn TimeSVG() -> Element {
     rsx!(
         svg {
-            class: "w-6 h-6",
+            class: "w-5 h-5",
             xmlns: "http://www.w3.org/2000/svg",
             fill: "none",
-            stroke: "#C66741",
+            stroke: "#D67229",
             path {
                 stroke_linecap: "round",
                 stroke_linejoin: "round",
@@ -647,11 +717,11 @@ pub(crate) fn PhoneSVG() -> Element {
             xmlns: "http://www.w3.org/2000/svg",
             view_box: "0 0 24 24",
             fill: "none",
-            stroke: "#C66741",
+            stroke: "#D67229",
             stroke_width: "2",
             stroke_linecap: "round",
             stroke_linejoin: "round",
-            class: "w-6 h-6",
+            class: "w-5 h-5",
             path { d: "M22 16.92v3a2 2 0 0 1-2.18 2A19.86 19.86 0 0 1 3.1 5.18 2 2 0 0 1 5 3h3a2 2 0 0 1 2 1.72c.12.81.31 1.6.57 2.35a2 2 0 0 1-.45 2.11L9.03 10.91a16 16 0 0 0 6.06 6.06l1.73-1.09a2 2 0 0 1 2.11-.45c.75.26 1.54.45 2.35.57a2 2 0 0 1 1.72 2z" }
         }
     )
@@ -661,10 +731,10 @@ pub(crate) fn PhoneSVG() -> Element {
 pub(crate) fn GroupSVG() -> Element {
     rsx!(
         svg {
-            class: "w-6 h-6",
+            class: "w-5 h-5",
             xmlns: "http://www.w3.org/2000/svg",
             fill: "none",
-            stroke: "#C66741",
+            stroke: "#D67229",
             path {
                 stroke_linecap: "round",
                 stroke_linejoin: "round",
@@ -674,14 +744,15 @@ pub(crate) fn GroupSVG() -> Element {
         }
     )
 }
+
 #[component]
 pub(crate) fn PersonSVG() -> Element {
     rsx!(
         svg {
-            class: "w-6 h-6",
+            class: "w-5 h-5",
             xmlns: "http://www.w3.org/2000/svg",
             fill: "none",
-            stroke: "#C66741",
+            stroke: "#D67229",
             path {
                 stroke_linecap: "round",
                 stroke_linejoin: "round",
@@ -692,39 +763,9 @@ pub(crate) fn PersonSVG() -> Element {
     )
 }
 
-#[component]
-pub(crate) fn Headline1(headline: String) -> Element {
-    rsx!(
-        div { class: "text-[#3B3B3B] font-sans leading-relaxed",
-            h1 { class: "text-3xl font-bold mb-4", "{headline}" }
-        }
-    )
-}
-
-#[component]
-pub(crate) fn Headline2(headline: String) -> Element {
-    rsx!(
-        div { class: "font-sans leading-relaxed",
-            h1 { class: "text-xl font-semibold text-[#70513E] mb-2", "{headline}" }
-        }
-    )
-}
-
-#[component]
-pub(crate) fn Headline3(headline: String) -> Element {
-    rsx!(
-        label { class: "block font-semibold text-[#70513E] ml-2", "{headline}" }
-    )
-}
-
-#[component]
-pub(crate) fn Text(text: String) -> Element {
-    rsx!(
-        div { class: "text-[#3B3B3B] font-sans leading-relaxed",
-            p { class: "text-base mb-4", {text} }
-        }
-    )
-}
+// ─────────────────────────────────────────────
+//  Debounce utility (unchanged)
+// ─────────────────────────────────────────────
 
 pub(crate) fn debounce<I, F>(value_signal: Signal<I>, mut running_signal: Signal<bool>, callback: F)
 where

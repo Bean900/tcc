@@ -4,9 +4,28 @@ use web_sys::{console, wasm_bindgen::JsCast, HtmlInputElement};
 
 use crate::{
     async_action,
-    side::{AsyncAction, CloseButton, ConfirmButton, ErrorSVG, Input, InputError, SecondaryButton},
+    side::{
+        AsyncAction, CloseButton, ConfirmButton, ErrorSVG, Headline1, Input, InputError,
+        SecondaryButton,
+    },
     storage::{CookAndRunCreate, CookAndRunData, StorageManager},
 };
+
+// ─────────────────────────────────────────────
+//  Shared tokens
+// ─────────────────────────────────────────────
+
+const LBL: &str =
+    "block text-[11px] font-semibold tracking-[0.12em] uppercase text-amber-700/70 mb-1.5";
+
+const NATIVE_INPUT: &str = "w-full px-3 py-2 rounded-xl border border-amber-200 bg-amber-50/40 \
+     text-sm text-zinc-800 placeholder-zinc-400 \
+     focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 \
+     transition-colors duration-150";
+
+// ─────────────────────────────────────────────
+//  Dashboard
+// ─────────────────────────────────────────────
 
 #[component]
 pub fn Dashboard() -> Element {
@@ -16,65 +35,85 @@ pub fn Dashboard() -> Element {
         console::debug_1(&"Loading cook and run list...".into());
         let storage = storage.read();
         match storage.select_cook_and_run_meta_list().await {
-            Ok(list) => return Ok(list),
+            Ok(list) => Ok(list),
             Err(err) => {
                 console::error_1(&format!("Failed to load cook and run list: {}", err).into());
-                return Err("Failed to load data!".to_string());
+                Err("Failed to load data!".to_string())
             }
-        };
+        }
     });
 
     let mut create_project_signal = use_signal(|| false);
 
     rsx! {
-        div { class: "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 p-6",
+        div { class: "px-8 py-6 space-y-8",
 
-            // Bestehende Projekte
-            {
+            // ── Page header ───────────────────────────────────────
+            Headline1 { headline: "Projects" }
+
+            // ── Project grid ──────────────────────────────────────
+            div { class: "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5",
+
                 match &*cook_and_run_list.read_unchecked() {
                     Some(Err(err)) => rsx! {
-                        ErrorSVG {}
-                        div { class: "col-span-full text-red-500", {err.clone()} }
+                        div { class: "col-span-full flex items-center gap-3 \
+                                      rounded-2xl border border-red-200 bg-red-50 px-5 py-4",
+                            ErrorSVG {}
+                            span { class: "text-sm text-red-700", "{err}" }
+                        }
                     },
                     Some(Ok(list)) => rsx! {
                         {
-                            list.iter()
-                                .map(|cook_and_run| {
-                                    rsx! {
-                                        DashboardCard {
-                                            id: cook_and_run.id,
-                                            name: cook_and_run.name.clone(),
-                                            created: cook_and_run.created.format("%Y-%m-%d %H:%M").to_string(),
-                                            updated: cook_and_run.edited.format("%Y-%m-%d %H:%M").to_string(),
-                                            uploaded: cook_and_run.is_in_cloud,
-                                        }
+                            list.iter().map(|cook_and_run| {
+                                rsx! {
+                                    DashboardCard {
+                                        id: cook_and_run.id,
+                                        name: cook_and_run.name.clone(),
+                                        created: cook_and_run.created.format("%Y-%m-%d %H:%M").to_string(),
+                                        updated: cook_and_run.edited.format("%Y-%m-%d %H:%M").to_string(),
+                                        uploaded: cook_and_run.is_in_cloud,
                                     }
-                                })
+                                }
+                            })
                         }
                     },
                     None => rsx! {
                         LoadingCard {}
+                        LoadingCard {}
+                        LoadingCard {}
                     },
                 }
-            }
 
-            a {
-                class: "border-4 border-dashed border-gray-300 rounded-xl p-6 h-36 flex items-center justify-center text-gray-400 hover:bg-[#fdfaf6] hover:text-[#4F7445] hover:scale-105 transition-all duration-200 cursor-pointer",
-                onclick: move |_| {
-                    create_project_signal.set(true);
-                },
-                div {
-
-                    div { class: "text-5xl font-bold", "+" }
+                // ── Add project button ────────────────────────────
+                a {
+                    class: "flex flex-col items-center justify-center gap-3 h-36 \
+                            rounded-2xl border-2 border-dashed border-amber-200 \
+                            bg-amber-50/30 \
+                            text-amber-400 hover:text-amber-600 \
+                            hover:border-amber-400 hover:bg-amber-50/60 \
+                            transition-all duration-200 cursor-pointer group",
+                    onclick: move |_| { create_project_signal.set(true); },
+                    div { class: "w-9 h-9 rounded-full border-2 border-current \
+                                  flex items-center justify-center \
+                                  text-xl font-bold leading-none \
+                                  group-hover:scale-110 transition-transform duration-150",
+                        "+"
+                    }
+                    span { class: "text-sm font-semibold tracking-wide", "New project" }
                 }
             }
-        
         }
+
+        // ── Create project dialog ─────────────────────────────────
         if *create_project_signal.read() {
             CreateProjectDialog { create_project_signal: create_project_signal.clone() }
         }
     }
 }
+
+// ─────────────────────────────────────────────
+//  Dashboard card
+// ─────────────────────────────────────────────
 
 #[derive(PartialEq, Props, Clone)]
 struct DashboardCardProps {
@@ -84,42 +123,50 @@ struct DashboardCardProps {
     updated: String,
     uploaded: bool,
 }
+
 #[component]
 fn DashboardCard(props: DashboardCardProps) -> Element {
     rsx! {
         a {
             href: format!("/cook-and-run/{}/overview", props.id),
-            class: "relative bg-[#fdfaf6] shadow-md rounded-xl p-6 h-36 hover:shadow-lg transition-all cursor-pointer hover:scale-105",
+            class: "relative flex flex-col bg-white rounded-2xl border border-amber-100 \
+                    shadow-sm hover:shadow-md transition-all duration-150 cursor-pointer \
+                    overflow-hidden group",
 
-            div { key: {props.id},
-
-                // Wolken-Icon oben rechts
-                div { class: "absolute top-3 right-3 text-gray-400",
-                    if props.uploaded {
-                        svg {
-                            class: "w-6 h-6 text-green-500",
-                            fill: "currentColor",
-                            xmlns: "http://www.w3.org/2000/svg",
-                            //view_box: "0 0 20 20",
-                            path { d: "M16.88 9.94a5 5 0 00-9.72-1.47A4 4 0 006 17h9a4 4 0 001.88-7.06z" }
-                        }
-                    } else {
-                        svg {
-                            class: "w-6 h-6 text-gray-300",
-                            fill: "currentColor",
-                            xmlns: "http://www.w3.org/2000/svg",
-                            // view_box: "0 0 20 20",
-                            path { d: "M16.88 9.94a5 5 0 00-9.72-1.47A4 4 0 006 17h9a4 4 0 001.88-7.06z" }
-                        }
+            // Amber header stripe
+            div { class: "px-4 py-2.5 bg-amber-50/70 border-b border-amber-100 \
+                          flex items-center justify-between gap-2",
+                div { class: "flex items-center gap-2 min-w-0",
+                    div { class: "w-1.5 h-4 rounded-full bg-amber-400/70 shrink-0" }
+                    span { class: "text-sm font-semibold text-zinc-800 truncate",
+                        "{props.name}"
                     }
                 }
-
-                // Inhalt
-                h2 { class: "text-2xl font-semibold text-gray-800 mb-2", "{props.name}" }
-                // Erstellt am
-                div { class: "flex items-center text-sm text-gray-500 mt-2",
+                // Cloud indicator
+                if props.uploaded {
                     svg {
-                        class: "w-4 h-4 mr-2 text-gray-400",
+                        class: "w-4 h-4 shrink-0 text-amber-500",
+                        fill: "currentColor",
+                        xmlns: "http://www.w3.org/2000/svg",
+                        path { d: "M16.88 9.94a5 5 0 00-9.72-1.47A4 4 0 006 17h9a4 4 0 001.88-7.06z" }
+                    }
+                } else {
+                    svg {
+                        class: "w-4 h-4 shrink-0 text-zinc-300",
+                        fill: "currentColor",
+                        xmlns: "http://www.w3.org/2000/svg",
+                        path { d: "M16.88 9.94a5 5 0 00-9.72-1.47A4 4 0 006 17h9a4 4 0 001.88-7.06z" }
+                    }
+                }
+            }
+
+            // Card body
+            div { class: "px-4 py-3 space-y-1.5",
+
+                // Created
+                div { class: "flex items-center gap-1.5 text-xs text-zinc-500",
+                    svg {
+                        class: "w-3.5 h-3.5 shrink-0 text-zinc-400",
                         fill: "currentColor",
                         view_box: "0 0 20 20",
                         xmlns: "http://www.w3.org/2000/svg",
@@ -128,10 +175,10 @@ fn DashboardCard(props: DashboardCardProps) -> Element {
                     span { "{props.created}" }
                 }
 
-                // Zuletzt bearbeitet
-                div { class: "flex items-center text-sm text-gray-400",
+                // Updated
+                div { class: "flex items-center gap-1.5 text-xs text-zinc-400",
                     svg {
-                        class: "w-4 h-4 mr-2 text-gray-300",
+                        class: "w-3.5 h-3.5 shrink-0 text-zinc-300",
                         fill: "currentColor",
                         view_box: "0 0 20 20",
                         xmlns: "http://www.w3.org/2000/svg",
@@ -144,46 +191,39 @@ fn DashboardCard(props: DashboardCardProps) -> Element {
     }
 }
 
+// ─────────────────────────────────────────────
+//  Loading skeleton card
+// ─────────────────────────────────────────────
+
 #[component]
 fn LoadingCard() -> Element {
     rsx! {
-        div { class: "relative bg-[#fdfaf6] shadow-md rounded-xl p-6 h-36 hover:shadow-lg transition-all cursor-pointer hover:scale-105",
+        div { class: "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden",
 
-
-            span { class: "sr-only", "Loading..." }
-            div { role: "status", class: "h-6 max-w-sm animate-pulse",
-                div { class: "h-6 bg-gray-200 rounded-full dark:bg-gray-700 w-48 mb-4" }
+            // Skeleton header stripe
+            div { class: "px-4 py-2.5 bg-amber-50/70 border-b border-amber-100",
+                div { class: "h-4 w-32 bg-amber-100 rounded-full animate-pulse" }
             }
 
-            div { class: "flex items-center text-sm text-gray-500 mt-4",
-                svg {
-                    class: "w-4 h-4 mr-2 text-gray-400",
-                    fill: "currentColor",
-                    view_box: "0 0 20 20",
-                    xmlns: "http://www.w3.org/2000/svg",
-                    path { d: "M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zM2 9v7a2 2 0 002 2h12a2 2 0 002-2V9H2z" }
+            // Skeleton body
+            div { class: "px-4 py-3 space-y-2.5",
+                div { class: "flex items-center gap-1.5",
+                    div { class: "w-3.5 h-3.5 rounded-full bg-zinc-200 animate-pulse shrink-0" }
+                    div { class: "h-3 w-28 bg-zinc-200 rounded-full animate-pulse" }
                 }
-                div { role: "status", class: "h-4 max-w-sm animate-pulse",
-                    div { class: "h-4 bg-gray-200 rounded-full dark:bg-gray-700 w-48 mb-4" }
-                }
-            }
-
-            div { class: "flex items-center text-sm text-gray-400 mt-4",
-                svg {
-                    class: "w-4 h-4 mr-2 text-gray-300",
-                    fill: "currentColor",
-                    view_box: "0 0 20 20",
-                    xmlns: "http://www.w3.org/2000/svg",
-                    path { d: "M17.414 2.586a2 2 0 010 2.828l-8.586 8.586a2 2 0 01-.879.515l-4 1a1 1 0 01-1.213-1.213l1-4a2 2 0 01.515-.879l8.586-8.586a2 2 0 012.828 0zM15 5l-1-1L6 12l-.5 2 .5.5 2-.5L15 5z" }
-                }
-                div { role: "status", class: "h-4 max-w-sm animate-pulse",
-                    div { class: "h-4 bg-gray-200 rounded-full dark:bg-gray-700 w-48 mb-4" }
+                div { class: "flex items-center gap-1.5",
+                    div { class: "w-3.5 h-3.5 rounded-full bg-zinc-100 animate-pulse shrink-0" }
+                    div { class: "h-3 w-24 bg-zinc-100 rounded-full animate-pulse" }
                 }
             }
-        
         }
+        span { class: "sr-only", "Loading…" }
     }
 }
+
+// ─────────────────────────────────────────────
+//  Create project dialog
+// ─────────────────────────────────────────────
 
 #[component]
 fn CreateProjectDialog(create_project_signal: Signal<bool>) -> Element {
@@ -192,113 +232,138 @@ fn CreateProjectDialog(create_project_signal: Signal<bool>) -> Element {
     let mut error_signal = use_signal(|| "".to_string());
 
     rsx! {
-        div { class: "backdrop-blur fixed inset-0 flex h-screen w-screen justify-center items-center",
-            div { class: "relative bg-[#fdfaf6] shadow-md rounded-xl p-6 w-72 hover:shadow-lg transition-all cursor-pointer ",
+        div { class: "backdrop-blur-sm fixed inset-0 flex h-screen w-screen \
+                      justify-center items-center bg-black/20 z-50",
+            div { class: "relative bg-white rounded-2xl border border-amber-100 \
+                          shadow-xl w-80 overflow-hidden",
 
+                // Dialog header
+                div { class: "px-5 py-4 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5",
+                    div { class: "w-1.5 h-5 rounded-full bg-amber-400/70" }
+                    span { class: "text-base font-semibold text-zinc-800", "New Project" }
+                }
 
                 // Close button
                 CloseButton {
-                    onclick: move |_| {
-                        create_project_signal.set(false);
-                    },
+                    onclick: move |_| { create_project_signal.set(false); },
                 }
 
-                // Title
-                h2 { class: "text-2xl font-semibold text-gray-800 mb-4", "Create Project" }
+                // Form body
+                div { class: "px-5 py-5 space-y-4",
 
-                // Input field
-
-                Input {
-                    place_holer: Some("Project Name".to_string()),
-                    value: project_name_signal.clone(),
-                    is_error: !error_name_signal.read().is_empty(),
-                    oninput: move |e: Event<FormData>| {
-                        let value = e.value().to_string();
-                        project_name_signal.set(value.clone());
-                        if value.trim().is_empty() {
-                            error_name_signal.set("Project name cannot be empty!".to_string());
-                        } else {
-                            error_name_signal.set("".to_string());
-                        }
-                    },
-                }
-
-                // Input file
-                input {
-                    id: "project_upload",
-                    r#type: "file",
-                    accept: ".tcc",
-                    hidden: true,
-                    multiple: false,
-                    onchange: move |evt| {
-                        async move {
-                            for file_name in &evt.files() {
-                                let file_content = match file_name.read_string().await {
-                                    Ok(c) => c,
-                                    Err(e) => {
-                                        console::error_1(
-                                            &format!("Error reading project file: {}", e).into(),
-                                        );
-                                        error_signal.set("Error reading project file!".to_string());
-                                        continue;
-                                    }
-                                };
-                                let mut storage = use_context::<Signal<StorageManager>>();
-                                let mut storage = storage.write();
-                                let cook_and_run = match CookAndRunData::from_json(&file_content) {
-                                    Ok(c_a_r) => c_a_r,
-                                    Err(e) => {
-                                        console::error_1(
-                                            &format!("Error parsing project file: {}", e).into(),
-                                        );
-                                        error_signal.set("Error parsing project file!".to_string());
-                                        continue;
-                                    }
-                                };
-                                let result = storage.create_from_file(cook_and_run).await;
-                                if let Err(e) = result {
-                                    console::error_1(
-                                        &format!("Error creating project from file: {}", e).into(),
-                                    );
-                                    error_signal.set("Error creating project from file!".to_string());
+                    div {
+                        label { class: "{LBL}", "Project Name" }
+                        Input {
+                            place_holer: Some("e.g. Summer Cook & Run 2025".to_string()),
+                            value: project_name_signal.clone(),
+                            is_error: !error_name_signal.read().is_empty(),
+                            oninput: move |e: Event<FormData>| {
+                                let value = e.value();
+                                project_name_signal.set(value.clone());
+                                if value.trim().is_empty() {
+                                    error_name_signal.set("Project name cannot be empty!".to_string());
                                 } else {
-                                    create_project_signal.set(false);
-                                    todo!();
+                                    error_name_signal.set("".to_string());
                                 }
-                            }
+                            },
                         }
-                    },
-                }
-
-                // Error message
-                InputError { error: error_signal.read() }
-
-                div { class: "flex flex-wrap gap-4 items-center mt-4 justify-center",
-
-                    SecondaryButton {
-                        text: "Upload Project".to_string(),
-                        action: async_action!(
-                            { if let Some(doc) = web_sys::window().and_then(| w | w.document()) { if let
-                            Some(el) = doc.get_element_by_id("project_upload") { if let Ok(input) = el
-                            .dyn_into::< HtmlInputElement > () { input.click(); } } } }
-                        ),
+                        InputError { error: error_name_signal.read() }
                     }
 
+                    // Hidden file input
+                    input {
+                        id: "project_upload",
+                        r#type: "file",
+                        accept: ".tcc",
+                        hidden: true,
+                        multiple: false,
+                        onchange: move |evt| {
+                            async move {
+                                for file_name in &evt.files() {
+                                    let file_content = match file_name.read_string().await {
+                                        Ok(c) => c,
+                                        Err(e) => {
+                                            console::error_1(
+                                                &format!("Error reading project file: {}", e).into(),
+                                            );
+                                            error_signal.set("Error reading project file!".to_string());
+                                            continue;
+                                        }
+                                    };
+                                    let mut storage = use_context::<Signal<StorageManager>>();
+                                    let mut storage = storage.write();
+                                    let cook_and_run = match CookAndRunData::from_json(&file_content) {
+                                        Ok(c) => c,
+                                        Err(e) => {
+                                            console::error_1(
+                                                &format!("Error parsing project file: {}", e).into(),
+                                            );
+                                            error_signal.set("Error parsing project file!".to_string());
+                                            continue;
+                                        }
+                                    };
+                                    let result = storage.create_from_file(cook_and_run).await;
+                                    if let Err(e) = result {
+                                        console::error_1(
+                                            &format!("Error creating project from file: {}", e).into(),
+                                        );
+                                        error_signal.set("Error creating project from file!".to_string());
+                                    } else {
+                                        create_project_signal.set(false);
+                                        todo!();
+                                    }
+                                }
+                            }
+                        },
+                    }
 
-                    ConfirmButton {
-                        text: "Create".to_string(),
-                        error_signal: error_signal.clone(),
-                        action: async_action!(
-                            { if project_name_signal.read().trim().is_empty() { error_name_signal
-                            .set("Project name cannot be empty!".to_string()); return; } let project_id =
-                            Uuid::new_v4(); let mut storage = use_context::< Signal < StorageManager >> ();
-                            let mut storage = storage.write(); let project_name = project_name_signal.read()
-                            .to_string(); let cook_and_run = CookAndRunCreate { name : project_name, }; let
-                            result = storage.create_cook_and_run(project_id, & cook_and_run). await; if let
-                            Err(e) = result { console::error_1(& format!("Error creating project: {}", e)
-                            .into()); error_signal.set("Creating project failed!".to_string()); return; }
-                            create_project_signal.set(false); }
-                        ),
+                    InputError { error: error_signal.read() }
+
+                    // Action buttons
+                    div { class: "flex gap-3 pt-1",
+                        SecondaryButton {
+                            text: "Upload".to_string(),
+                            action: async_action!(
+                                {
+                                    if let Some(doc) = web_sys::window().and_then(|w| w.document()) {
+                                        if let Some(el) = doc.get_element_by_id("project_upload") {
+                                            if let Ok(input) = el.dyn_into::<HtmlInputElement>() {
+                                                input.click();
+                                            }
+                                        }
+                                    }
+                                }
+                            ),
+                        }
+                        ConfirmButton {
+                            text: "Create".to_string(),
+                            error_signal: error_signal.clone(),
+                            action: async_action!(
+                                {
+                                    if project_name_signal.read().trim().is_empty() {
+                                        error_name_signal.set("Project name cannot be empty!".to_string());
+                                        return;
+                                    }
+                                    let project_id = Uuid::new_v4();
+                                    let mut storage = use_context::<Signal<StorageManager>>();
+                                    let mut storage = storage.write();
+                                    let cook_and_run = CookAndRunCreate {
+                                        name: project_name_signal.read().to_string(),
+                                    };
+                                    let result = storage
+                                        .create_cook_and_run(project_id, &cook_and_run)
+                                        .await;
+                                    if let Err(e) = result {
+                                        console::error_1(
+                                            &format!("Error creating project: {}", e).into(),
+                                        );
+                                        error_signal.set("Creating project failed!".to_string());
+                                        return;
+                                    }
+                                    create_project_signal.set(false);
+                                }
+                            ),
+                        }
                     }
                 }
             }

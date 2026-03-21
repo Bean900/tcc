@@ -14,11 +14,21 @@ use crate::{
     Route,
 };
 
+// ─────────────────────────────────────────────
+//  Shared tokens
+// ─────────────────────────────────────────────
+
+const LBL: &str =
+    "block text-[11px] font-semibold tracking-[0.12em] uppercase text-amber-700/70 mb-1.5";
+
+// ─────────────────────────────────────────────
+//  Async helpers
+// ─────────────────────────────────────────────
+
 async fn delete_cook_and_run_project(id: Uuid) -> Result<(), String> {
     let mut storage = use_context::<Signal<StorageManager>>();
     let mut storage = storage.write();
-    let result = storage.delete_cook_and_run(id).await;
-    result
+    storage.delete_cook_and_run(id).await
 }
 
 async fn update_meta_of_cook_and_run(
@@ -28,8 +38,7 @@ async fn update_meta_of_cook_and_run(
 ) -> Result<(), String> {
     let mut storage = use_context::<Signal<StorageManager>>();
     let mut storage = storage.write();
-
-    let result = storage
+    storage
         .update_meta_of_cook_and_run(
             id,
             &CookAndRunMetaUpdate {
@@ -37,60 +46,52 @@ async fn update_meta_of_cook_and_run(
                 occur,
             },
         )
-        .await;
-    result
+        .await
 }
 
 async fn upload_cook_and_run(id: Uuid) -> Result<Uuid, String> {
     let mut storage: Signal<StorageManager> = use_context::<Signal<StorageManager>>();
     let mut storage = storage.write();
-
     storage.upload_to_cloud(id).await
 }
 
 async fn download_cook_and_run(id: Uuid) -> Result<Uuid, String> {
     let mut storage: Signal<StorageManager> = use_context::<Signal<StorageManager>>();
     let mut storage = storage.write();
-
     storage.download_from_cloud(id).await
 }
 
 async fn export_file(id: Uuid) -> Result<(), String> {
     let storage = use_context::<Signal<StorageManager>>();
     let storage = storage.read().clone();
-
     let cook_and_run = storage.select_cook_and_run(id).await?;
 
-    let cook_and_run_json = serde_json::to_string(&cook_and_run)
-        .map_err(|e| format!("Could not parse Cook and Run: {}", e.to_string()))?;
-    // Create a Blob from the string content
-    let array = js_sys::Array::new();
-    array.push(&JsValue::from_str(&cook_and_run_json));
-    let blob = Blob::new_with_str_sequence(&array).unwrap();
+    let json = serde_json::to_string(&cook_and_run)
+        .map_err(|e| format!("Could not parse Cook and Run: {}", e))?;
 
-    // Create a URL for the Blob
+    let array = js_sys::Array::new();
+    array.push(&JsValue::from_str(&json));
+    let blob = Blob::new_with_str_sequence(&array).unwrap();
     let url = Url::create_object_url_with_blob(&blob).unwrap();
 
-    // Create a temporary anchor element
     let document = web_sys::window().unwrap().document().unwrap();
     let a = document
         .create_element("a")
         .unwrap()
         .dyn_into::<HtmlAnchorElement>()
         .unwrap();
-
     a.set_href(&url);
     a.set_download(&format!("{}.tcc", cook_and_run.name));
-
-    // Append it to the body and trigger click
     document.body().unwrap().append_child(&a).unwrap();
     a.click();
-
-    // Clean up
     document.body().unwrap().remove_child(&a).unwrap();
     Url::revoke_object_url(&url).unwrap();
     Ok(())
 }
+
+// ─────────────────────────────────────────────
+//  Root
+// ─────────────────────────────────────────────
 
 #[component]
 pub fn Overview(cook_and_run_id: Uuid) -> Element {
@@ -105,68 +106,58 @@ pub fn Overview(cook_and_run_id: Uuid) -> Element {
     });
 
     match &*cook_and_run.read_unchecked() {
-        None => rsx!(
-            LoadingPage {}
-        ),
-        Some(Err(e)) => rsx!(
-            ErrorPage {
-                error_text: "Could not load project. You may need to log in or the servers may be offline."
+        None => rsx!(LoadingPage {}),
+        Some(Err(e)) => rsx!(ErrorPage {
+            error_text:
+                "Could not load project. You may need to log in or the servers may be offline."
                     .to_string(),
-                error_details: e.clone(),
-            }
-        ),
-        Some(Ok(cook_and_run_meta)) => rsx!(
-            OverviewContent { cook_and_run_meta: cook_and_run_meta.clone() }
-        ),
+            error_details: e.clone(),
+        }),
+        Some(Ok(meta)) => rsx!(OverviewContent {
+            cook_and_run_meta: meta.clone()
+        }),
     }
 }
+
+// ─────────────────────────────────────────────
+//  Content
+// ─────────────────────────────────────────────
 
 #[component]
 pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
     let storage_signal = use_context::<Signal<StorageManager>>();
 
     let mut delete_dialog_signal = use_signal(|| false);
-
     let mut error_name_signal = use_signal(|| "".to_string());
-
     let mut error_signal = use_signal(|| "".to_string());
-
     let mut name_signal = use_signal(|| cook_and_run_meta.name.clone());
+    let mut occur_signal = use_signal(|| cook_and_run_meta.occur);
 
-    let on_name_input = {
-        move |evt: FormEvent| {
-            let current_name = evt.value();
-            name_signal.set(current_name.clone());
-            if current_name.is_empty() {
-                error_name_signal.set("Project name can not be empty!".to_string());
-            } else {
-                error_name_signal.set("".to_string());
-            }
+    let on_name_input = move |evt: FormEvent| {
+        let current_name = evt.value();
+        name_signal.set(current_name.clone());
+        if current_name.is_empty() {
+            error_name_signal.set("Project name cannot be empty!".to_string());
+        } else {
+            error_name_signal.set("".to_string());
         }
     };
-    let mut occur_signal = use_signal(|| cook_and_run_meta.occur);
 
     let on_save: AsyncAction = async_action!({
         let current_name = name_signal.read().clone();
-        console::log_1(&format!("Start saving project: {}", current_name).into());
-
         if current_name.is_empty() {
-            error_name_signal.set("Project name can not be empty!".to_string());
-            console::log_1(&format!("Project name can not be empty!").into());
+            error_name_signal.set("Project name cannot be empty!".to_string());
         } else {
-            console::log_1(&format!("Writing data to disk.").into());
             let result = update_meta_of_cook_and_run(
                 cook_and_run_meta.id,
                 current_name,
-                occur_signal.read().clone(),
+                *occur_signal.read(),
             )
             .await;
-
             if let Err(e) = result {
-                console::error_1(&format!("Error saving project name: {}", e,).into());
+                console::error_1(&format!("Error saving project: {}", e).into());
                 error_signal.set("Saving failed! Try again later.".to_string());
             } else {
-                console::log_1(&format!("Project is saved!").into());
                 error_signal.set("".to_string());
             }
         }
@@ -174,119 +165,169 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
 
     let error_login_signal = use_signal(|| match storage_signal.read().get_auth_state() {
         AuthState::LoggedIn(_) => "".to_string(),
-        _ => "Not loged in!".to_string(),
+        _ => "Not logged in!".to_string(),
     });
 
+    let is_cloud = cook_and_run_meta.is_in_cloud;
+
     rsx! {
-        section {
+        section { class: "px-8 py-6 space-y-8",
+
+            // ── Page header ───────────────────────────────────────
             Headline1 { headline: "Overview" }
 
-            label { class: "block font-semibold text-[#3B3B3B]", "Project Name" }
-            Input {
-                place_holer: Some("Project Name".to_string()),
-                value: name_signal.read(),
-                is_error: !error_name_signal.read().is_empty(),
-                oninput: on_name_input,
-            }
-            InputError { error: error_name_signal.read() }
+            // ── Settings card ─────────────────────────────────────
+            div { class: "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden",
 
-            label { class: "block font-semibold text-[#3B3B3B]", "Occuring" }
-            InputDate {
-                value: occur_signal.read().format("%Y-%m-%d"),
-                oninput: move |e: FormEvent| {
-                    let date = NaiveDate::parse_from_str(&e.value(), "%Y-%m-%d");
-                    let date = match date {
-                        Ok(d) => d,
-                        Err(e) => {
-                            console::error_1(&format!("Date format is not correct: {}", e).into());
-                            return;
+                div { class: "px-5 py-3.5 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5",
+                    div { class: "w-1.5 h-5 rounded-full bg-amber-400/70" }
+                    span { class: "text-sm font-semibold text-zinc-800", "Project Settings" }
+                }
+
+                div { class: "px-5 py-5 space-y-4",
+
+                    // Name + Date side by side
+                    div { class: "grid grid-cols-2 gap-4",
+
+                        div {
+                            label { class: "{LBL}", "Project Name" }
+                            Input {
+                                place_holer: Some("e.g. Summer Cook & Run 2025".to_string()),
+                                value: name_signal.read(),
+                                is_error: !error_name_signal.read().is_empty(),
+                                oninput: on_name_input,
+                            }
+                            InputError { error: error_name_signal.read() }
                         }
-                    };
-                    occur_signal
-                        .set(
-                            date
-                                .and_time(
-                                    NaiveTime::from_hms_opt(0, 0, 0)
-                                        .expect("Expect time to be valid!"),
-                                ),
-                        );
-                },
-            }
 
-            InputError { error: error_signal.read() }
+                        div {
+                            label { class: "{LBL}", "Occurring" }
+                            InputDate {
+                                value: occur_signal.read().format("%Y-%m-%d"),
+                                oninput: move |e: FormEvent| {
+                                    match NaiveDate::parse_from_str(&e.value(), "%Y-%m-%d") {
+                                        Ok(d) => {
+                                            occur_signal.set(
+                                                d.and_time(
+                                                    NaiveTime::from_hms_opt(0, 0, 0)
+                                                        .expect("Valid time"),
+                                                ),
+                                            );
+                                        }
+                                        Err(e) => {
+                                            console::error_1(
+                                                &format!("Date format not correct: {}", e).into(),
+                                            );
+                                        }
+                                    }
+                                },
+                            }
+                        }
+                    }
 
-            div { class: "flex flex-wrap gap-4 items-center mt-4",
-                ConfirmButton {
-                    action: on_save,
-                    text: "Save".to_string(),
-                    error_signal: error_name_signal.clone(),
+                    InputError { error: error_signal.read() }
                 }
 
-                if cook_and_run_meta.is_in_cloud {
+                // Card footer – action buttons
+                div { class: "px-5 pb-5 pt-1 flex flex-wrap items-center gap-3",
+
+                    ConfirmButton {
+                        action: on_save,
+                        text: "Save".to_string(),
+                        error_signal: error_name_signal.clone(),
+                    }
+
+                    if is_cloud {
+                        SecondaryButton {
+                            action: async_action!(
+                                {
+                                    match download_cook_and_run(cook_and_run_meta.id).await {
+                                        Ok(cook_and_run_id) => {
+                                            use_navigator().push(Route::Overview { cook_and_run_id });
+                                        }
+                                        Err(e) => {
+                                            console::error_1(
+                                                &format!("Error downloading project: {}", e).into(),
+                                            );
+                                        }
+                                    }
+                                }
+                            ),
+                            text: "Download".to_string(),
+                            error_signal: error_login_signal.clone(),
+                        }
+                    } else {
+                        SecondaryButton {
+                            action: async_action!(
+                                {
+                                    match upload_cook_and_run(cook_and_run_meta.id).await {
+                                        Ok(cook_and_run_id) => {
+                                            use_navigator().push(Route::Overview { cook_and_run_id });
+                                        }
+                                        Err(e) => {
+                                            console::error_1(
+                                                &format!("Error uploading project: {}", e).into(),
+                                            );
+                                        }
+                                    }
+                                }
+                            ),
+                            text: "Upload".to_string(),
+                            error_signal: error_login_signal.clone(),
+                        }
+                    }
+
                     SecondaryButton {
                         action: async_action!(
-                            { let result = download_cook_and_run(cook_and_run_meta.id). await; match result {
-                            Ok(cook_and_run_id) => { use_navigator().push(Route::Overview { cook_and_run_id
-                            }); } Err(e) => { console::error_1(&
-                            format!("Error while downloading project: {}", e) .into(),); } }; }
+                            {
+                                if let Err(e) = export_file(cook_and_run_meta.id).await {
+                                    console::error_1(
+                                        &format!("Error exporting file: {}", e).into(),
+                                    );
+                                }
+                            }
                         ),
-                        text: "Download".to_string(),
-                        error_signal: error_login_signal.clone(),
+                        text: "Export".to_string(),
                     }
-                } else {
-                    SecondaryButton {
-                        action: async_action!(
-                            { let result = upload_cook_and_run(cook_and_run_meta.id). await; match result {
-                            Ok(cook_and_run_id) => { use_navigator().push(Route::Overview { cook_and_run_id
-                            }); } Err(e) => { console::error_1(&
-                            format!("Error while downloading project: {}", e) .into(),); } }; }
-                        ),
-                        text: "Upload".to_string(),
-                        error_signal: error_login_signal.clone(),
-                    }
-                }
 
-                SecondaryButton {
-                    action: async_action!(
-                        { let result = export_file(cook_and_run_meta.id). await; if let Err(e) = result {
-                        console::error_1(& format!("Error while exporting file: {}", e) .into()); } }
-                    ),
-                    text: "Export".to_string(),
-                }
-
-                div { class: "ml-auto",
-                    WarnButton {
-                        action: async_action!({ delete_dialog_signal.set(true); }),
-                        text: "Delete Project".to_string(),
+                    div { class: "ml-auto",
+                        WarnButton {
+                            action: async_action!({ delete_dialog_signal.set(true); }),
+                            text: "Delete Project".to_string(),
+                        }
                     }
                 }
             }
 
-            if cook_and_run_meta.is_in_cloud {
-                // Cloud-Projekt
-                div { class: "bg-yellow-100 border border-yellow-300 text-yellow-800 p-4 rounded max-w-xl mt-6",
-                    h3 { class: "font-bold mb-2", "Cloud Info" }
-                    p { "This project is stored in the cloud." }
-                    p { "Your data is synced across devices, and backups are handled automatically." }
-                    p { class: "mt-2 font-semibold",
-                        "You can't work offline. To transforme this projact to an offline project, use the download button."
-                    }
+            // ── Storage info card ─────────────────────────────────
+            if is_cloud {
+                StorageInfoCard {
+                    title: "Cloud Project",
+                    icon_color: "text-amber-500",
+                    // cloud icon path
+                    icon_path: "M16.88 9.94a5 5 0 00-9.72-1.47A4 4 0 006 17h9a4 4 0 001.88-7.06z",
+                    lines: vec![
+                        "This project is stored in the cloud.".to_string(),
+                        "Your data is synced across devices and backed up automatically.".to_string(),
+                        "Offline work is not available. Use the Download button to create a local copy.".to_string(),
+                    ],
                 }
             } else {
-                // Lokales Projekt
-                div { class: "bg-yellow-100 border border-yellow-300 text-yellow-800 p-4 rounded max-w-xl mt-6",
-                    h3 { class: "font-bold mb-2", "Local Project Info" }
-                    p { "Projects stored only locally ensure your data stays on your machine." }
-                    p {
-                        "You can upload a project to the cloud to enable syncing, backups, and online collaboration."
-                    }
-                    p { class: "mt-2 font-semibold",
-                        "Note: Cloud functionality requires you to be logged in."
-                    }
+                StorageInfoCard {
+                    title: "Local Project",
+                    icon_color: "text-zinc-400",
+                    // local/desktop icon path
+                    icon_path: "M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm2 0v8h10V5H5zm4 10h2v2H9v-2z",
+                    lines: vec![
+                        "This project is stored only on this device.".to_string(),
+                        "Upload it to the cloud to enable syncing, backups, and collaboration.".to_string(),
+                        "Cloud features require you to be logged in.".to_string(),
+                    ],
                 }
             }
         }
 
+        // ── Delete dialog ─────────────────────────────────────────
         if *delete_dialog_signal.read() {
             DeleteProjectDialog {
                 delete_project_signal: delete_dialog_signal.clone(),
@@ -296,36 +337,104 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
     }
 }
 
+// ─────────────────────────────────────────────
+//  Storage info card
+// ─────────────────────────────────────────────
+
+#[component]
+fn StorageInfoCard(
+    title: &'static str,
+    icon_color: &'static str,
+    icon_path: &'static str,
+    lines: Vec<String>,
+) -> Element {
+    rsx! {
+        div { class: "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden",
+
+            div { class: "px-5 py-3.5 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5",
+                svg {
+                    class: "w-4 h-4 shrink-0 {icon_color}",
+                    fill: "currentColor",
+                    view_box: "0 0 20 20",
+                    xmlns: "http://www.w3.org/2000/svg",
+                    path { d: "{icon_path}" }
+                }
+                span { class: "text-sm font-semibold text-zinc-800", "{title}" }
+            }
+
+            div { class: "px-5 py-4 space-y-1.5",
+                for (i, line) in lines.iter().enumerate() {
+                    p {
+                        class: if i == lines.len() - 1 {
+                            "text-sm font-medium text-zinc-700"
+                        } else {
+                            "text-sm text-zinc-500"
+                        },
+                        "{line}"
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+//  Delete dialog
+// ─────────────────────────────────────────────
+
 #[component]
 fn DeleteProjectDialog(delete_project_signal: Signal<bool>, project_id: Uuid) -> Element {
     let mut delete_loading_signal = use_signal(|| false);
+
     rsx! {
-        div { class: "backdrop-blur fixed inset-0 flex h-screen w-screen justify-center items-center",
-            div { class: "relative bg-white shadow-md rounded-xl p-6 hover:shadow-lg transition-all cursor-pointer ",
+        div { class: "backdrop-blur-sm fixed inset-0 flex h-screen w-screen \
+                      justify-center items-center bg-black/20 z-50",
+            div { class: "relative bg-white rounded-2xl border border-red-100 \
+                          shadow-xl w-96 overflow-hidden",
 
-                // Title
-                h2 { class: "text-2xl font-semibold text-red-600 mb-4", "Delete Project" }
-
-                p { class: "text-red-600 font-semibold mb-4",
-                    "Deleting this project will permanently and irreversibly remove it. This action can not be undone."
+                // Dialog header
+                div { class: "px-5 py-4 bg-red-50/70 border-b border-red-100 flex items-center gap-2.5",
+                    div { class: "w-1.5 h-5 rounded-full bg-red-400/70" }
+                    span { class: "text-base font-semibold text-red-700", "Delete Project" }
                 }
 
                 // Close button
                 CloseButton {
-                    onclick: move |_| {
-                        delete_project_signal.set(false);
-                    },
+                    onclick: move |_| { delete_project_signal.set(false); },
                 }
 
-                // Delete confirmation
-                WarnButton {
-                    text: "Delete Project".to_string(),
-                    action: async_action!(
-                        { delete_loading_signal.set(true); let result =
-                        delete_cook_and_run_project(project_id). await; delete_loading_signal.set(false);
-                        if let Err(e) = result { console::error_1(& format!("Error deleting project: {}",
-                        e) .into()); } else { use_navigator().push(Route::Dashboard {}); } }
-                    ) as AsyncAction,
+                // Body
+                div { class: "px-5 py-5 space-y-5",
+                    p { class: "text-sm text-zinc-600 leading-relaxed",
+                        "Deleting this project will "
+                        span { class: "font-semibold text-red-600", "permanently" }
+                        " remove all data. This action "
+                        span { class: "font-semibold text-red-600", "cannot be undone." }
+                    }
+
+                    div { class: "flex justify-end",
+                        WarnButton {
+                            text: if *delete_loading_signal.read() {
+                                "Deleting…".to_string()
+                            } else {
+                                "Delete Project".to_string()
+                            },
+                            action: async_action!(
+                                {
+                                    delete_loading_signal.set(true);
+                                    let result = delete_cook_and_run_project(project_id).await;
+                                    delete_loading_signal.set(false);
+                                    if let Err(e) = result {
+                                        console::error_1(
+                                            &format!("Error deleting project: {}", e).into(),
+                                        );
+                                    } else {
+                                        use_navigator().push(Route::Dashboard {});
+                                    }
+                                }
+                            ) as AsyncAction,
+                        }
+                    }
                 }
             }
         }

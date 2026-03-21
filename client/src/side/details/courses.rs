@@ -71,6 +71,10 @@ impl CourseParam {
     }
 }
 
+// ─────────────────────────────────────────────
+//  Root
+// ─────────────────────────────────────────────
+
 #[component]
 pub fn Courses(cook_and_run_id: Uuid) -> Element {
     let storage = use_context::<Signal<StorageManager>>();
@@ -99,6 +103,10 @@ pub fn Courses(cook_and_run_id: Uuid) -> Element {
     }
 }
 
+// ─────────────────────────────────────────────
+//  Content
+// ─────────────────────────────────────────────
+
 #[component]
 fn CoursesContent(cook_and_run_id: Uuid, course_list: Vec<CourseData>) -> Element {
     let mut course_list_signal = use_signal(|| {
@@ -107,87 +115,96 @@ fn CoursesContent(cook_and_run_id: Uuid, course_list: Vec<CourseData>) -> Elemen
             .map(|c| CourseParam::from_course_data(c))
             .collect::<Vec<CourseParam>>()
     });
+
+    // Shared label token – matches calculate.rs
+    const LBL: &str =
+        "block text-[11px] font-semibold tracking-[0.12em] uppercase text-amber-700/70 mb-1.5";
+
     rsx! {
-        section {
+        section { class: "px-8 py-6 space-y-8",
+
+            // ── Page header ───────────────────────────────────────
             Headline1 { headline: "Courses".to_string() }
 
-            // Scrollable grid
-            div { class: "grid grid-cols-1 gap-4 p-8 max-h-[calc(100vh-16rem)] overflow-y-auto pr-6",
-                for course in course_list_signal.read().iter().cloned() {
-                    div { class: "relative bg-[#fdfaf6] shadow-md rounded-xl p-6 hover:shadow-lg transition-all",
+            // ── Card list ─────────────────────────────────────────
+            div { class: "grid grid-cols-1 gap-4 max-h-[calc(100vh-16rem)] overflow-y-auto pr-1",
 
-                        div { class: "grid grid-cols-10 gap-4",
-                            div { class: "flex flex-col col-span-7",
-                                span { class: "text-sm font-semibold mb-1 text-gray-700",
-                                    "Name:"
-                                }
-                                Input {
-                                    place_holer: "Course name",
-                                    value: "{course.name.clone()}",
-                                    is_error: !course.name_error.clone().is_empty(),
-                                    oninput: move |e: Event<FormData>| {
-                                        let name_value = e.value().trim().to_string();
-                                        let mut list = course_list_signal.write();
-                                        if let Some(c) = list.iter_mut().find(|c| c.id == course.id) {
-                                            check_name(c, &name_value);
-                                        }
-                                    },
-                                }
-                                InputError { error: "{course.name_error.clone()}" }
-                            }
-                            div { class: "flex flex-col col-span-3",
-                                span { class: "text-sm font-semibold mb-1 text-gray-700",
-                                    "Time:"
-                                }
-                                InputTime {
-                                    value: course.time.clone(),
-                                    is_error: !course.time_error.clone().is_empty(),
-                                    oninput: move |event: Event<FormData>| {
-                                        let mut list = course_list_signal.write();
-                                        if let Some(c) = list.iter_mut().find(|c| c.id == course.id) {
-                                            check_time(c, &event.value());
-                                        }
-                                    },
-                                }
-                                InputError { error: "{course.time_error.clone()}" }
+                for course in course_list_signal.read().iter().cloned() {
+
+                    // ── Course card ───────────────────────────────
+                    div { class: "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden \
+                                  transition-shadow duration-150 hover:shadow-md",
+
+                        // Card header bar
+                        div { class: "px-5 py-3 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5",
+                            div { class: "w-1.5 h-4 rounded-full bg-amber-400/70" }
+                            span { class: "text-[11px] font-semibold tracking-[0.12em] uppercase text-amber-700/70",
+                                if course.name.is_empty() { "New course" } else { "{course.name}" }
                             }
                         }
-                        div { class: "flex flex-wrap items-center gap-3",
-                            div { class: "flex items-center gap-2",
-                                input {
-                                    r#type: "radio",
-                                    name: "multi_participant_course",
-                                    checked: course.has_multiple_hosts,
-                                    onchange: move |_| {
-                                        let mut list = course_list_signal.write();
-                                        for c in list.iter_mut() {
-                                            if c.id == course.id {
-                                                if !c.has_multiple_hosts {
-                                                    c.has_multiple_hosts = true;
-                                                    c.is_updated = true;
-                                                }
-                                            } else {
-                                                if c.has_multiple_hosts {
-                                                    c.has_multiple_hosts = false;
-                                                    c.is_updated = true;
-                                                }
+
+                        // Card body
+                        div { class: "px-5 py-4 space-y-4",
+
+                            // Name + Time
+                            div { class: "grid grid-cols-10 gap-4",
+
+                                div { class: "flex flex-col col-span-7",
+                                    label { class: "{LBL}", "Name" }
+                                    Input {
+                                        place_holer: "Course name",
+                                        value: "{course.name.clone()}",
+                                        is_error: !course.name_error.clone().is_empty(),
+                                        oninput: move |e: Event<FormData>| {
+                                            let name_value = e.value().trim().to_string();
+                                            let mut list = course_list_signal.write();
+                                            if let Some(c) = list.iter_mut().find(|c| c.id == course.id) {
+                                                check_name(c, &name_value);
                                             }
-                                        }
-                                    },
+                                        },
+                                    }
+                                    InputError { error: "{course.name_error.clone()}" }
                                 }
-                                label { class: "text-sm text-gray-700", "Allow more hosts!" }
+
+                                div { class: "flex flex-col col-span-3",
+                                    label { class: "{LBL}", "Time" }
+                                    InputTime {
+                                        value: course.time.clone(),
+                                        is_error: !course.time_error.clone().is_empty(),
+                                        oninput: move |event: Event<FormData>| {
+                                            let mut list = course_list_signal.write();
+                                            if let Some(c) = list.iter_mut().find(|c| c.id == course.id) {
+                                                check_time(c, &event.value());
+                                            }
+                                        },
+                                    }
+                                    InputError { error: "{course.time_error.clone()}" }
+                                }
                             }
 
-                            div { class: "ml-auto",
+                            // Footer row: radio + delete
+                            div { class: "flex items-center justify-between pt-1",
+
+                                // Delete button
                                 {
                                     DeleteButtonProps::new(
                                         async_action!(
-                                            { if ! course.is_new { let mut storage_signal = use_context::< Signal <
-                                            StorageManager >> (); let mut storage = storage_signal.write(); let
-                                            result = storage.delete_course_of_cook_and_run(cook_and_run_id, course
-                                            .id). await; if let Err(e) = result { console::error_1(&
-                                            format!("Error deleting course: {}", e) .into()); return; } } let mut
-                                            list = course_list_signal.write(); list.retain(| c | c.id != course.id);
+                                            {
+                                                if !course.is_new {
+                                                    let mut storage_signal = use_context::<Signal<StorageManager>>();
+                                                    let mut storage = storage_signal.write();
+                                                    let result = storage
+                                                        .delete_course_of_cook_and_run(cook_and_run_id, course.id)
+                                                        .await;
+                                                    if let Err(e) = result {
+                                                        console::error_1(
+                                                            &format!("Error deleting course: {}", e).into(),
+                                                        );
+                                                        return;
+                                                    }
+                                                }
+                                                let mut list = course_list_signal.write();
+                                                list.retain(|c| c.id != course.id);
                                             }
                                         ),
                                         None,
@@ -198,37 +215,81 @@ fn CoursesContent(cook_and_run_id: Uuid, course_list: Vec<CourseData>) -> Elemen
                     }
                 }
 
-                div {
-                    a {
-                        class: "border-4 border-dashed border-gray-300 rounded-xl p-6 flex items-center justify-center text-gray-400 hover:bg-[#fdfaf6] hover:text-[#C66741] hover:scale-105 transition-all duration-200 cursor-pointer",
-                        onclick: move |_| {
-                            let mut list = course_list_signal.write();
-                            list.push(CourseParam::default());
-                        },
-                        div {
-                            div { class: "text-5xl font-bold", "+" }
-                        }
+                // ── Add course button ─────────────────────────────
+                a {
+                    class: "flex items-center justify-center gap-3 \
+                            rounded-2xl border-2 border-dashed border-amber-200 \
+                            bg-amber-50/30 px-6 py-5 \
+                            text-amber-400 hover:text-amber-600 \
+                            hover:border-amber-400 hover:bg-amber-50/60 \
+                            transition-all duration-200 cursor-pointer group",
+                    onclick: move |_| {
+                        let mut list = course_list_signal.write();
+                        list.push(CourseParam::default());
+                    },
+                    // Plus icon
+                    div { class: "w-7 h-7 rounded-full border-2 border-current \
+                                  flex items-center justify-center \
+                                  text-lg font-bold leading-none \
+                                  group-hover:scale-110 transition-transform duration-150",
+                        "+"
                     }
+                    span { class: "text-sm font-semibold tracking-wide", "Add course" }
                 }
 
-                div { class: "flex justify-end w-full ",
+                // ── Save button ───────────────────────────────────
+                div { class: "flex justify-end pt-1",
                     ConfirmButton {
                         action: async_action!(
-                            { let mut storage_signal = use_context::< Signal < StorageManager >> (); let mut
-                            storage = storage_signal.write(); let mut list = course_list_signal.write(); for
-                            course in list.iter_mut() { let name = course.name.clone(); let time = course
-                            .time.format("%H:%M").to_string(); if ! check_name(course, & name) ||!
-                            check_time(course, & time) { console::error_1(&
-                            format!("Validation errors in course: {}", course.id) .into()); continue; } if
-                            course.is_new { let result = storage
-                            .create_course_of_cook_and_run(cook_and_run_id, course.id, & course
-                            .to_create_course()). await; if let Err(e) = result { console::error_1(&
-                            format!("Error inserting course: {}", e) .into()); return; } else { course.is_new
-                            = false; course.is_updated = false; } } else if course.is_updated { let result =
-                            storage.update_course_of_cook_and_run(cook_and_run_id, course.id, & course
-                            .to_update_course()). await; if let Err(e) = result { console::error_1(&
-                            format!("Error updating course: {}", e) .into()); return; } else { course
-                            .is_updated = false; } } } }
+                            {
+                                let mut storage_signal = use_context::<Signal<StorageManager>>();
+                                let mut storage = storage_signal.write();
+                                let mut list = course_list_signal.write();
+                                for course in list.iter_mut() {
+                                    let name = course.name.clone();
+                                    let time = course.time.format("%H:%M").to_string();
+                                    if !check_name(course, &name) || !check_time(course, &time) {
+                                        console::error_1(
+                                            &format!("Validation errors in course: {}", course.id).into(),
+                                        );
+                                        continue;
+                                    }
+                                    if course.is_new {
+                                        let result = storage
+                                            .create_course_of_cook_and_run(
+                                                cook_and_run_id,
+                                                course.id,
+                                                &course.to_create_course(),
+                                            )
+                                            .await;
+                                        if let Err(e) = result {
+                                            console::error_1(
+                                                &format!("Error inserting course: {}", e).into(),
+                                            );
+                                            return;
+                                        } else {
+                                            course.is_new = false;
+                                            course.is_updated = false;
+                                        }
+                                    } else if course.is_updated {
+                                        let result = storage
+                                            .update_course_of_cook_and_run(
+                                                cook_and_run_id,
+                                                course.id,
+                                                &course.to_update_course(),
+                                            )
+                                            .await;
+                                        if let Err(e) = result {
+                                            console::error_1(
+                                                &format!("Error updating course: {}", e).into(),
+                                            );
+                                            return;
+                                        } else {
+                                            course.is_updated = false;
+                                        }
+                                    }
+                                }
+                            }
                         ),
                         text: "Save".to_string(),
                     }
@@ -237,6 +298,10 @@ fn CoursesContent(cook_and_run_id: Uuid, course_list: Vec<CourseData>) -> Elemen
         }
     }
 }
+
+// ─────────────────────────────────────────────
+//  Validation helpers
+// ─────────────────────────────────────────────
 
 fn check_name(course_param: &mut CourseParam, new_name: &str) -> bool {
     let name = new_name.trim();

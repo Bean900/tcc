@@ -138,14 +138,12 @@ pub fn Calculate(cook_and_run_id: Uuid) -> Element {
 
     let (course_list, start_point, end_point) = match &*course_list_result.read_unchecked() {
         None => return rsx!(LoadingPage {}),
-        Some(Err(e)) => {
-            return rsx!(ErrorPage {
+        Some(Err(e)) => return rsx!(ErrorPage {
             error_text:
                 "Could not load course list. You may need to log in or the servers may be offline."
                     .to_string(),
             error_details: e.clone(),
-        })
-        }
+        }),
         Some(Ok((course_list, start_point, end_point))) => {
             (course_list.clone(), start_point.clone(), end_point.clone())
         }
@@ -200,7 +198,10 @@ fn CalculateSettings(cook_and_run_id: Uuid, plan_config_signal: Signal<PlanConfi
     const LBL: &str =
         "block text-[11px] font-semibold tracking-[0.12em] uppercase text-amber-700/70 mb-1.5";
     const NATIVE_INPUT: &str =
-        "w-full border border-gray-300 rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 bg-white focus:ring-[#C66741]";
+        "w-full px-3 py-2 rounded-xl border border-amber-200 bg-amber-50/40 \
+         text-sm text-zinc-800 \
+         focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 \
+         transition-colors duration-150 mb-4";
 
     rsx!(
         div { class: "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden",
@@ -352,14 +353,12 @@ fn CalculatePlans(
 
     let team_list = match &*team_list_result.read_unchecked() {
         None => return rsx!(LoadingPage {}),
-        Some(Err(e)) => {
-            return rsx!(ErrorPage {
+        Some(Err(e)) => return rsx!(ErrorPage {
             error_text:
                 "Could not load team list. You may need to log in or the servers may be offline."
                     .to_string(),
             error_details: e.clone(),
-        })
-        }
+        }),
         Some(Ok(team_list)) => team_list.clone(),
     };
 
@@ -373,7 +372,7 @@ fn CalculatePlans(
             .collect()
     });
 
-    // ── Empty state: no end point ─────────────────────────────────
+    // ── Empty state: no end point ──────────────────────────────────
     if end_point_signal.read().is_none() {
         return rsx!(
             div { class: "rounded-2xl border border-amber-100 bg-amber-50/40 px-6 py-8 text-center",
@@ -388,7 +387,7 @@ fn CalculatePlans(
         );
     }
 
-    // ── Empty state: no plan yet ──────────────────────────────────
+    // ── Empty state: no plan yet ───────────────────────────────────
     let plan = match &*plan_result.read_unchecked() {
         None => return rsx!(LoadingPage {}),
         Some(Err(e)) => {
@@ -406,8 +405,8 @@ fn CalculatePlans(
                         span { class: "text-amber-500 text-lg", "⊕" }
                     }
                     div { class: "text-center",
-                        p { class: "text-m font-medium text-zinc-700 mb-1", "No plan generated yet" }
-                        p { class: "text-s text-zinc-400",
+                        p { class: "text-sm font-medium text-zinc-700 mb-1", "No plan generated yet" }
+                        p { class: "text-xs text-zinc-400",
                             "Run the calculation to create a walking-path plan for this Cook & Run."
                         }
                     }
@@ -465,7 +464,7 @@ fn CalculatePlans(
     rsx! {
         div {
 
-            // ── Section header ────────────────────────────────────
+            // ── Section header ─────────────────────────────────────
             div { class: "mb-6 flex items-end justify-between",
                 div {
                     Headline2 { headline: "Walking path" }
@@ -473,7 +472,6 @@ fn CalculatePlans(
                         "{num_teams} Teams  ·  {num_courses} Courses"
                     }
                 }
-
 
                 // Re-calculate button
                 ConfirmButton {
@@ -507,24 +505,35 @@ fn CalculatePlans(
                     ),
                     text: "Recalculate".to_string(),
                 }
-
-
             }
 
-            // ── Table ─────────────────────────────────────────────
-            div { class: "overflow-x-auto rounded-2xl border border-zinc-800 shadow-[0_8px_40px_rgba(0,0,0,0.6)]",
+            // ── Table ──────────────────────────────────────────────
+            //
+            // Color rationale:
+            //   • Outer border / dividers : amber-200  — warm, matches card system
+            //   • Header background       : #FAF0E2    — slightly deeper than even rows
+            //   • Even rows               : #F8EFE1    — warm cream (original)
+            //   • Odd rows                : #FDFAF6    — near-white warm, replaces cold pinkish #F8EFEF
+            //   • Row hover               : amber-100/70 — warm, never goes dark
+            //   • Host badge              : #D67229    — amber accent (unchanged)
+            //   • Guest pill (host)       : #C66741 border + text — terracotta accent (unchanged)
+            //   • Guest pill (visitor)    : amber-200 border, zinc-700 text — warm neutral
+            //   • Address text            : amber-900/40 — warm muted instead of cold zinc-500
+            //   • Fill dash               : amber-300  — warm placeholder
+
+            div { class: "overflow-x-auto rounded-2xl border border-amber-200 shadow-sm",
 
                 div { class: "min-w-max w-full",
 
                     // Header row
                     div {
-                        class: "grid border-b border-zinc-800",
+                        class: "grid border-b border-amber-200 bg-[#FAF0E2]",
                         style: "{grid_cols}",
 
                         div { class: "px-5 py-3.5 flex items-center gap-2.5",
-                            div { class: "w-1.5 h-5 rounded-full bg-amber-500/60" }
+                            div { class: "w-1.5 h-4 rounded-full bg-amber-400/70" }
                             span {
-                                class: "text-[11px] font-bold tracking-[0.18em] uppercase text-zinc-400",
+                                class: "text-[11px] font-bold tracking-[0.18em] uppercase text-amber-700/60",
                                 "Team"
                             }
                         }
@@ -534,9 +543,9 @@ fn CalculatePlans(
                                 rsx! {
                                     div {
                                         key: "{idx}",
-                                        class: "px-5 py-3.5 border-l border-zinc-800 flex items-center gap-2.5",
+                                        class: "px-5 py-3.5 border-l border-amber-200 flex items-center gap-2.5",
                                         span {
-                                            class: "text-[11px] font-bold tracking-[0.18em] uppercase text-zinc-400",
+                                            class: "text-[11px] font-bold tracking-[0.18em] uppercase text-amber-700/60",
                                             "{course_name}"
                                         }
                                     }
@@ -548,29 +557,31 @@ fn CalculatePlans(
                     // Data rows
                     for (row_idx, row) in table_content.iter().enumerate() {
                         {
+                            // Warm zebra: cream / near-white — no more cold pink
                             let row_bg = if row_idx % 2 == 0 {
                                 "bg-[#F8EFE1]"
                             } else {
-                                "bg-[#F8EFEF]"
+                                "bg-[#FDFAF6]"
                             };
                             let host_id = row.host.id;
                             rsx! {
                                 div {
                                     key: "{row_idx}",
-                                    class: "grid border-b border-zinc-800/50 last:border-b-0 \
-                                            transition-colors duration-100 hover:bg-zinc-800/40 {row_bg} cursor-pointer",
+                                    class: "grid border-b border-amber-200/70 last:border-b-0 \
+                                            transition-colors duration-100 hover:bg-amber-100/70 \
+                                            {row_bg} cursor-pointer",
                                     style: "{grid_cols}",
                                     onclick: move |_| {
-                                        use_navigator().push(Route::Plan { cook_and_run_id, team_id: host_id } );
+                                        use_navigator().push(Route::Plan { cook_and_run_id, team_id: host_id });
                                     },
 
                                     // Host cell
                                     div {
-                                        class: "px-5 py-4 border-r border-zinc-800/50 flex items-start gap-3",
+                                        class: "px-5 py-4 border-r border-amber-200/70 flex items-start gap-3",
 
                                         div {
                                             class: "mt-1.5 w-6 h-6 shrink-0 rounded-md bg-[#D67229] \
-                                                    flex items-center justify-center border border-amber-500/25",
+                                                    flex items-center justify-center",
                                             span {
                                                 class: "text-white text-[10px] font-bold",
                                                 "{row_idx + 1}"
@@ -588,6 +599,8 @@ fn CalculatePlans(
                                     // Guest cells
                                     for (idx, (guest, is_host)) in row.guest_list.iter().enumerate() {
                                         {
+                                            // Host of this course: terracotta accent
+                                            // Visitor: warm amber border, neutral text
                                             let text_color = if *is_host {
                                                 "text-[#C66741]"
                                             } else {
@@ -596,20 +609,19 @@ fn CalculatePlans(
                                             let border_color = if *is_host {
                                                 "border-[#C66741]"
                                             } else {
-                                                "border-zinc-800/50"
+                                                "border-amber-200"
                                             };
 
                                             rsx! {
                                                 div {
                                                     key: "guest-{idx}",
-                                                    class: "px-4 py-4 border-l border-zinc-800/50 \
+                                                    class: "px-4 py-4 border-l border-amber-200/70 \
                                                             flex flex-col justify-center gap-1",
 
                                                     div {
                                                         class: "inline-flex items-center gap-1.5 px-2.5 py-1 \
                                                                 rounded-lg border {border_color} \
                                                                 w-fit max-w-full",
-
                                                         span {
                                                             class: "text-xs font-semibold truncate {text_color}",
                                                             "{guest.name}"
@@ -617,7 +629,7 @@ fn CalculatePlans(
                                                     }
 
                                                     span {
-                                                        class: "text-zinc-500 text-[11px] leading-tight pl-1 truncate",
+                                                        class: "text-amber-900/40 text-[11px] leading-tight pl-1 truncate",
                                                         "{guest.address.address}"
                                                     }
                                                 }
@@ -629,8 +641,8 @@ fn CalculatePlans(
                                     for fill_idx in row.guest_list.len()..num_courses {
                                         div {
                                             key: "fill-{fill_idx}",
-                                            class: "px-4 py-4 border-l border-zinc-800/50 flex items-center",
-                                            span { class: "text-zinc-600 text-base select-none", "—" }
+                                            class: "px-4 py-4 border-l border-amber-200/70 flex items-center",
+                                            span { class: "text-amber-300 text-base select-none", "—" }
                                         }
                                     }
                                 }

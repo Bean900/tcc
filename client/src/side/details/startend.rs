@@ -7,13 +7,16 @@ use crate::{
     async_action,
     side::{
         details::{address::Address, ErrorPage, LoadingPage},
-        AsyncAction, ConfirmButton, EndSVG, Headline1, Headline2, Input, InputError, InputTime,
-        StartSVG,
+        AsyncAction, ConfirmButton, EndSVG, Headline1, Input, InputError, InputTime, StartSVG,
     },
     storage::{AddressData, MeetingPointData, StorageManager},
 };
 
 use super::address::AddressParam;
+
+// ─────────────────────────────────────────────
+//  Root
+// ─────────────────────────────────────────────
 
 #[component]
 pub fn StartEnd(cook_and_run_id: Uuid) -> Element {
@@ -47,6 +50,10 @@ pub fn StartEnd(cook_and_run_id: Uuid) -> Element {
     }
 }
 
+// ─────────────────────────────────────────────
+//  Content
+// ─────────────────────────────────────────────
+
 #[component]
 pub fn StartEndContent(
     cook_and_run_id: Uuid,
@@ -73,16 +80,12 @@ pub fn StartEndContent(
     let mut start_time_signal = use_signal(|| {
         start_point
             .as_ref()
-            .map_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap(), |p| {
-                p.time.clone()
-            })
+            .map_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap(), |p| p.time)
     });
     let mut end_time_signal = use_signal(|| {
         end_point
             .as_ref()
-            .map_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap(), |p| {
-                p.time.clone()
-            })
+            .map_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap(), |p| p.time)
     });
 
     let start_adress_param = start_point
@@ -135,176 +138,177 @@ pub fn StartEndContent(
     });
 
     rsx! {
-        section {
-            Headline1 { headline: "Start & End Point".to_string() }
+        section { class: "px-8 py-6 space-y-8",
 
+            // ── Page header ───────────────────────────────────────
+                Headline1 { headline: "Start & End Point".to_string() }
+
+            // ── Two-column card grid ──────────────────────────────
             div { class: "grid grid-cols-1 md:grid-cols-2 gap-6",
 
                 // Start Point
-                div { class: "bg-[#fdfaf6] shadow rounded-xl p-4 border w-100 h-160",
-
-                    h3 { class: "text-lg font-semibold mb-2 flex items-center justify-between",
-                        div { class: "flex items-center space-x-2",
-                            StartSVG {}
-                            Headline2 { headline: "Start Point".to_string() }
+                PointCard {
+                    title: "Start Point",
+                    has_point_signal: start_has_point_signal,
+                    toggle_label: "Use start point",
+                    name_signal: start_name_signal,
+                    name_error_signal: start_name_error_signal,
+                    time_signal: start_time_signal,
+                    address_param: start_adress_param,
+                    on_name_input: move |event: Event<FormData>| {
+                        let name = check_name(&event.value(), start_name_error_signal.clone());
+                        start_name_signal.set(name);
+                    },
+                    on_time_input: move |event: Event<FormData>| {
+                        if let Some(t) = check_time(&event.value()) {
+                            start_time_signal.set(t);
                         }
-
-                    }
-
-                    label { class: "inline-flex items-center space-x-2 text-[#3B3B3B] font-sans leading-relaxed text-base mb-4",
-                        input {
-                            r#type: "checkbox",
-                            checked: start_has_point_signal,
-                            class: "rounded",
-                            onclick: move |_| {
-                                let checkbox_state = !*start_has_point_signal.read();
-                                start_has_point_signal.set(checkbox_state);
-                            },
-                        }
-                        span { "Use start point" }
-                    }
-
-                    div {
-                        class: {
-                            format!(
-                                "mb-3 {}",
-                                if *start_has_point_signal.read() {
-                                    ""
-                                } else {
-                                    "opacity-50 pointer-events-none"
-                                },
-                            )
-                        },
-                        Input {
-                            value: start_name_signal,
-                            place_holer: "Start".to_string(),
-                            is_error: !start_name_error_signal.read().is_empty(),
-                            oninput: move |event: Event<FormData>| {
-                                let name = check_name(&event.value(), start_name_error_signal.clone());
-                                start_name_signal.set(name);
-                            },
-                        }
-                        InputError { error: start_name_error_signal.read() }
-                        InputTime {
-                            value: start_time_signal,
-                            is_error: false,
-                            oninput: move |event: Event<FormData>| {
-                                let time = check_time(&event.value());
-                                match time {
-                                    Some(t) => start_time_signal.set(t),
-                                    None => {}
-                                }
-                            },
-                        }
-                    }
-
-                    div {
-                        class: {
-                            format!(
-                                "{}",
-                                if *start_has_point_signal.read() {
-                                    ""
-                                } else {
-                                    "opacity-50 pointer-events-none"
-                                },
-                            )
-                        },
-                        Address { param: start_adress_param }
-                    }
+                    },
+                    on_toggle: move |_| {
+                        let checkbox_state = !*start_has_point_signal.read();
+                        start_has_point_signal.set(checkbox_state);
+                    },
+                    svg_icon: rsx!(StartSVG {}),
                 }
 
                 // End Point
-                div { class: "bg-[#fdfaf6] shadow rounded-xl p-4 border w-100 h-160",
-
-                    h3 { class: "text-lg font-semibold mb-2 flex items-center justify-between",
-                        div { class: "flex items-center space-x-2",
-                            EndSVG {}
-                            Headline2 { headline: "End Point".to_string() }
+                PointCard {
+                    title: "End Point",
+                    has_point_signal: end_has_point_signal,
+                    toggle_label: "Use end point",
+                    name_signal: end_name_signal,
+                    name_error_signal: end_name_error_signal,
+                    time_signal: end_time_signal,
+                    address_param: end_adress_param,
+                    on_name_input: move |event: Event<FormData>| {
+                        let name = check_name(&event.value(), end_name_error_signal.clone());
+                        end_name_signal.set(name);
+                    },
+                    on_time_input: move |event: Event<FormData>| {
+                        if let Some(t) = check_time(&event.value()) {
+                            end_time_signal.set(t);
                         }
-
-                    }
-
-                    label { class: "inline-flex items-center space-x-2 text-[#3B3B3B] font-sans leading-relaxed text-base mb-4",
-                        input {
-                            r#type: "checkbox",
-                            checked: end_has_point_signal,
-                            class: "rounded",
-                            onclick: move |_| {
-                                let checkbox_state = !*end_has_point_signal.read();
-                                end_has_point_signal.set(checkbox_state);
-                            },
-                        }
-                        span { "Use end point" }
-                    }
-
-                    div {
-                        class: {
-                            format!(
-                                "mb-3 {}",
-                                if *end_has_point_signal.read() {
-                                    ""
-                                } else {
-                                    "opacity-50 pointer-events-none"
-                                },
-                            )
-                        },
-
-                        Input {
-                            value: end_name_signal,
-                            place_holer: "End".to_string(),
-                            is_error: !end_name_error_signal.read().is_empty(),
-                            oninput: move |event: Event<FormData>| {
-                                let name = check_name(&event.value(), end_name_error_signal.clone());
-                                end_name_signal.set(name);
-                            },
-                        }
-                        InputError { error: end_name_error_signal.read() }
-                        InputTime {
-                            value: end_time_signal,
-                            is_error: false,
-                            oninput: move |event: Event<FormData>| {
-                                let time = check_time(&event.value());
-                                match time {
-                                    Some(t) => end_time_signal.set(t),
-                                    None => {}
-                                }
-                            },
-                        }
-                    }
-
-                    div {
-                        class: {
-                            format!(
-                                "{}",
-                                if *end_has_point_signal.read() {
-                                    ""
-                                } else {
-                                    "opacity-50 pointer-events-none"
-                                },
-                            )
-                        },
-                        Address { param: end_adress_param }
-                    }
+                    },
+                    on_toggle: move |_| {
+                        let checkbox_state = !*end_has_point_signal.read();
+                        end_has_point_signal.set(checkbox_state);
+                    },
+                    svg_icon: rsx!(EndSVG {}),
                 }
             }
 
+            // ── Save error banner ─────────────────────────────────
             if !save_response_error_signal.read().is_empty() {
-                div { class: "bg-red-50 border border-red-200 rounded-xl p-4 mt-6 text-red-700 font-sans",
+                div { class: "rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700",
                     "{save_response_error_signal.read()}"
                 }
             }
 
-            div { class: "flex justify-end w-full mt-8 pr-2",
+            // ── Save button ───────────────────────────────────────
+            div { class: "flex justify-end pt-1",
                 ConfirmButton { action: on_save, text: "Save".to_string() }
             }
         }
     }
 }
 
+// ─────────────────────────────────────────────
+//  Reusable point card
+// ─────────────────────────────────────────────
+
+#[component]
+fn PointCard(
+    title: &'static str,
+    has_point_signal: Signal<bool>,
+    toggle_label: &'static str,
+    name_signal: Signal<String>,
+    name_error_signal: Signal<String>,
+    time_signal: Signal<NaiveTime>,
+    address_param: AddressParam,
+    on_name_input: EventHandler<Event<FormData>>,
+    on_time_input: EventHandler<Event<FormData>>,
+    on_toggle: EventHandler<MouseData>,
+    svg_icon: Element,
+) -> Element {
+    let disabled_cls = if *has_point_signal.read() {
+        ""
+    } else {
+        "opacity-40 pointer-events-none"
+    };
+
+    const LBL: &str =
+        "block text-[11px] font-semibold tracking-[0.12em] uppercase text-amber-700/70 mb-1.5";
+
+    rsx! {
+        div { class: "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden",
+
+            // Card header
+            div { class: "px-5 py-3.5 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5",
+                div { class: "w-1.5 h-5 rounded-full bg-amber-400/70" }
+                div { class: "flex items-center gap-2",
+                    {svg_icon}
+                    span { class: "text-sm font-semibold text-zinc-800", "{title}" }
+                }
+            }
+
+            // Card body
+            div { class: "px-5 py-5 space-y-4",
+
+                // Enable toggle
+                label { class: "flex items-center gap-2.5 cursor-pointer group w-fit",
+                    input {
+                        r#type: "checkbox",
+                        checked: has_point_signal,
+                        class: "accent-[#D67229] w-4 h-4 rounded cursor-pointer",
+                        onclick: move |_| {
+                            let toggle = *has_point_signal.read();
+                            has_point_signal.set(!toggle);
+                        },
+                    }
+                    span { class: "text-[13px] text-zinc-600 group-hover:text-zinc-800 transition-colors",
+                        "{toggle_label}"
+                    }
+                }
+
+                // Name + Time – dimmed when disabled
+                div { class: "space-y-3 {disabled_cls} transition-opacity duration-150",
+                    div {
+                        label { class: "{LBL}", "Name" }
+                        Input {
+                            value: name_signal,
+                            place_holer: "{title}",
+                            is_error: !name_error_signal.read().is_empty(),
+                            oninput: move |e| on_name_input.call(e),
+                        }
+                        InputError { error: name_error_signal.read() }
+                    }
+                    div {
+                        label { class: "{LBL}", "Time" }
+                        InputTime {
+                            value: time_signal,
+                            is_error: false,
+                            oninput: move |e| on_time_input.call(e),
+                        }
+                    }
+                }
+
+                // Address – dimmed when disabled
+                div { class: "{disabled_cls} transition-opacity duration-150",
+                    Address { param: address_param }
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+//  Helpers
+// ─────────────────────────────────────────────
+
 fn check_name(name: &str, mut error_signal: Signal<String>) -> String {
     let trim_name = name.trim();
     if trim_name.is_empty() {
-        error_signal.set("Name can not be empty!".to_string());
+        error_signal.set("Name cannot be empty!".to_string());
     } else {
         error_signal.set("".to_string());
     }
@@ -312,19 +316,14 @@ fn check_name(name: &str, mut error_signal: Signal<String>) -> String {
 }
 
 fn check_time(time_str: &str) -> Option<NaiveTime> {
-    let time = NaiveTime::parse_from_str(time_str, "%H:%M");
-    match time {
-        Ok(time) => Some(time),
-
-        Err(_) => {
-            let time = NaiveTime::parse_from_str(time_str, "%H:%M:%S");
-            match time {
-                Ok(time) => Some(time),
-                Err(e) => {
-                    console::error_1(&format!("Time format is not correct: {}", e,).into());
-                    None
-                }
-            }
+    if let Ok(t) = NaiveTime::parse_from_str(time_str, "%H:%M") {
+        return Some(t);
+    }
+    match NaiveTime::parse_from_str(time_str, "%H:%M:%S") {
+        Ok(t) => Some(t),
+        Err(e) => {
+            console::error_1(&format!("Time format is not correct: {}", e).into());
+            None
         }
     }
 }
@@ -343,11 +342,9 @@ fn check_if_save_possible(
     {
         return false;
     }
-
     if end_has_point && (end_name.trim().is_empty() || end_address.check_address_data().is_err()) {
         return false;
     }
-
     true
 }
 
@@ -362,7 +359,7 @@ fn to_meeting_point_data(
     MeetingPointData {
         name: name.to_string(),
         time,
-        address: address,
+        address,
     }
 }
 
@@ -379,16 +376,17 @@ async fn save_point_data(
     end_adress_param: AddressParam,
 ) -> (Result<(), String>, Result<(), String>) {
     let start_point = if start_has_point {
-        let start_point_data =
-            to_meeting_point_data(start_name, start_time, start_adress_param.clone());
-        Some(start_point_data)
+        Some(to_meeting_point_data(
+            start_name,
+            start_time,
+            start_adress_param,
+        ))
     } else {
         None
     };
 
     let end_point = if end_has_point {
-        let end_point_data = to_meeting_point_data(end_name, end_time, end_adress_param.clone());
-        Some(end_point_data)
+        Some(to_meeting_point_data(end_name, end_time, end_adress_param))
     } else {
         None
     };
