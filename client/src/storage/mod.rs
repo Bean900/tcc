@@ -476,6 +476,31 @@ impl StorageManager {
         }
     }
 
+    pub async fn select_cook_and_run_team(
+        &self,
+        cook_and_run_id: Uuid,
+        team_id: Uuid,
+    ) -> Result<TeamData, String> {
+        match self
+            .local
+            .select_cook_and_run_team(cook_and_run_id, team_id)
+            .await
+        {
+            Ok(data) => Ok(data),
+            Err(e_local) => match self
+                .cloud
+                .select_cook_and_run_team(cook_and_run_id, team_id)
+                .await
+            {
+                Ok(data) => Ok(data),
+                Err(e_cloud) => Err(format!(
+                    "Cook and run with id {} not found in local or cloud storage: {} | {}",
+                    cook_and_run_id, e_local, e_cloud
+                )),
+            },
+        }
+    }
+
     pub async fn create_team_note_of_cook_and_run(
         &mut self,
         cook_and_run_id: Uuid,
@@ -867,6 +892,11 @@ pub trait Storage {
         &self,
         cook_and_run_id: Uuid,
     ) -> Result<Vec<TeamData>, String>;
+    async fn select_cook_and_run_team(
+        &self,
+        cook_and_run_id: Uuid,
+        team_id: Uuid,
+    ) -> Result<TeamData, String>;
     async fn select_cook_and_run_start_point(
         &self,
         cook_and_run_id: Uuid,
@@ -1089,6 +1119,22 @@ impl Default for PlanConfigData {
 pub enum Language {
     English,
     German,
+}
+
+impl Language {
+    pub fn from_string(value: String) -> Self {
+        match value.as_str() {
+            "deu" => Language::German,
+            _ => Language::English,
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            Language::German => "deu".to_string(),
+            Language::English => "eng".to_string(),
+        }
+    }
 }
 
 impl Default for Language {

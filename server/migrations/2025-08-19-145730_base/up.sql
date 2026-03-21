@@ -181,23 +181,3 @@ CREATE TABLE "course" (
 
 CREATE INDEX idx_course_cook_and_run ON "course" ("cook_and_run_id");
 
--- ========================================
--- Hosting
--- ========================================
-CREATE TABLE "hosting" (
-    "id" UUID PRIMARY KEY,
-    "plan_id" UUID NOT NULL,
-    "course_id" UUID NOT NULL,
-    "team_id" UUID NOT NULL,
-    "guest_team_ids" JSONB NOT NULL,
-    CONSTRAINT fk_hosting_plan FOREIGN KEY ("plan_id") 
-        REFERENCES "plan" ("id") ON DELETE CASCADE,
-    CONSTRAINT fk_hosting_course FOREIGN KEY ("course_id") 
-        REFERENCES "course" ("id") ON DELETE CASCADE,
-    CONSTRAINT fk_hosting_team FOREIGN KEY ("team_id") 
-        REFERENCES "team" ("id") ON DELETE CASCADE
-);
-
-CREATE INDEX idx_hosting_course_id ON "hosting" ("course_id");
-CREATE INDEX idx_hosting_team_id ON "hosting" ("team_id");
-CREATE INDEX idx_hosting_plan_id ON "hosting" ("plan_id");

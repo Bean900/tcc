@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use dioxus::html::{g::end, ol::start};
 use uuid::Uuid;
 
 use crate::storage::{CourseData, HostingData, MeetingPointData, PlanData, TeamData};
@@ -8,8 +7,8 @@ use crate::storage::{CourseData, HostingData, MeetingPointData, PlanData, TeamDa
 pub mod run_schedule;
 
 #[derive(Debug, Clone, PartialEq)]
-struct Team {
-    name: String,
+pub struct Team {
+    pub name: String,
     address: String,
     mail: Option<String>,
     phone: Option<String>,
@@ -100,7 +99,7 @@ impl ProjectSchedule {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Schedule {
-    host: Team,
+    pub host: Team,
     guest_list: Vec<Team>,
     walking_path: Vec<(Course, Team)>,
     start_point: Option<MeetingPoint>,
@@ -193,7 +192,63 @@ impl Schedule {
         }
     }
 
-    pub fn new(plan: &PlanData, project_schedule: &ProjectSchedule) -> HashMap<Uuid, Self> {
+    pub fn new(team_id: Uuid, plan: &PlanData, project_schedule: &ProjectSchedule) -> Self {
+        let hosting_map = plan
+            .hosting_list
+            .iter()
+            .map(|h| (h.id, h))
+            .collect::<std::collections::HashMap<Uuid, &HostingData>>();
+
+        let hosting_data = hosting_map
+            .iter()
+            .find(|(k, v)| v.host == team_id)
+            .expect("Expect to find hosting for team")
+            .1;
+
+        Schedule {
+            host: project_schedule
+                .team_map
+                .get(&hosting_data.host)
+                .expect("Expect host team")
+                .clone(),
+            guest_list: hosting_data
+                .guest_list
+                .iter()
+                .map(|g| {
+                    project_schedule
+                        .team_map
+                        .get(g)
+                        .expect("Expect guest team")
+                        .clone()
+                })
+                .collect(),
+            walking_path: plan
+                .walking_path
+                .get(&hosting_data.host)
+                .expect("Expect to find walking path for host")
+                .iter()
+                .map(|c| {
+                    let hosting = hosting_map.get(c).expect("Expect hosting data");
+
+                    let course = project_schedule
+                        .course_map
+                        .get(&hosting.name)
+                        .expect("Expect course")
+                        .clone();
+                    let team = project_schedule
+                        .team_map
+                        .get(&hosting.host)
+                        .expect("Expect host team")
+                        .clone();
+                    (course, team)
+                })
+                .collect(),
+            start_point: project_schedule.start_point.clone(),
+            end_point: project_schedule.end_point.clone(),
+        }
+    }
+
+    pub fn new_map(plan: &PlanData, project_schedule: &ProjectSchedule) -> HashMap<Uuid, Self> {
         let hosting_map = plan
             .hosting_list
             .iter()

@@ -9,6 +9,7 @@ use side::Callback;
 use side::Courses;
 use side::Dashboard;
 use side::Overview;
+use side::Plan;
 use side::StartEnd;
 use side::Teams;
 use uuid::Uuid;
@@ -51,6 +52,8 @@ enum Route {
                     Courses {cook_and_run_id:Uuid},
                     #[route("/calculate")]
                     Calculate {cook_and_run_id:Uuid},
+                    #[route("/plan/:team_id")]
+                    Plan {cook_and_run_id:Uuid, team_id:Uuid},
                 #[end_layout]
             #[end_nest]
         #[end_nest]
@@ -246,7 +249,7 @@ fn Wrapper() -> Element {
                                     }
                                 },
                             }
-                        
+
                         }
                     }
                 }

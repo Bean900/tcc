@@ -557,6 +557,20 @@ impl Storage for LocalStorage {
         Ok(cook_and_run.team_list)
     }
 
+    async fn select_cook_and_run_team(
+        &self,
+        cook_and_run_id: Uuid,
+        team_id: Uuid,
+    ) -> Result<TeamData, String> {
+        let cook_and_run = self.select_cook_and_run(cook_and_run_id).await?;
+        for team in cook_and_run.team_list {
+            if team.id == team_id {
+                return Ok(team);
+            }
+        }
+        Err("Team not found!".to_string())
+    }
+
     async fn select_cook_and_run_start_point(
         &self,
         cook_and_run_id: Uuid,

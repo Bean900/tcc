@@ -39,6 +39,21 @@ const LEAF_2: Asset = asset!("/assets/leaf_2.png");
 const CAKE: Asset = asset!("/assets/cake.png");
 const CARROT: Asset = asset!("/assets/carrot.png");
 
+pub async fn download(plan_title: String, team_name: String) {
+    let js = format!(
+        r#"
+        const el = document.getElementById('section-to-print');
+        htmlToImage.toPng(el).then(dataUrl => {{
+            const link = document.createElement('a');
+            link.download = '{plan_title}_{team_name}.png';
+            link.href = dataUrl;
+            link.click();
+        }});
+        "#
+    );
+    let _ = document::eval(&js).await;
+}
+
 #[component]
 pub fn RunSchedule(plan_config: PlanConfigData, schedule: Schedule) -> Element {
     let titel_html = {
@@ -58,10 +73,12 @@ pub fn RunSchedule(plan_config: PlanConfigData, schedule: Schedule) -> Element {
     };
 
     rsx!(
-
+        document::Script {
+            src: "https://unpkg.com/html-to-image@1.11.11/dist/html-to-image.js"
+        }
         div {
             id: "section-to-print",
-            class: "flex justify-center w-full h-full",
+            class: "flex justify-center w-full h-full bg-[#F8EFE1]",
             div { class: "space-y-8 w-full max-w-3xl",
                 div { class: "relative",
                     img {

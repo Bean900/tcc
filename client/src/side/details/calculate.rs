@@ -8,11 +8,12 @@ use crate::{
             run_schedule::{run_schedule::RunSchedule, Schedule},
             ErrorPage, LoadingPage,
         },
-        AsyncAction, ConfirmButton, Headline1, Headline2, Input,
+        AsyncAction, ConfirmButton, Headline1, Headline2, Input, SecondaryButton,
     },
     storage::{
         CourseData, Language, MeetingPointData, PlanConfigData, PlanData, StorageManager, TeamData,
     },
+    Route,
 };
 use chrono::NaiveDate;
 use dioxus::prelude::*;
@@ -259,12 +260,9 @@ fn CalculateSettings(cook_and_run_id: Uuid, plan_config_signal: Signal<PlanConfi
                         select {
                             class: "{NATIVE_INPUT} cursor-pointer",
                             onchange: move |e| {
-                                plan_config_signal.write().language =
-                                    match e.value().as_str() {
-                                        "deu" => Language::German,
-                                        _ => Language::English,
-                                    };
+                                plan_config_signal.write().language = Language::from_string(e.value());
                             },
+                            value: "{plan_config_signal.read().language.to_string()}",
                             option { value: "eng", "English" }
                             option { value: "deu", "German" }
                         }
@@ -476,6 +474,7 @@ fn CalculatePlans(
                     }
                 }
 
+
                 // Re-calculate button
                 ConfirmButton {
                     action: async_action!(
@@ -508,6 +507,8 @@ fn CalculatePlans(
                     ),
                     text: "Recalculate".to_string(),
                 }
+
+
             }
 
             // ── Table ─────────────────────────────────────────────
@@ -552,13 +553,16 @@ fn CalculatePlans(
                             } else {
                                 "bg-[#F8EFEF]"
                             };
-
+                            let host_id = row.host.id;
                             rsx! {
                                 div {
                                     key: "{row_idx}",
                                     class: "grid border-b border-zinc-800/50 last:border-b-0 \
-                                            transition-colors duration-100 hover:bg-zinc-800/40 {row_bg}",
+                                            transition-colors duration-100 hover:bg-zinc-800/40 {row_bg} cursor-pointer",
                                     style: "{grid_cols}",
+                                    onclick: move |_| {
+                                        use_navigator().push(Route::Plan { cook_and_run_id, team_id: host_id } );
+                                    },
 
                                     // Host cell
                                     div {

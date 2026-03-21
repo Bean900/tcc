@@ -655,6 +655,39 @@ impl Storage for CloudStorage {
         }
     }
 
+    async fn select_cook_and_run_team(
+        &self,
+        cook_and_run_id: Uuid,
+        team_id: Uuid,
+    ) -> Result<TeamData, String> {
+        let session_data = match self.get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
+
+        let url = format!(
+            "{}/cook_and_run/{}/team/{}",
+            self.base_url, cook_and_run_id, team_id
+        );
+
+        let client = reqwest::Client::new();
+        let res = client
+            .get(&url)
+            .bearer_auth(&session_data.access_token)
+            .send()
+            .await;
+
+        match res {
+            Ok(response) if response.status().is_success() => response
+                .json::<TeamData>()
+                .await
+                .map_or_else(|e| Err(e.to_string()), |data| Ok(data)),
+
+            Ok(response) => Err(format!("Request failed: {}", response.status())),
+            Err(e) => Err(format!("Request error: {}", e)),
+        }
+    }
+
     async fn select_cook_and_run_start_point(
         &self,
         cook_and_run_id: Uuid,

@@ -11,6 +11,7 @@ pub use dashboard::Dashboard;
 pub use details::calculate::Calculate;
 pub use details::courses::Courses;
 pub use details::overview::Overview;
+pub use details::plan::Plan;
 pub use details::startend::StartEnd;
 pub use details::teams::Teams;
 pub use details::Menu;

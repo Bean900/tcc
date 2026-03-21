@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::{
-    plan,
+    plan::{self},
     rest::auth::{AuthUser, AuthenticatedUser},
 };
 
@@ -568,7 +568,6 @@ impl Language {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanConfig {
-    access: Vec<Access>,
     title: String,
     description: String,
     date: NaiveDate,
@@ -578,7 +577,6 @@ pub struct PlanConfig {
 impl PlanConfig {
     pub fn from(plan_config: plan::PlanConfig) -> Self {
         PlanConfig {
-            access: Access::from_list(plan_config.access),
             title: plan_config.title,
             description: plan_config.description,
             date: plan_config.date,
@@ -588,7 +586,7 @@ impl PlanConfig {
 
     pub fn to(&self) -> plan::PlanConfig {
         plan::PlanConfig {
-            access: Access::to_list(&self.access),
+            access: vec![plan::Access::Account],
             title: self.title.clone(),
             description: self.description.clone(),
             date: self.date,
