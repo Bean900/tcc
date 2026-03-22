@@ -1,5 +1,7 @@
+use async_std::task::sleep;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use dioxus::prelude::*;
+use std::time::Duration;
 use uuid::Uuid;
 use web_sys::wasm_bindgen::{JsCast, JsValue};
 use web_sys::{console, js_sys, Blob, HtmlAnchorElement, Url};
@@ -20,6 +22,59 @@ use crate::{
 
 const LBL: &str =
     "block text-[11px] font-semibold tracking-[0.12em] uppercase text-amber-700/70 mb-1.5";
+
+// ─────────────────────────────────────────────
+//  CSS: Keyframe-Animation für den grünen Glow
+// ─────────────────────────────────────────────
+
+const SAVE_GLOW_CSS: &str = r#"
+@keyframes save-glow {
+    0%   {
+        border-color: #d1fae5;
+        box-shadow: 0 0 0 0px rgba(34, 197, 94, 0),
+                    0 1px 3px 0 rgba(0, 0, 0, 0.06);
+    }
+    20%  {
+        border-color: #22c55e;
+        box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.22),
+                    0 1px 3px 0 rgba(0, 0, 0, 0.06);
+    }
+    55%  {
+        border-color: #16a34a;
+        box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.10),
+                    0 1px 3px 0 rgba(0, 0, 0, 0.06);
+    }
+    100% {
+        border-color: #bbf7d0;
+        box-shadow: 0 0 0 0px rgba(34, 197, 94, 0),
+                    0 1px 3px 0 rgba(0, 0, 0, 0.06);
+    }
+}
+
+/* Karte pulsiert grün */
+.save-glow-card {
+    animation: save-glow 2s ease-in-out forwards;
+}
+
+/* Header-Bereich der Karte: grüner Hintergrund */
+.save-glow-card .save-glow-header {
+    background-color: rgba(240, 253, 244, 0.70) !important;
+    border-bottom-color: #bbf7d0 !important;
+    transition: background-color 0.4s ease, border-color 0.4s ease;
+}
+
+/* Akzent-Balken: grün */
+.save-glow-card .save-glow-accent {
+    background-color: rgba(34, 197, 94, 0.75) !important;
+    transition: background-color 0.4s ease;
+}
+
+/* Header-Text: dunkelgrün */
+.save-glow-card .save-glow-title {
+    color: #166534 !important;
+    transition: color 0.4s ease;
+}
+"#;
 
 // ─────────────────────────────────────────────
 //  Async helpers
@@ -133,9 +188,17 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
     let mut name_signal = use_signal(|| cook_and_run_meta.name.clone());
     let mut occur_signal = use_signal(|| cook_and_run_meta.occur);
 
+    // true  → grüner Glow aktiv (2 s nach erfolgreichem Speichern)
+    let mut save_success_signal = use_signal(|| false);
+
+    // true  → ungespeicherte Änderungen vorhanden → Save-Button aktiv
+    // false → gespeichert / noch keine Änderung → Save-Button deaktiviert
+    let mut has_unsaved_changes = use_signal(|| false);
+
     let on_name_input = move |evt: FormEvent| {
         let current_name = evt.value();
         name_signal.set(current_name.clone());
+        has_unsaved_changes.set(true);
         if current_name.is_empty() {
             error_name_signal.set("Project name cannot be empty!".to_string());
         } else {
@@ -159,6 +222,13 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
                 error_signal.set("Saving failed! Try again later.".to_string());
             } else {
                 error_signal.set("".to_string());
+                // Erfolgreich gespeichert → Button deaktivieren + Glow starten
+                has_unsaved_changes.set(false);
+                save_success_signal.set(true);
+                spawn(async move {
+                    sleep(Duration::from_millis(2000)).await;
+                    save_success_signal.set(false);
+                });
             }
         }
     });
@@ -169,19 +239,61 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
     });
 
     let is_cloud = cook_and_run_meta.is_in_cloud;
+    let navigator = use_navigator();
+
+    let is_success = *save_success_signal.read();
+    let can_save = *has_unsaved_changes.read();
+
+    // Karte: im Erfolgsfall `.save-glow-card` → triggert die @keyframes-Animation
+    let card_class = if is_success {
+        "bg-white rounded-2xl border overflow-hidden save-glow-card"
+    } else {
+        "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden"
+    };
+
+    // Header greift im Erfolgsfall auf .save-glow-header (CSS oben) zurück
+    let header_class = if is_success {
+        "px-5 py-3.5 border-b flex items-center gap-2.5 save-glow-header"
+    } else {
+        "px-5 py-3.5 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5"
+    };
+
+    let accent_class = if is_success {
+        "w-1.5 h-5 rounded-full save-glow-accent"
+    } else {
+        "w-1.5 h-5 rounded-full bg-amber-400/70"
+    };
+
+    let title_class = if is_success {
+        "text-sm font-semibold save-glow-title"
+    } else {
+        "text-sm font-semibold text-zinc-800"
+    };
+
+    // Save-Button-Wrapper: deaktiviert solange keine Änderungen vorhanden
+    let save_btn_wrapper_class = if can_save {
+        ""
+    } else {
+        "opacity-40 pointer-events-none cursor-not-allowed"
+    };
 
     rsx! {
+        // ── Keyframe-CSS einmalig einbinden ───────────────────────
+        style { dangerous_inner_html: SAVE_GLOW_CSS }
+
         section { class: "px-8 py-6 space-y-8",
 
             // ── Page header ───────────────────────────────────────
             Headline1 { headline: "Overview" }
 
             // ── Settings card ─────────────────────────────────────
-            div { class: "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden",
+            div { class: "{card_class}",
 
-                div { class: "px-5 py-3.5 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5",
-                    div { class: "w-1.5 h-5 rounded-full bg-amber-400/70" }
-                    span { class: "text-sm font-semibold text-zinc-800", "Project Settings" }
+                div { class: "{header_class}",
+                    div { class: "{accent_class}" }
+                    span { class: "{title_class}",
+                        if is_success { "Project Settings  ✓" } else { "Project Settings" }
+                    }
                 }
 
                 div { class: "px-5 py-5 space-y-4",
@@ -213,6 +325,8 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
                                                         .expect("Valid time"),
                                                 ),
                                             );
+                                            // Datum geändert → Änderungen vorhanden
+                                            has_unsaved_changes.set(true);
                                         }
                                         Err(e) => {
                                             console::error_1(
@@ -231,10 +345,13 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
                 // Card footer – action buttons
                 div { class: "px-5 pb-5 pt-1 flex flex-wrap items-center gap-3",
 
-                    ConfirmButton {
-                        action: on_save,
-                        text: "Save".to_string(),
-                        error_signal: error_name_signal.clone(),
+                    // Save-Button: disabled wenn keine ungespeicherten Änderungen
+                    div { class: "{save_btn_wrapper_class}",
+                        ConfirmButton {
+                            action: on_save,
+                            text: "Save".to_string(),
+                            error_signal: error_name_signal.clone(),
+                        }
                     }
 
                     if is_cloud {
@@ -243,7 +360,7 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
                                 {
                                     match download_cook_and_run(cook_and_run_meta.id).await {
                                         Ok(cook_and_run_id) => {
-                                            use_navigator().push(Route::Overview { cook_and_run_id });
+                                            navigator.clone().push(Route::Overview { cook_and_run_id });
                                         }
                                         Err(e) => {
                                             console::error_1(
@@ -262,7 +379,10 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
                                 {
                                     match upload_cook_and_run(cook_and_run_meta.id).await {
                                         Ok(cook_and_run_id) => {
-                                            use_navigator().push(Route::Overview { cook_and_run_id });
+                                            console::log_1(
+                                                &format!("Project successfully uploaded").into(),
+                                            );
+                                            navigator.clone().push(Route::Overview { cook_and_run_id });
                                         }
                                         Err(e) => {
                                             console::error_1(
@@ -304,7 +424,6 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
                 StorageInfoCard {
                     title: "Cloud Project",
                     icon_color: "text-amber-500",
-                    // cloud icon path
                     icon_path: "M16.88 9.94a5 5 0 00-9.72-1.47A4 4 0 006 17h9a4 4 0 001.88-7.06z",
                     lines: vec![
                         "This project is stored in the cloud.".to_string(),
@@ -316,7 +435,6 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
                 StorageInfoCard {
                     title: "Local Project",
                     icon_color: "text-zinc-400",
-                    // local/desktop icon path
                     icon_path: "M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm2 0v8h10V5H5zm4 10h2v2H9v-2z",
                     lines: vec![
                         "This project is stored only on this device.".to_string(),
@@ -385,7 +503,7 @@ fn StorageInfoCard(
 #[component]
 fn DeleteProjectDialog(delete_project_signal: Signal<bool>, project_id: Uuid) -> Element {
     let mut delete_loading_signal = use_signal(|| false);
-
+    let navigator = use_navigator();
     rsx! {
         div { class: "backdrop-blur-sm fixed inset-0 flex h-screen w-screen \
                       justify-center items-center bg-black/20 z-50",
@@ -429,7 +547,7 @@ fn DeleteProjectDialog(delete_project_signal: Signal<bool>, project_id: Uuid) ->
                                             &format!("Error deleting project: {}", e).into(),
                                         );
                                     } else {
-                                        use_navigator().push(Route::Dashboard {});
+                                        navigator.clone().push(Route::Dashboard {});
                                     }
                                 }
                             ) as AsyncAction,

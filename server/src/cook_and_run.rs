@@ -6,9 +6,9 @@ use uuid::Uuid;
 use crate::{
     course::{self, Course},
     db::{self, models::CookAndRunUpdate, Database},
-    error::{map_not_found_cook_and_run, RestError},
     plan::{self, Plan, PlanConfig},
     point::{self, Point},
+    rest_error::{map_not_found_cook_and_run, RestError},
     sharing::{self, ShareTeamConfig},
     team::{self, Team},
 };
@@ -226,11 +226,17 @@ pub fn create_cook_and_run(
     match db.create_cook_and_run(&cook_and_run.to()) {
         Ok(_) => Ok(()),
         Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _)) => {
-            warn!("Could not create cook and run project in database due to unique violation");
+            warn!(
+                operation = "Create Project",
+                "Could not create cook and run project in database due to unique violation"
+            );
             return Ok(());
         }
         Err(e) => {
-            error!("Could not create cook and run project in database: {}", e);
+            error!(
+                operation = "Create Project",
+                "Could not create cook and run project in database: {}", e
+            );
             return Err(RestError::InternalServer {
                 message: "Could not create cook and run project in database".to_string(),
             });

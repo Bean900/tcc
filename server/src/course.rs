@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::{
     cook_and_run::get_cook_and_run,
     db::{self, Database},
-    error::{map_not_found_cook_and_run, RestError},
+    rest_error::{map_not_found_cook_and_run, RestError},
 };
 #[derive(Debug, Clone)]
 pub struct Course {
@@ -140,11 +140,17 @@ pub fn create(db: &mut Database, user_id: &str, data: &Course) -> Result<(), Res
     match db.create_course(&data.to()) {
         Ok(_) => Ok(()),
         Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _)) => {
-            warn!("Could not create course in database due to unique violation");
+            warn!(
+                operation = "Create Course",
+                "Could not create course in database due to unique violation"
+            );
             return Ok(());
         }
         Err(e) => {
-            error!("Could not create course in database: {}", e);
+            error!(
+                operation = "Create Course",
+                "Could not create course in database: {}", e
+            );
             return Err(RestError::InternalServer {
                 message: "Could not create course in database".to_string(),
             });

@@ -8,12 +8,12 @@ use axum::{
 use uuid::Uuid;
 
 use crate::{
-    error::RestError,
     plan,
     rest::{
         auth::{require_permission, Claims, READ_PERMISSION, UPDATE_PERMISSION},
         models::{Plan, PlanConfig},
     },
+    rest_error::RestError,
     AppState,
 };
 

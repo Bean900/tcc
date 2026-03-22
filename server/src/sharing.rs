@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::{
     db::{self, models::Share, Database},
-    error::{map_not_found_cook_and_run, RestError},
+    rest_error::{map_not_found_cook_and_run, RestError},
 };
 
 #[derive(Debug, Clone)]
@@ -97,7 +97,10 @@ pub fn create(
     match db.create_share(cook_and_run_id, user_id, &data.to_db()) {
         Ok(_) => Ok(()),
         Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _)) => {
-            warn!("Could not create share in database due to unique violation");
+            warn!(
+                operation = "Create Share",
+                "Could not create share in database due to unique violation"
+            );
             return Ok(());
         }
         Err(diesel::result::Error::NotFound) => {
@@ -108,7 +111,10 @@ pub fn create(
             ));
         }
         Err(e) => {
-            error!("Could not create share in database: {}", e);
+            error!(
+                operation = "Create Share",
+                "Could not create share in database: {}", e
+            );
             return Err(RestError::InternalServer {
                 message: "Could not create share in database".to_string(),
             });
@@ -125,7 +131,10 @@ pub fn update(
     match db.update_share(cook_and_run_id, user_id, &data.to_db()) {
         Ok(_) => Ok(()),
         Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _)) => {
-            warn!("Could not update share in database due to unique violation");
+            warn!(
+                operation = "Update Share",
+                "Could not update share in database due to unique violation"
+            );
             return Ok(());
         }
         Err(diesel::result::Error::NotFound) => {
@@ -136,7 +145,10 @@ pub fn update(
             ));
         }
         Err(e) => {
-            error!("Could not update share in database: {}", e);
+            error!(
+                operation = "Update Share",
+                "Could not update share in database: {}", e
+            );
             return Err(RestError::InternalServer {
                 message: "Could not update share in database".to_string(),
             });
@@ -157,8 +169,10 @@ pub fn get_by_id(
             }
             _ => {
                 error!(
+                    operation = "Find Share",
                     "Could not get share of in cook and run project with id {} in database: {}",
-                    cook_and_run_id, e
+                    cook_and_run_id,
+                    e
                 );
                 RestError::InternalServer {
                     message: format!(
@@ -184,8 +198,10 @@ pub(crate) fn delete(
             }
             _ => {
                 error!(
+                    operation = "Delete Share",
                     "Could not delete share of in cook and run project with id {} in database: {}",
-                    cook_and_run_id, e
+                    cook_and_run_id,
+                    e
                 );
                 RestError::InternalServer {
                     message: format!(

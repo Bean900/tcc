@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::{
     cook_and_run::get_cook_and_run,
     db::{self, Database},
-    error::{map_not_found_cook_and_run, RestError},
+    rest_error::{map_not_found_cook_and_run, RestError},
 };
 #[derive(Debug, Clone)]
 pub struct Note {
@@ -160,11 +160,17 @@ pub fn create(
     match db.create_note(&data.to_db(team_id)) {
         Ok(_) => Ok(()),
         Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _)) => {
-            warn!("Could not create note in database due to unique violation");
+            warn!(
+                operation = "Create Note",
+                "Could not create note in database due to unique violation"
+            );
             return Ok(());
         }
         Err(e) => {
-            error!("Could not create note in database: {}", e);
+            error!(
+                operation = "Create Note",
+                "Could not create note in database: {}", e
+            );
             return Err(RestError::InternalServer {
                 message: "Could not create note in database".to_string(),
             });

@@ -71,7 +71,6 @@ To install, run, and develop the client locally, the following steps are require
    ```bash
    cargo fetch
    ```
-
 If no errors occur, the client is ready to started and can be further developed.
 
 For local testing, the following steps must then be followed:
@@ -87,6 +86,13 @@ For local testing, the following steps must then be followed:
 
 This will start the application in development mode with hot reloading enabled for both Rust and CSS changes.
 
+
+To build the application:
+```bash
+dx bundle --web --release
+```
+
+
 ### Setup Server
 
 #### Setup Database
@@ -97,6 +103,13 @@ This will start the application in development mode with hot reloading enabled f
 docker run --name tcc-postgres -e POSTGRES_PASSWORD=mysecretpassword -d -p 5432:5432 postgres
 ```
 3. Export connection string to DATABASE_URL. if not the default postgresql://postgres:mysecretpassword@localhost:5432/postgres is set
+
+To build the application:
+```bash
+cargo build
+```
+
+Install sudo apt install libpq5
 
 ### Setup 0auth
 1. Create account account at auth0.com

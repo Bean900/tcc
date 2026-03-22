@@ -10,12 +10,12 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::RestError,
     note::{self},
     rest::{
         auth::{require_permission, Claims, DELETE_PERMISSION, READ_PERMISSION, UPDATE_PERMISSION},
         models::{Note, NoteCreateData, PaginationInfo},
     },
+    rest_error::RestError,
     AppState,
 };
 

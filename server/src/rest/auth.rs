@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::warn;
 
-use crate::error::RestError;
+use crate::rest_error::RestError;
 
 pub const CREATE_PERMISSION: &str = "create:cook_and_run";
 pub const READ_PERMISSION: &str = "read:cook_and_run";
@@ -165,26 +165,29 @@ pub fn require_permission(
                 .get("authorization")
                 .and_then(|header| header.to_str().ok())
                 .ok_or_else(|| {
-                    warn!("Missing authorization header");
+                    warn!(operation = "Authorization", "Missing authorization header");
                     StatusCode::UNAUTHORIZED
                 })?;
             let token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
-                warn!("Invalid authorization header format");
+                warn!(
+                    operation = "Authorization",
+                    "Invalid authorization header format"
+                );
                 StatusCode::UNAUTHORIZED
             })?;
 
             let claims = match state.auth.verify_token(token) {
                 Ok(claims) => claims,
                 Err(e) => {
-                    warn!("Token validation error: {}", e);
+                    warn!(operation = "Authorization", "Token validation error: {}", e);
                     return Err(StatusCode::UNAUTHORIZED);
                 }
             };
 
             if !state.auth.has_permission(&claims, permission) {
                 warn!(
-                    "Missing permission '{}' for user {}",
-                    permission, claims.sub
+                    operation = "Authorization",
+                    "Missing permission '{}' for user {}", permission, claims.sub
                 );
                 return Err(StatusCode::FORBIDDEN);
             }
@@ -228,6 +231,7 @@ pub fn is_user_authenticated<T: AuthenticatedUser>(
 
     if !is_autherised {
         warn!(
+            operation = "Authorization",
             "User \"{}\" is not authorized. The following auth user was expected: {:?}",
             if let Some(c_user_id) = c_user_id {
                 c_user_id

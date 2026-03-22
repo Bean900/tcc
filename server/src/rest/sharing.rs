@@ -11,11 +11,11 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::RestError,
     rest::{
         auth::{require_permission, Claims, READ_PERMISSION, UPDATE_PERMISSION},
         models::{RequiredField, ShareTeamConfig},
     },
+    rest_error::RestError,
     sharing::{self},
     AppState,
 };

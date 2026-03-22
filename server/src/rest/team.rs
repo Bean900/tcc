@@ -13,7 +13,6 @@ use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
-    error::RestError,
     rest::{
         auth::{
             is_user_authenticated, require_permission, AuthState, Claims, READ_PERMISSION,
@@ -21,6 +20,7 @@ use crate::{
         },
         models::{PaginationInfo, Team, TeamCreateData, TeamUpdateData},
     },
+    rest_error::RestError,
     team, AppState,
 };
 

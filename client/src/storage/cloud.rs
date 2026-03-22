@@ -13,6 +13,9 @@ use crate::{
     },
 };
 
+//const SERVER_URL: &str = "http://tcc.beancode.de:3000";
+const SERVER_URL: &str = "http://127.0.0.1:3000";
+
 #[derive(Clone, Debug)]
 pub struct CloudStorage {
     base_url: String,
@@ -103,7 +106,7 @@ struct CourseListResponse {
 impl CloudStorage {
     pub fn new(auth_state: AuthState) -> Self {
         CloudStorage {
-            base_url: "http://127.0.0.1:3000".to_string(),
+            base_url: SERVER_URL.to_string(),
             auth_state,
         }
     }

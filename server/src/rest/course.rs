@@ -11,11 +11,11 @@ use uuid::Uuid;
 
 use crate::{
     course::{self},
-    error::RestError,
     rest::{
         auth::{require_permission, Claims, READ_PERMISSION, UPDATE_PERMISSION},
         models::{Course, CourseCreateData, CourseUpdateData, PaginationInfo},
     },
+    rest_error::RestError,
     AppState,
 };
 

@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::{
     db::{self, Database},
-    error::RestError,
+    rest_error::RestError,
 };
 
 #[derive(Debug, Clone)]

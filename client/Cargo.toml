@@ -26,6 +26,10 @@ base64 = "0.22.1"
 sha2 = "0.10.9"
 qrcode = "0.14.1"
 pulldown-cmark = "0.13.1"
+async-std = "1.13.2"
+
+[build-dependencies]
+dotenvy = "0.15"
 
 [features]
 default = ["web"]

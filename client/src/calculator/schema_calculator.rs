@@ -13,6 +13,16 @@ enum CourseType {
     Dessert,
 }
 
+impl CourseType {
+    fn rank(&self) -> usize {
+        match self {
+            CourseType::Appetizer => 0,
+            CourseType::MainCourse => 1,
+            CourseType::Dessert => 2,
+        }
+    }
+}
+
 struct AssignedCourse {
     course_type: CourseType,
     host: Uuid,
@@ -48,12 +58,12 @@ impl Schema {
         let mut team_idx = 0 as u8;
 
         self.plan.keys().for_each(|idx| {
-            console::log_1(&format!("Creating mapping for host index {:?} ", idx).into());
+            console::debug_1(&format!("Creating mapping for host index {:?} ", idx).into());
             mapping.insert(*idx, sorted_team_list[team_idx as usize].id);
             team_idx += 1;
         });
 
-        console::log_1(
+        console::debug_1(
             &format!(
                 "Size of mapping: {}, size of team list: {}",
                 mapping.len(),
@@ -1210,7 +1220,7 @@ impl<'a> SchemaCalculator<'a> {
 
             let mapping = schema.create_mapping(&group.sorted_team_list);
             schema.plan.values().for_each(|schema_course| {
-                console::log_1(
+                console::debug_1(
                     &format!(
                         "Host: {:?}, Guest list for host {:?}: {:?}",
                         schema_course.host, schema_course.guest_list, mapping
@@ -1239,6 +1249,8 @@ impl<'a> SchemaCalculator<'a> {
                 assigned_course_list.push(assigned_course);
             });
         }
+
+        assigned_course_list.sort_by(|a, b| a.course_type.rank().cmp(&b.course_type.rank()));
 
         assigned_course_list
     }

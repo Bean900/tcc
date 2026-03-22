@@ -7,6 +7,7 @@ mod note;
 mod plan;
 mod point;
 mod rest;
+pub mod rest_error;
 mod sharing;
 mod team;
 
@@ -19,40 +20,77 @@ use tower_http::{
     cors::CorsLayer,
     trace::{self, TraceLayer},
 };
-use tracing::{debug, error, info, Level};
+use tracing::{debug, error, info, warn, Level};
 
 use crate::{db::Database, rest::auth::AuthState};
+
+const DEFAULT_DATABASE_URL: &str = "postgresql://postgres:mysecretpassword@localhost:5432/postgres";
+const DEFAULT_ADDR: &str = "0.0.0.0:3000";
+const DEFAULT_ALLOW_ORIGIN: &str = "http://localhost:8080";
 
 #[derive(Clone)]
 struct AppState {
     auth: AuthState,
     db: Database,
 }
-
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .init();
-    // let subscriber = tracing_subscriber::FmtSubscriber::new();
-    //  tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://postgres:mysecretpassword@localhost:5432/postgres".to_string());
-    //let domain = std::env::var("DOMAIN").expect("DOMAIN must be set");
-    //let audience = std::env::var("AUDIENCE").expect("AUDIENCE must be set");
-    let addr = std::env::var("ADDR").unwrap_or_else(|_| "0.0.0.0:3000".to_string());
+    info!("Loading environment variables...");
+    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        warn!(operation = "Loading environment variable",
+              variable = "DATABASE_URL",
+            "Environment variable \"DATABASE_URL\" not found. Using default value \"{}\" instead. For security reasons, it is highly recommended to change this value.",
+            DEFAULT_DATABASE_URL
+        );
+        DEFAULT_DATABASE_URL.to_string()
+    });
+    let auth0_domain = std::env::var("AUTH0_DOMAIN").unwrap_or_else(|_| {
+        error!(
+            operation = "Loading environment variable",
+            variable = "AUTH0_DOMAIN",
+            "Environment variable \"AUTH0_DOMAIN\" must be set!"
+        );
+        panic!()
+    });
+    let auth0_audience = std::env::var("AUTH0_AUDIENCE")
+        .expect("Environment variable \"AUTH0_AUDIENCE\" must be set!");
+    let addr = std::env::var("ADDR").unwrap_or_else(|_| {
+        info!(operation = "Loading environment variable",
+              variable = "ADDR",
+            "Environment variable \"ADDR\" not found. Using default value \"{}\" instead. For security reasons, it is highly recommended to change this value.",
+            DEFAULT_ADDR
+        );
+        DEFAULT_ADDR.to_string()
+    });
+    let allow_origin =
+        std::env::var("ALLOW_ORIGIN").map(|origin|
+    vec![DEFAULT_ALLOW_ORIGIN.parse().unwrap(),
+    origin.parse().unwrap()
+])
+.unwrap_or_else(|_| {
+                    warn!(operation = "Loading environment variable",
+              variable = "ALLOW_ORIGIN",
+            "Environment variable \"ALLOW_ORIGIN\" not found. Using default value \"{}\" instead. For security reasons, it is highly recommended to change this value.",
+            DEFAULT_ALLOW_ORIGIN
+        );
+       vec![
+    DEFAULT_ALLOW_ORIGIN.parse().unwrap()
+]});
 
     info!("Starting server...");
     debug!("Initializing AuthState...");
-    let auth = AuthState::new(
-        "beancode.eu.auth0.com",
-        "https://home.beancode.de/tcc/backend",
-    )
-    .await;
+    let auth = AuthState::new(&auth0_domain, &auth0_audience).await;
     if auth.is_err() {
-        error!("Failed to initialize AuthState: {}", auth.unwrap_err());
-        panic!("AuthState initialization failed");
+        error!(
+            operation = "Initialize AuthState",
+            "Failed to initialize AuthState: {}",
+            auth.unwrap_err()
+        );
+        panic!();
     }
 
     let auth = auth.unwrap();
@@ -60,8 +98,11 @@ async fn main() {
     debug!("Initializing Database...");
     let database = Database::new(&database_url).await;
     if let Some(err) = database.as_ref().err() {
-        error!("Failed to initialize Database: {}", err);
-        panic!("Database initialization failed");
+        error!(
+            operation = "Initialize Database",
+            "Failed to initialize Database: {}", err
+        );
+        panic!();
     }
 
     let database = database.unwrap();
@@ -76,7 +117,7 @@ async fn main() {
             Method::PUT,
             Method::DELETE,
         ])
-        .allow_origin("http://localhost:8080".parse::<HeaderValue>().unwrap())
+        .allow_origin(allow_origin)
         .allow_headers([AUTHORIZATION, CONTENT_TYPE]);
 
     let app = rest::get_routes(app_state.clone())

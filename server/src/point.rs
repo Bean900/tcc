@@ -4,7 +4,7 @@ use uuid::Uuid;
 use crate::{
     address::{self, Address},
     db::{self, Database},
-    error::RestError,
+    rest_error::RestError,
 };
 
 #[derive(Debug, Clone)]

@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     db::{self, Database},
-    error::{map_not_found_cook_and_run, RestError},
+    rest_error::{map_not_found_cook_and_run, RestError},
 };
 
 #[derive(Debug, Clone)]

@@ -17,7 +17,6 @@ use crate::{
         get_cook_and_run_meta, get_cook_and_run_start_point, get_list_of_cook_and_run_meta,
         set_cook_and_run_end_point, set_cook_and_run_start_point, update_cook_and_run_meta,
     },
-    error::RestError,
     rest::{
         auth::{
             is_user_authenticated, require_permission, AuthUser, AuthenticatedUser, Claims,
@@ -25,6 +24,7 @@ use crate::{
         },
         models::{CookAndRun, CookAndRunCreateData, CookAndRunMeta, PaginationInfo, Point},
     },
+    rest_error::RestError,
     AppState,
 };
 

@@ -5,10 +5,11 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use web_sys::{console, window};
 
-const AUTH0_DOMAIN: &str = "https://beancode.eu.auth0.com";
-const CLIENT_ID: &str = "KPdjRob3k5SRCqs4wExmQOPrOkqaUJTQ";
-const REDIRECT_URI: &str = "http://localhost:8080";
-const AUDIENCE: &str = "https://home.beancode.de/tcc/backend";
+const AUTH0_DOMAIN: &str = "beancode.eu.auth0.com";
+const AUTH0_CLIENT_ID: &str = "KPdjRob3k5SRCqs4wExmQOPrOkqaUJTQ";
+//const AUTH0_REDIRECT: &str = "http://tcc.beancode.de";
+const AUTH0_REDIRECT: &str = "http://localhost:8080";
+const AUTH0_AUDIENCE: &str = "https://home.beancode.de/tcc/backend";
 const SCOPE: &str = "read:cook_and_run delete:cook_and_run update:cook_and_run openid";
 
 #[derive(Debug, Clone)]
@@ -154,13 +155,13 @@ impl AuthState {
             );
         }
         let auth_url = format!(
-            "{}/authorize?response_type=code&client_id={}&redirect_uri={}{}&scope={}&audience={}&state={}&code_challenge={}&code_challenge_method=S256",
+            "https://{}/authorize?response_type=code&client_id={}&redirect_uri={}{}&scope={}&audience={}&state={}&code_challenge={}&code_challenge_method=S256",
             AUTH0_DOMAIN,
-            CLIENT_ID,
-            urlencoding::encode(REDIRECT_URI),
+            AUTH0_CLIENT_ID,
+            urlencoding::encode(AUTH0_REDIRECT),
             urlencoding::encode("/callback"),
             urlencoding::encode(SCOPE),
-            urlencoding::encode(AUDIENCE),
+            urlencoding::encode(AUTH0_AUDIENCE),
             state,
             code_challenge
         );
@@ -206,10 +207,10 @@ impl AuthState {
         }
 
         let logout_url = format!(
-            "{}/v2/logout?client_id={}&returnTo={}{}",
+            "https://{}/v2/logout?client_id={}&returnTo={}/{}",
             AUTH0_DOMAIN,
-            CLIENT_ID,
-            urlencoding::encode(REDIRECT_URI),
+            AUTH0_CLIENT_ID,
+            urlencoding::encode(AUTH0_REDIRECT),
             urlencoding::encode(return_to_path)
         );
         let _ = SessionData::clear();
@@ -221,7 +222,7 @@ impl AuthState {
 async fn get_user_info(access_token: &str) -> Result<UserData, String> {
     let client = reqwest::Client::new();
     let response = client
-        .get(&format!("{}/userinfo", AUTH0_DOMAIN))
+        .get(&format!("https://{}/userinfo", AUTH0_DOMAIN))
         .bearer_auth(access_token)
         .send()
         .await
@@ -250,15 +251,15 @@ async fn exchange_code_for_token(
 
     let token_request = TokenRequest {
         grant_type: "authorization_code",
-        client_id: CLIENT_ID,
+        client_id: AUTH0_CLIENT_ID,
         code_verifier: &process_data.code_verifier,
         code,
-        redirect_uri: REDIRECT_URI,
+        redirect_uri: AUTH0_REDIRECT,
     };
 
     let client = reqwest::Client::new();
     let response = client
-        .post(&format!("{}/oauth/token", AUTH0_DOMAIN))
+        .post(&format!("https://{}/oauth/token", AUTH0_DOMAIN))
         .header("Content-Type", "application/x-www-form-urlencoded")
         .form(&token_request)
         .send()

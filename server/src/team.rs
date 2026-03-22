@@ -7,8 +7,8 @@ use crate::{
     address::Address,
     cook_and_run::get_cook_and_run,
     db::{self, Database},
-    error::{map_not_found_cook_and_run, RestError},
     note::{get_list_by_team_id, Note},
+    rest_error::{map_not_found_cook_and_run, RestError},
     sharing::ShareTeamConfig,
 };
 
@@ -75,8 +75,10 @@ pub(crate) fn get_list(
         .select_all_team(cook_and_run_id, user_id)
         .map_err(|e| {
             error!(
+                operation = "Find Project",
                 "Database error while selecting team list for cook and run id {}: {}",
-                cook_and_run_id, e
+                cook_and_run_id,
+                e
             );
             RestError::InternalServer {
                 message: "Database error while selecting team list!".to_string(),
@@ -105,8 +107,11 @@ pub(crate) fn get(
                 }
                 _ => {
                     error!(
+                        operation = "Find Team",
                         "Could not get team {} in project with id {} from database: {}",
-                        team_id, cook_and_run_id, e
+                        team_id,
+                        cook_and_run_id,
+                        e
                     );
                     RestError::InternalServer {
                         message: format!(
@@ -132,8 +137,11 @@ pub(crate) fn delete(
             }
             _ => {
                 error!(
+                    operation = "Delete Team",
                     "Could not delete team {} in cook and run project with id {} in database: {}",
-                    team_id, cook_and_run_id, e
+                    team_id,
+                    cook_and_run_id,
+                    e
                 );
                 RestError::InternalServer {
                     message: format!(
@@ -154,8 +162,11 @@ pub(crate) fn update(db: &mut Database, user_id: &str, data: &Team) -> Result<()
             }
             _ => {
                 error!(
+                    operation = "Update Team",
                     "Could not update team {} in cook and run project with id {} in database: {}",
-                    data.id, data.cook_and_run_id, e
+                    data.id,
+                    data.cook_and_run_id,
+                    e
                 );
                 RestError::InternalServer {
                     message: format!(
@@ -173,12 +184,14 @@ pub fn create(db: &mut Database, user_id: &Option<String>, data: &Team) -> Resul
         Err(diesel::result::Error::NotFound) => {
             if let Some(user_id) = user_id {
                 debug!(
+                    operation = "Create Team with user_id - Find share",
                     "No share config found for cook and run id {}, checking if user is owner",
                     data.cook_and_run_id
                 );
                 let _ = get_cook_and_run(db, &data.cook_and_run_id, user_id)?;
             } else {
-                debug!(
+                warn!(
+                    operation = "Create Team without user_id",
                     "Could not find share config for cook and run id {}, and no user id provided",
                     data.cook_and_run_id
                 );
@@ -189,8 +202,10 @@ pub fn create(db: &mut Database, user_id: &Option<String>, data: &Team) -> Resul
         }
         Err(e) => {
             error!(
+                operation = "Create Team - Find share config",
                 "Database error while selecting share config for id {}: {}",
-                data.cook_and_run_id, e
+                data.cook_and_run_id,
+                e
             );
             return Err(RestError::InternalServer {
                 message: "Database error while selecting share config".to_string(),
@@ -201,11 +216,17 @@ pub fn create(db: &mut Database, user_id: &Option<String>, data: &Team) -> Resul
     match db.create_team(&data.to(), &data.address.to_db()) {
         Ok(_) => Ok(()),
         Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _)) => {
-            warn!("Could not create team in database due to unique violation");
+            warn!(
+                operation = "Create Team",
+                "Could not create team in database due to unique violation"
+            );
             return Ok(());
         }
         Err(e) => {
-            error!("Could not create team in database: {}", e);
+            error!(
+                operation = "Create Team",
+                "Could not create team in database: {}", e
+            );
             return Err(RestError::InternalServer {
                 message: "Could not create team in database".to_string(),
             });
@@ -232,14 +253,20 @@ fn check_team_against_share(
 
     let deadline = share.registration_deadline;
     if deadline.is_some_and(|deadline| deadline < chrono::Utc::now().naive_utc()) {
-        warn!("Registration deadline has passed: {:?}", deadline);
+        warn!(
+            operation = "Check deadline",
+            "Registration deadline has passed: {:?}", deadline
+        );
         return Err(RestError::Forbidden {
             message: "The registration deadline has passed".to_string(),
         });
     }
 
     if share.needs_login && user_id.is_none() {
-        warn!("User is not logged in, but login is required to register a team");
+        warn!(
+            operation = "Check login status",
+            "User is not logged in, but login is required to register a team"
+        );
         return Err(RestError::Unprocessable {
             message: "You need to be logged in to register a team".to_string(),
         });
@@ -247,13 +274,19 @@ fn check_team_against_share(
 
     if let Some(max_team_size) = share.max_teams {
         let team_size = db.count_teams(&data.cook_and_run_id).map_err(|e| {
-            error!("Could not get team count from database: {}", e);
+            error!(
+                operation = "Check max teams",
+                "Could not get team count from database: {}", e
+            );
             RestError::InternalServer {
                 message: "Could not create team in database".to_string(),
             }
         })?;
         if team_size >= max_team_size as i64 {
-            warn!("Maximum number of teams reached: {}", max_team_size);
+            warn!(
+                operation = "Check max teams",
+                "Maximum number of teams reached: {}", max_team_size
+            );
             return Err(RestError::Forbidden {
                 message: "The maximum number of teams has been reached".to_string(),
             });
@@ -261,7 +294,10 @@ fn check_team_against_share(
     }
 
     if share.default_needs_check && !data.needs_check {
-        warn!("The needs_check field must be true, but is false");
+        warn!(
+            operation = "Check needs_check",
+            "The needs_check field must be true, but is false"
+        );
         return Err(RestError::Unprocessable {
             message: "The needs_check field must be true".to_string(),
         });
@@ -271,7 +307,7 @@ fn check_team_against_share(
         match required_field {
             crate::sharing::RequiredField::Mail => {
                 if data.mail.is_none() {
-                    warn!("The mail field is required");
+                    warn!(operation = "Check mail", "The mail field is required");
                     return Err(RestError::Unprocessable {
                         message: "The mail field is required".to_string(),
                     });
@@ -279,7 +315,7 @@ fn check_team_against_share(
             }
             crate::sharing::RequiredField::Phone => {
                 if data.phone.is_none() {
-                    warn!("The phone field is required");
+                    warn!(operation = "Check phone", "The phone field is required");
                     return Err(RestError::Unprocessable {
                         message: "The phone field is required".to_string(),
                     });
@@ -287,7 +323,7 @@ fn check_team_against_share(
             }
             crate::sharing::RequiredField::Members => {
                 if data.members.is_none() {
-                    warn!("The members field is required");
+                    warn!(operation = "Check members", "The members field is required");
                     return Err(RestError::Unprocessable {
                         message: "The members field is required".to_string(),
                     });
@@ -295,7 +331,7 @@ fn check_team_against_share(
             }
             crate::sharing::RequiredField::Diets => {
                 if data.diets.is_none() {
-                    warn!("The diets field is required");
+                    warn!(operation = "Check diets", "The diets field is required");
                     return Err(RestError::Unprocessable {
                         message: "The diets field is required".to_string(),
                     });
