@@ -1,5 +1,7 @@
+use async_std::task::sleep;
 use chrono::NaiveTime;
 use dioxus::prelude::*;
+use std::time::Duration;
 use uuid::Uuid;
 use web_sys::console;
 
@@ -13,6 +15,47 @@ use crate::{
 };
 
 use super::address::AddressParam;
+
+// ─────────────────────────────────────────────
+//  CSS: Keyframe-Animation für den grünen Glow
+// ─────────────────────────────────────────────
+
+const SAVE_GLOW_CSS: &str = r#"
+@keyframes save-glow {
+    0%   {
+        border-color: #d1fae5;
+        box-shadow: 0 0 0 0px rgba(34, 197, 94, 0),
+                    0 1px 3px 0 rgba(0, 0, 0, 0.06);
+    }
+    20%  {
+        border-color: #22c55e;
+        box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.22),
+                    0 1px 3px 0 rgba(0, 0, 0, 0.06);
+    }
+    55%  {
+        border-color: #16a34a;
+        box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.10),
+                    0 1px 3px 0 rgba(0, 0, 0, 0.06);
+    }
+    100% {
+        border-color: #bbf7d0;
+        box-shadow: 0 0 0 0px rgba(34, 197, 94, 0),
+                    0 1px 3px 0 rgba(0, 0, 0, 0.06);
+    }
+}
+.save-glow-card {
+    animation: save-glow 2s ease-in-out forwards;
+}
+.save-glow-card .save-glow-header {
+    background-color: rgba(240, 253, 244, 0.70) !important;
+    border-bottom-color: #bbf7d0 !important;
+    transition: background-color 0.4s ease, border-color 0.4s ease;
+}
+.save-glow-card .save-glow-accent {
+    background-color: rgba(34, 197, 94, 0.75) !important;
+    transition: background-color 0.4s ease;
+}
+"#;
 
 // ─────────────────────────────────────────────
 //  Root
@@ -100,6 +143,12 @@ pub fn StartEndContent(
 
     let mut save_response_error_signal = use_signal(|| "".to_string());
 
+    // true  → grüner Glow auf den Cards für 2 s
+    let mut save_success_signal = use_signal(|| false);
+
+    // true  → ungespeicherte Änderungen vorhanden → Save-Button aktiv
+    let mut has_unsaved_changes = use_signal(|| false);
+
     let on_save: AsyncAction = async_action!({
         save_response_error_signal.set("".to_string());
         let start_has_point = *start_has_point_signal.read();
@@ -129,19 +178,37 @@ pub fn StartEndContent(
             if let Err(e) = &start_update {
                 console::error_1(&format!("Failed to update start point: {}", e).into());
                 save_response_error_signal.set("Failed to save start/end point data".to_string());
-            }
-            if let Err(e) = &end_update {
+            } else if let Err(e) = &end_update {
                 console::error_1(&format!("Failed to update end point: {}", e).into());
                 save_response_error_signal.set("Failed to save start/end point data".to_string());
+            } else {
+                // Erfolg: Änderungen gespeichert, Button deaktivieren, Glow starten
+                has_unsaved_changes.set(false);
+                save_success_signal.set(true);
+                spawn(async move {
+                    sleep(Duration::from_millis(2000)).await;
+                    save_success_signal.set(false);
+                });
             }
         }
     });
 
+    let is_success = *save_success_signal.read();
+    let can_save = *has_unsaved_changes.read();
+    let save_btn_wrapper_class = if can_save {
+        ""
+    } else {
+        "opacity-40 pointer-events-none cursor-not-allowed"
+    };
+
     rsx! {
+        // ── Keyframe-CSS einbinden ────────────────────────────────
+        style { dangerous_inner_html: SAVE_GLOW_CSS }
+
         section { class: "px-8 py-6 space-y-8",
 
             // ── Page header ───────────────────────────────────────
-                Headline1 { headline: "Start & End Point".to_string() }
+            Headline1 { headline: "Start & End Point".to_string() }
 
             // ── Two-column card grid ──────────────────────────────
             div { class: "grid grid-cols-1 md:grid-cols-2 gap-6",
@@ -155,16 +222,20 @@ pub fn StartEndContent(
                     name_error_signal: start_name_error_signal,
                     time_signal: start_time_signal,
                     address_param: start_adress_param,
+                    is_success,
                     on_name_input: move |event: Event<FormData>| {
+                        has_unsaved_changes.set(true);
                         let name = check_name(&event.value(), start_name_error_signal.clone());
                         start_name_signal.set(name);
                     },
                     on_time_input: move |event: Event<FormData>| {
                         if let Some(t) = check_time(&event.value()) {
+                            has_unsaved_changes.set(true);
                             start_time_signal.set(t);
                         }
                     },
                     on_toggle: move |_| {
+                        has_unsaved_changes.set(true);
                         let checkbox_state = !*start_has_point_signal.read();
                         start_has_point_signal.set(checkbox_state);
                     },
@@ -180,16 +251,20 @@ pub fn StartEndContent(
                     name_error_signal: end_name_error_signal,
                     time_signal: end_time_signal,
                     address_param: end_adress_param,
+                    is_success,
                     on_name_input: move |event: Event<FormData>| {
+                        has_unsaved_changes.set(true);
                         let name = check_name(&event.value(), end_name_error_signal.clone());
                         end_name_signal.set(name);
                     },
                     on_time_input: move |event: Event<FormData>| {
                         if let Some(t) = check_time(&event.value()) {
+                            has_unsaved_changes.set(true);
                             end_time_signal.set(t);
                         }
                     },
                     on_toggle: move |_| {
+                        has_unsaved_changes.set(true);
                         let checkbox_state = !*end_has_point_signal.read();
                         end_has_point_signal.set(checkbox_state);
                     },
@@ -204,9 +279,11 @@ pub fn StartEndContent(
                 }
             }
 
-            // ── Save button ───────────────────────────────────────
+            // ── Save button (disabled solange keine Änderungen) ───
             div { class: "flex justify-end pt-1",
-                ConfirmButton { action: on_save, text: "Save".to_string() }
+                div { class: "{save_btn_wrapper_class}",
+                    ConfirmButton { action: on_save, text: "Save".to_string() }
+                }
             }
         }
     }
@@ -229,6 +306,7 @@ fn PointCard(
     on_time_input: EventHandler<Event<FormData>>,
     on_toggle: EventHandler<MouseData>,
     svg_icon: Element,
+    is_success: bool,
 ) -> Element {
     let disabled_cls = if *has_point_signal.read() {
         ""
@@ -236,15 +314,34 @@ fn PointCard(
         "opacity-40 pointer-events-none"
     };
 
+    // Karte: im Erfolgsfall grüner Glow via @keyframes
+    let card_class = if is_success {
+        "bg-white rounded-2xl border overflow-hidden save-glow-card"
+    } else {
+        "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden"
+    };
+
+    let header_class = if is_success {
+        "px-5 py-3.5 border-b flex items-center gap-2.5 save-glow-header"
+    } else {
+        "px-5 py-3.5 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5"
+    };
+
+    let accent_class = if is_success {
+        "w-1.5 h-5 rounded-full save-glow-accent"
+    } else {
+        "w-1.5 h-5 rounded-full bg-amber-400/70"
+    };
+
     const LBL: &str =
         "block text-[11px] font-semibold tracking-[0.12em] uppercase text-amber-700/70 mb-1.5";
 
     rsx! {
-        div { class: "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden",
+        div { class: "{card_class}",
 
             // Card header
-            div { class: "px-5 py-3.5 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5",
-                div { class: "w-1.5 h-5 rounded-full bg-amber-400/70" }
+            div { class: "{header_class}",
+                div { class: "{accent_class}" }
                 div { class: "flex items-center gap-2",
                     {svg_icon}
                     span { class: "text-sm font-semibold text-zinc-800", "{title}" }

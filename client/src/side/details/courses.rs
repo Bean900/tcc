@@ -8,10 +8,57 @@ use crate::{
     },
     storage::{CourseData, StorageManager},
 };
+use async_std::task::sleep;
 use chrono::NaiveTime;
 use dioxus::prelude::*;
+use std::time::Duration;
 use uuid::Uuid;
 use web_sys::console;
+
+// ─────────────────────────────────────────────
+//  CSS: Keyframe-Animation für den grünen Glow
+// ─────────────────────────────────────────────
+
+const SAVE_GLOW_CSS: &str = r#"
+@keyframes save-glow {
+    0%   {
+        border-color: #d1fae5;
+        box-shadow: 0 0 0 0px rgba(34, 197, 94, 0),
+                    0 1px 3px 0 rgba(0, 0, 0, 0.06);
+    }
+    20%  {
+        border-color: #22c55e;
+        box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.22),
+                    0 1px 3px 0 rgba(0, 0, 0, 0.06);
+    }
+    55%  {
+        border-color: #16a34a;
+        box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.10),
+                    0 1px 3px 0 rgba(0, 0, 0, 0.06);
+    }
+    100% {
+        border-color: #bbf7d0;
+        box-shadow: 0 0 0 0px rgba(34, 197, 94, 0),
+                    0 1px 3px 0 rgba(0, 0, 0, 0.06);
+    }
+}
+.save-glow-card {
+    animation: save-glow 2s ease-in-out forwards;
+}
+.save-glow-card .save-glow-header {
+    background-color: rgba(240, 253, 244, 0.70) !important;
+    border-bottom-color: #bbf7d0 !important;
+    transition: background-color 0.4s ease, border-color 0.4s ease;
+}
+.save-glow-card .save-glow-accent {
+    background-color: rgba(34, 197, 94, 0.75) !important;
+    transition: background-color 0.4s ease;
+}
+.save-glow-card .save-glow-title {
+    color: #166534 !important;
+    transition: color 0.4s ease;
+}
+"#;
 
 #[derive(PartialEq, Clone)]
 struct CourseParam {
@@ -116,11 +163,53 @@ fn CoursesContent(cook_and_run_id: Uuid, course_list: Vec<CourseData>) -> Elemen
             .collect::<Vec<CourseParam>>()
     });
 
-    // Shared label token – matches calculate.rs
+    // true  → grüner Glow auf der Aktions-Card für 2 s
+    let mut save_success_signal = use_signal(|| false);
+
+    // Shared label token
     const LBL: &str =
         "block text-[11px] font-semibold tracking-[0.12em] uppercase text-amber-700/70 mb-1.5";
 
+    // Abgeleitet: ungespeicherte Änderungen vorhanden wenn mind. ein Kurs
+    // neu ist oder geändert wurde → Button aktiv
+    let can_save = course_list_signal
+        .read()
+        .iter()
+        .any(|c| c.is_new || c.is_updated);
+
+    let is_success = *save_success_signal.read();
+
+    // Aktions-Card folgt dem selben Glow-Pattern wie overview / startend / calculate
+    let card_class = if is_success {
+        "bg-white rounded-2xl border overflow-hidden save-glow-card"
+    } else {
+        "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden"
+    };
+    let header_class = if is_success {
+        "px-5 py-3.5 border-b flex items-center gap-2.5 save-glow-header"
+    } else {
+        "px-5 py-3.5 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5"
+    };
+    let accent_class = if is_success {
+        "w-1.5 h-5 rounded-full save-glow-accent"
+    } else {
+        "w-1.5 h-5 rounded-full bg-amber-400/70"
+    };
+    let title_class = if is_success {
+        "text-sm font-semibold save-glow-title"
+    } else {
+        "text-sm font-semibold text-zinc-800"
+    };
+    let save_btn_wrapper_class = if can_save {
+        ""
+    } else {
+        "opacity-40 pointer-events-none cursor-not-allowed"
+    };
+
     rsx! {
+        // ── Keyframe-CSS einbinden ────────────────────────────────
+        style { dangerous_inner_html: SAVE_GLOW_CSS }
+
         section { class: "px-8 py-6 space-y-8",
 
             // ── Page header ───────────────────────────────────────
@@ -182,10 +271,8 @@ fn CoursesContent(cook_and_run_id: Uuid, course_list: Vec<CourseData>) -> Elemen
                                 }
                             }
 
-                            // Footer row: radio + delete
+                            // Footer row: delete button
                             div { class: "flex items-center justify-between pt-1",
-
-                                // Delete button
                                 {
                                     DeleteButtonProps::new(
                                         async_action!(
@@ -227,7 +314,6 @@ fn CoursesContent(cook_and_run_id: Uuid, course_list: Vec<CourseData>) -> Elemen
                         let mut list = course_list_signal.write();
                         list.push(CourseParam::default());
                     },
-                    // Plus icon
                     div { class: "w-7 h-7 rounded-full border-2 border-current \
                                   flex items-center justify-center \
                                   text-lg font-bold leading-none \
@@ -237,61 +323,79 @@ fn CoursesContent(cook_and_run_id: Uuid, course_list: Vec<CourseData>) -> Elemen
                     span { class: "text-sm font-semibold tracking-wide", "Add course" }
                 }
 
-                // ── Save button ───────────────────────────────────
-                div { class: "flex justify-end pt-1",
-                    ConfirmButton {
-                        action: async_action!(
-                            {
-                                let mut storage_signal = use_context::<Signal<StorageManager>>();
-                                let mut storage = storage_signal.write();
-                                let mut list = course_list_signal.write();
-                                for course in list.iter_mut() {
-                                    let name = course.name.clone();
-                                    let time = course.time.format("%H:%M").to_string();
-                                    if !check_name(course, &name) || !check_time(course, &time) {
-                                        console::error_1(
-                                            &format!("Validation errors in course: {}", course.id).into(),
-                                        );
-                                        continue;
-                                    }
-                                    if course.is_new {
-                                        let result = storage
-                                            .create_course_of_cook_and_run(
-                                                cook_and_run_id,
-                                                course.id,
-                                                &course.to_create_course(),
-                                            )
-                                            .await;
-                                        if let Err(e) = result {
-                                            console::error_1(
-                                                &format!("Error inserting course: {}", e).into(),
-                                            );
-                                            return;
-                                        } else {
-                                            course.is_new = false;
-                                            course.is_updated = false;
+                // ── Aktions-Card: glowen wie alle anderen Speicher-Cards ──
+                div { class: "{card_class}",
+
+                    div { class: "{header_class}",
+                        div { class: "{accent_class}" }
+                        span { class: "{title_class}",
+                            if is_success { "Courses  ✓" } else { "Courses" }
+                        }
+                    }
+
+                    div { class: "px-5 pb-5 pt-4 flex justify-end",
+                        div { class: "{save_btn_wrapper_class}",
+                            ConfirmButton {
+                                action: async_action!(
+                                    {
+                                        let mut storage_signal = use_context::<Signal<StorageManager>>();
+                                        let mut storage = storage_signal.write();
+                                        let mut list = course_list_signal.write();
+                                        for course in list.iter_mut() {
+                                            let name = course.name.clone();
+                                            let time = course.time.format("%H:%M").to_string();
+                                            if !check_name(course, &name) || !check_time(course, &time) {
+                                                console::error_1(
+                                                    &format!("Validation errors in course: {}", course.id).into(),
+                                                );
+                                                continue;
+                                            }
+                                            if course.is_new {
+                                                let result = storage
+                                                    .create_course_of_cook_and_run(
+                                                        cook_and_run_id,
+                                                        course.id,
+                                                        &course.to_create_course(),
+                                                    )
+                                                    .await;
+                                                if let Err(e) = result {
+                                                    console::error_1(
+                                                        &format!("Error inserting course: {}", e).into(),
+                                                    );
+                                                    return;
+                                                } else {
+                                                    course.is_new = false;
+                                                    course.is_updated = false;
+                                                }
+                                            } else if course.is_updated {
+                                                let result = storage
+                                                    .update_course_of_cook_and_run(
+                                                        cook_and_run_id,
+                                                        course.id,
+                                                        &course.to_update_course(),
+                                                    )
+                                                    .await;
+                                                if let Err(e) = result {
+                                                    console::error_1(
+                                                        &format!("Error updating course: {}", e).into(),
+                                                    );
+                                                    return;
+                                                } else {
+                                                    course.is_updated = false;
+                                                }
+                                            }
                                         }
-                                    } else if course.is_updated {
-                                        let result = storage
-                                            .update_course_of_cook_and_run(
-                                                cook_and_run_id,
-                                                course.id,
-                                                &course.to_update_course(),
-                                            )
-                                            .await;
-                                        if let Err(e) = result {
-                                            console::error_1(
-                                                &format!("Error updating course: {}", e).into(),
-                                            );
-                                            return;
-                                        } else {
-                                            course.is_updated = false;
-                                        }
+                                        // Erfolg: Glow für 2 s
+                                        save_success_signal.set(true);
+                                        spawn(async move {
+                                            sleep(Duration::from_millis(2000)).await;
+                                            save_success_signal.set(false);
+                                        });
                                     }
-                                }
+                                ),
+                                text: "Save".to_string(),
                             }
-                        ),
-                        text: "Save".to_string(),
+                        }
                     }
                 }
             }

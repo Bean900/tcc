@@ -1,3 +1,5 @@
+use async_std::task::sleep;
+use std::time::Duration;
 use std::vec;
 
 use crate::{
@@ -138,12 +140,14 @@ pub fn Calculate(cook_and_run_id: Uuid) -> Element {
 
     let (course_list, start_point, end_point) = match &*course_list_result.read_unchecked() {
         None => return rsx!(LoadingPage {}),
-        Some(Err(e)) => return rsx!(ErrorPage {
+        Some(Err(e)) => {
+            return rsx!(ErrorPage {
             error_text:
                 "Could not load course list. You may need to log in or the servers may be offline."
                     .to_string(),
             error_details: e.clone(),
-        }),
+        })
+        }
         Some(Ok((course_list, start_point, end_point))) => {
             (course_list.clone(), start_point.clone(), end_point.clone())
         }
@@ -193,6 +197,45 @@ pub fn Calculate(cook_and_run_id: Uuid) -> Element {
 //  Settings card
 // ─────────────────────────────────────────────
 
+// ─────────────────────────────────────────────
+//  CSS: Keyframe-Animation für den grünen Glow
+// ─────────────────────────────────────────────
+
+const SAVE_GLOW_CSS: &str = r#"
+@keyframes save-glow {
+    0%   {
+        border-color: #d1fae5;
+        box-shadow: 0 0 0 0px rgba(34, 197, 94, 0),   0 1px 3px 0 rgba(0,0,0,0.06);
+    }
+    20%  {
+        border-color: #22c55e;
+        box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.22), 0 1px 3px 0 rgba(0,0,0,0.06);
+    }
+    55%  {
+        border-color: #16a34a;
+        box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.10), 0 1px 3px 0 rgba(0,0,0,0.06);
+    }
+    100% {
+        border-color: #bbf7d0;
+        box-shadow: 0 0 0 0px rgba(34, 197, 94, 0),   0 1px 3px 0 rgba(0,0,0,0.06);
+    }
+}
+.save-glow-card { animation: save-glow 2s ease-in-out forwards; }
+.save-glow-card .save-glow-header {
+    background-color: rgba(240,253,244,0.70) !important;
+    border-bottom-color: #bbf7d0 !important;
+    transition: background-color 0.4s ease, border-color 0.4s ease;
+}
+.save-glow-card .save-glow-accent {
+    background-color: rgba(34,197,94,0.75) !important;
+    transition: background-color 0.4s ease;
+}
+.save-glow-card .save-glow-title {
+    color: #166534 !important;
+    transition: color 0.4s ease;
+}
+"#;
+
 #[component]
 fn CalculateSettings(cook_and_run_id: Uuid, plan_config_signal: Signal<PlanConfigData>) -> Element {
     const LBL: &str =
@@ -203,13 +246,49 @@ fn CalculateSettings(cook_and_run_id: Uuid, plan_config_signal: Signal<PlanConfi
          focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 \
          transition-colors duration-150 mb-4";
 
+    // true  → grüner Glow aktiv für 2 s
+    let mut save_success_signal = use_signal(|| false);
+    // true  → ungespeicherte Änderungen vorhanden → Button aktiv
+    let mut has_unsaved_changes = use_signal(|| false);
+
+    let is_success = *save_success_signal.read();
+    let can_save = *has_unsaved_changes.read();
+
+    let card_class = if is_success {
+        "bg-white rounded-2xl border overflow-hidden save-glow-card"
+    } else {
+        "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden"
+    };
+    let header_class = if is_success {
+        "px-5 py-3.5 border-b flex items-center gap-2.5 save-glow-header"
+    } else {
+        "px-5 py-3.5 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5"
+    };
+    let accent_class = if is_success {
+        "w-1.5 h-5 rounded-full save-glow-accent"
+    } else {
+        "w-1.5 h-5 rounded-full bg-amber-400/70"
+    };
+    let title_class = if is_success {
+        "text-sm font-semibold save-glow-title"
+    } else {
+        "text-sm font-semibold text-zinc-800"
+    };
+    let save_btn_wrapper_class = if can_save {
+        ""
+    } else {
+        "opacity-40 pointer-events-none cursor-not-allowed"
+    };
+
     rsx!(
-        div { class: "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden",
+        style { dangerous_inner_html: SAVE_GLOW_CSS }
+
+        div { class: "{card_class}",
 
             // Card header
-            div { class: "px-5 py-3.5 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5",
-                div { class: "w-1.5 h-5 rounded-full bg-amber-400/70" }
-                span { class: "text-sm font-semibold text-zinc-800", "Plan Configuration" }
+            div { class: "{header_class}",
+                div { class: "{accent_class}" }
+                span { class: "{title_class}", "Plan Configuration" }
             }
 
             // Form body
@@ -222,6 +301,7 @@ fn CalculateSettings(cook_and_run_id: Uuid, plan_config_signal: Signal<PlanConfi
                         place_holer: "Plan title",
                         value: "{plan_config_signal.read().title.clone()}",
                         oninput: move |e: Event<FormData>| {
+                            has_unsaved_changes.set(true);
                             plan_config_signal.write().title = e.value().to_string();
                         },
                     }
@@ -234,6 +314,7 @@ fn CalculateSettings(cook_and_run_id: Uuid, plan_config_signal: Signal<PlanConfi
                         place_holer: "Short description",
                         value: "{plan_config_signal.read().description.clone()}",
                         oninput: move |e: Event<FormData>| {
+                            has_unsaved_changes.set(true);
                             plan_config_signal.write().description = e.value().to_string();
                         },
                     }
@@ -250,6 +331,7 @@ fn CalculateSettings(cook_and_run_id: Uuid, plan_config_signal: Signal<PlanConfi
                             value: "{plan_config_signal.read().date}",
                             onchange: move |e: Event<FormData>| {
                                 if let Ok(date) = NaiveDate::parse_from_str(&e.value(), "%Y-%m-%d") {
+                                    has_unsaved_changes.set(true);
                                     plan_config_signal.write().date = date;
                                 }
                             },
@@ -261,6 +343,7 @@ fn CalculateSettings(cook_and_run_id: Uuid, plan_config_signal: Signal<PlanConfi
                         select {
                             class: "{NATIVE_INPUT} cursor-pointer",
                             onchange: move |e| {
+                                has_unsaved_changes.set(true);
                                 plan_config_signal.write().language = Language::from_string(e.value());
                             },
                             value: "{plan_config_signal.read().language.to_string()}",
@@ -273,21 +356,29 @@ fn CalculateSettings(cook_and_run_id: Uuid, plan_config_signal: Signal<PlanConfi
 
             // Card footer
             div { class: "px-5 pb-5 pt-1",
-                ConfirmButton {
-                    action: async_action!(
-                        {
-                            let mut storage = use_context::<Signal<StorageManager>>().write().clone();
-                            let result = storage
-                                .update_plan_config_of_cook_and_run(cook_and_run_id, &plan_config_signal.read())
-                                .await;
-                            if let Err(e) = &result {
-                                console::error_1(&format!("Error updating plan config: {}", e).into());
-                            } else {
-                                console::log_1(&"Plan configuration updated successfully".into());
+                div { class: "{save_btn_wrapper_class}",
+                    ConfirmButton {
+                        action: async_action!(
+                            {
+                                let mut storage = use_context::<Signal<StorageManager>>().write().clone();
+                                let result = storage
+                                    .update_plan_config_of_cook_and_run(cook_and_run_id, &plan_config_signal.read())
+                                    .await;
+                                if let Err(e) = &result {
+                                    console::error_1(&format!("Error updating plan config: {}", e).into());
+                                } else {
+                                    console::log_1(&"Plan configuration updated successfully".into());
+                                    has_unsaved_changes.set(false);
+                                    save_success_signal.set(true);
+                                    spawn(async move {
+                                        sleep(Duration::from_millis(2000)).await;
+                                        save_success_signal.set(false);
+                                    });
+                                }
                             }
-                        }
-                    ),
-                    text: "Save Settings".to_string(),
+                        ),
+                        text: "Save Settings".to_string(),
+                    }
                 }
             }
         }
@@ -343,7 +434,7 @@ fn CalculatePlans(
         }
     });
 
-    let plan_result: Resource<Result<Option<PlanData>, String>> = use_resource(move || {
+    let mut plan_result: Resource<Result<Option<PlanData>, String>> = use_resource(move || {
         let storage = storage.clone();
         async move {
             let storage = storage.read().clone();
@@ -353,12 +444,14 @@ fn CalculatePlans(
 
     let team_list = match &*team_list_result.read_unchecked() {
         None => return rsx!(LoadingPage {}),
-        Some(Err(e)) => return rsx!(ErrorPage {
+        Some(Err(e)) => {
+            return rsx!(ErrorPage {
             error_text:
                 "Could not load team list. You may need to log in or the servers may be offline."
                     .to_string(),
             error_details: e.clone(),
-        }),
+        })
+        }
         Some(Ok(team_list)) => team_list.clone(),
     };
 
@@ -388,6 +481,7 @@ fn CalculatePlans(
     }
 
     // ── Empty state: no plan yet ───────────────────────────────────
+
     let plan = match &*plan_result.read_unchecked() {
         None => return rsx!(LoadingPage {}),
         Some(Err(e)) => {
@@ -436,6 +530,7 @@ fn CalculatePlans(
                                     console::error_1(&format!("Error updating plan config: {}", e).into());
                                 } else {
                                     console::log_1(&"Plan updated successfully".into());
+                                     plan_result.restart();
                                 }
                             }
                         ),

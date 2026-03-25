@@ -6,15 +6,13 @@ use web_sys::console;
 
 use crate::{
     auth0::{AuthState, SessionData},
+    config::AppConfig,
     storage::{
         AddressData, CookAndRunCreate, CookAndRunData, CookAndRunMetaData, CookAndRunMetaUpdate,
         CourseCreate, CourseData, CourseUpdate, MeetingPointData, NoteCreate, Storage, TeamCreate,
         TeamData, TeamUpdate,
     },
 };
-
-//const SERVER_URL: &str = "http://tcc.beancode.de:3000";
-const SERVER_URL: &str = "http://127.0.0.1:3000";
 
 #[derive(Clone, Debug)]
 pub struct CloudStorage {
@@ -104,11 +102,12 @@ struct CourseListResponse {
 }
 
 impl CloudStorage {
-    pub fn new(auth_state: AuthState) -> Self {
-        CloudStorage {
-            base_url: SERVER_URL.to_string(),
+    pub async fn new(auth_state: AuthState) -> Result<Self, String> {
+        let config = AppConfig::fetch().await?;
+        Ok(CloudStorage {
+            base_url: config.auth0_audience,
             auth_state,
-        }
+        })
     }
 
     fn get_access_token(&self) -> Result<SessionData, String> {

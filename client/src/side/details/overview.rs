@@ -234,8 +234,23 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
     });
 
     let error_login_signal = use_signal(|| match storage_signal.read().get_auth_state() {
-        AuthState::LoggedIn(_) => "".to_string(),
-        _ => "Not logged in!".to_string(),
+        Ok(AuthState::LoggedIn(_)) => "".to_string(),
+        Ok(AuthState::Loading(_)) => {
+            console::error_1(&format!("Auth state ist loading!").into());
+            "Loading...!".to_string()
+        }
+        Ok(AuthState::LoggedOut) => {
+            console::error_1(&format!("Auth state ist not logged out!").into());
+            "Logged out!".to_string()
+        }
+        Ok(AuthState::Error(e)) => {
+            console::error_1(&format!("Auth error: {}", e).into());
+            "Error!".to_string()
+        }
+        Err(e) => {
+            console::error_1(&format!("Error while getting auth state: {}", e).into());
+            "Error whole loading auth state!".to_string()
+        }
     });
 
     let is_cloud = cook_and_run_meta.is_in_cloud;
@@ -292,7 +307,7 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
                 div { class: "{header_class}",
                     div { class: "{accent_class}" }
                     span { class: "{title_class}",
-                        if is_success { "Project Settings  ✓" } else { "Project Settings" }
+                          "Project Settings"
                     }
                 }
 

@@ -2,7 +2,7 @@ mod cloud;
 mod local;
 pub mod mapper;
 
-use std::{collections::HashMap, hash::Hash, ops::Add};
+use std::{collections::HashMap, hash::Hash};
 
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct StorageManager {
     local: LocalStorage,
-    cloud: CloudStorage,
+    cloud: Option<CloudStorage>,
 }
 
 async fn transfere<T: Storage>(storage: &mut T, c_a_r: CookAndRunData) -> Result<Uuid, String> {
@@ -63,23 +63,49 @@ async fn transfere<T: Storage>(storage: &mut T, c_a_r: CookAndRunData) -> Result
 }
 
 impl StorageManager {
-    pub fn new(auth_state: AuthState) -> Result<Self, String> {
+    pub fn new() -> Result<Self, String> {
         Ok(StorageManager {
             local: LocalStorage::new()?,
-            cloud: CloudStorage::new(auth_state),
+            cloud: None,
         })
     }
 
-    pub fn get_auth_state(&self) -> AuthState {
-        self.cloud.get_auth_state()
+    pub async fn load_cloud(mut self, auth_state: AuthState) -> Result<Self, String> {
+        let cloud = CloudStorage::new(auth_state).await?;
+        self.cloud = Some(cloud);
+        Ok(self)
     }
 
-    pub fn set_auth_state(&mut self, auth_state: AuthState) {
-        self.cloud.set_auth_state(auth_state);
+    fn get_cloud_mut(&mut self) -> Result<&mut CloudStorage, String> {
+        if let Some(cloud) = self.cloud.as_mut() {
+            Ok(cloud)
+        } else {
+            Err("Cloud is not configured".to_string())
+        }
+    }
+
+    fn get_cloud(&self) -> Result<&CloudStorage, String> {
+        if let Some(cloud) = self.cloud.as_ref() {
+            Ok(cloud)
+        } else {
+            Err("Cloud is not configured".to_string())
+        }
+    }
+
+    pub fn get_auth_state(&self) -> Result<AuthState, String> {
+        let cloud = self.get_cloud()?;
+        Ok(cloud.get_auth_state())
+    }
+
+    pub fn set_auth_state(&mut self, auth_state: AuthState) -> Result<(), String> {
+        let cloud = self.get_cloud_mut()?;
+        Ok(cloud.set_auth_state(auth_state))
     }
 
     pub async fn upload_to_cloud(&mut self, cook_and_run_id: Uuid) -> Result<Uuid, String> {
-        let result = self.local.select_cook_and_run(cook_and_run_id).await;
+        let local = &mut self.local.clone();
+        let cloud = self.get_cloud_mut()?;
+        let result = local.select_cook_and_run(cook_and_run_id).await;
         let result = match result {
             Ok(c_a_r) => c_a_r,
             Err(e) => {
@@ -89,13 +115,15 @@ impl StorageManager {
                 ))
             }
         };
-        let new_cook_and_run_id = transfere(&mut self.cloud, result).await?;
-        self.local.delete_cook_and_run(cook_and_run_id).await?;
+        let new_cook_and_run_id = transfere(cloud, result).await?;
+        local.delete_cook_and_run(cook_and_run_id).await?;
         Ok(new_cook_and_run_id)
     }
 
     pub async fn download_from_cloud(&mut self, cook_and_run_id: Uuid) -> Result<Uuid, String> {
-        let result = self.cloud.select_cook_and_run(cook_and_run_id).await;
+        let local = &mut self.local.clone();
+        let cloud = self.get_cloud_mut()?;
+        let result = cloud.select_cook_and_run(cook_and_run_id).await;
         let result = match result {
             Ok(c_a_r) => c_a_r,
             Err(e) => {
@@ -105,8 +133,8 @@ impl StorageManager {
                 ))
             }
         };
-        let new_cook_and_run_id = transfere(&mut self.local, result).await?;
-        self.cloud.delete_cook_and_run(cook_and_run_id).await?;
+        let new_cook_and_run_id = transfere(local, result).await?;
+        cloud.delete_cook_and_run(cook_and_run_id).await?;
         Ok(new_cook_and_run_id)
     }
 
@@ -134,7 +162,8 @@ impl StorageManager {
         if exists_local {
             self.local.delete_cook_and_run(cook_and_run_id).await
         } else {
-            self.cloud.delete_cook_and_run(cook_and_run_id).await
+            let cloud = self.get_cloud_mut()?;
+            cloud.delete_cook_and_run(cook_and_run_id).await
         }
     }
 
@@ -154,7 +183,8 @@ impl StorageManager {
                 .update_meta_of_cook_and_run(cook_and_run_id, cook_and_run_meta)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .update_meta_of_cook_and_run(cook_and_run_id, cook_and_run_meta)
                 .await
         }
@@ -176,7 +206,8 @@ impl StorageManager {
                 .update_plan_of_cook_and_run(cook_and_run_id, plan)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .update_plan_of_cook_and_run(cook_and_run_id, plan)
                 .await
         }
@@ -193,7 +224,7 @@ impl StorageManager {
         {
             Ok(data) => Ok(data),
             Err(e_local) => match self
-                .cloud
+                .get_cloud()?
                 .select_plan_of_cook_and_run(cook_and_run_id)
                 .await
             {
@@ -221,9 +252,8 @@ impl StorageManager {
                 .delete_plan_of_cook_and_run(cook_and_run_id)
                 .await
         } else {
-            self.cloud
-                .delete_plan_of_cook_and_run(cook_and_run_id)
-                .await
+            let cloud = self.get_cloud_mut()?;
+            cloud.delete_plan_of_cook_and_run(cook_and_run_id).await
         }
     }
 
@@ -243,7 +273,8 @@ impl StorageManager {
                 .update_plan_config_of_cook_and_run(cook_and_run_id, plan_config)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .update_plan_config_of_cook_and_run(cook_and_run_id, plan_config)
                 .await
         }
@@ -260,7 +291,7 @@ impl StorageManager {
         {
             Ok(data) => Ok(data),
             Err(e_local) => match self
-                .cloud
+                .get_cloud()?
                 .select_plan_config_of_cook_and_run(cook_and_run_id)
                 .await
             {
@@ -288,7 +319,8 @@ impl StorageManager {
                 .delete_plan_config_of_cook_and_run(cook_and_run_id)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .delete_plan_config_of_cook_and_run(cook_and_run_id)
                 .await
         }
@@ -311,7 +343,8 @@ impl StorageManager {
                 .create_course_of_cook_and_run(cook_and_run_id, course_id, course)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .create_course_of_cook_and_run(cook_and_run_id, course_id, course)
                 .await
         }
@@ -334,7 +367,8 @@ impl StorageManager {
                 .update_course_of_cook_and_run(cook_and_run_id, course_id, course)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .update_course_of_cook_and_run(cook_and_run_id, course_id, course)
                 .await
         }
@@ -356,7 +390,8 @@ impl StorageManager {
                 .delete_course_of_cook_and_run(cook_and_run_id, course_id)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .delete_course_of_cook_and_run(cook_and_run_id, course_id)
                 .await
         }
@@ -378,7 +413,8 @@ impl StorageManager {
                 .update_course_with_more_hosts_of_cook_and_run(cook_and_run_id, course_id)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .update_course_with_more_hosts_of_cook_and_run(cook_and_run_id, course_id)
                 .await
         }
@@ -401,7 +437,8 @@ impl StorageManager {
                 .create_team_of_cook_and_run(cook_and_run_id, team_id, team)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .create_team_of_cook_and_run(cook_and_run_id, team_id, team)
                 .await
         }
@@ -424,7 +461,8 @@ impl StorageManager {
                 .update_team_of_cook_and_run(cook_and_run_id, team_id, team)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .update_team_of_cook_and_run(cook_and_run_id, team_id, team)
                 .await
         }
@@ -446,7 +484,8 @@ impl StorageManager {
                 .delete_team_of_cook_and_run(cook_and_run_id, team_id)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .delete_team_of_cook_and_run(cook_and_run_id, team_id)
                 .await
         }
@@ -463,7 +502,7 @@ impl StorageManager {
         {
             Ok(data) => Ok(data),
             Err(e_local) => match self
-                .cloud
+                .get_cloud()?
                 .select_cook_and_run_team_list(cook_and_run_id)
                 .await
             {
@@ -488,7 +527,7 @@ impl StorageManager {
         {
             Ok(data) => Ok(data),
             Err(e_local) => match self
-                .cloud
+                .get_cloud()?
                 .select_cook_and_run_team(cook_and_run_id, team_id)
                 .await
             {
@@ -519,7 +558,8 @@ impl StorageManager {
                 .create_team_note_of_cook_and_run(cook_and_run_id, team_id, note_id, note_data)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .create_team_note_of_cook_and_run(cook_and_run_id, team_id, note_id, note_data)
                 .await
         }
@@ -542,7 +582,8 @@ impl StorageManager {
                 .delete_team_note_of_cook_and_run(cook_and_run_id, team_id, note_id)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .delete_team_note_of_cook_and_run(cook_and_run_id, team_id, note_id)
                 .await
         }
@@ -551,7 +592,7 @@ impl StorageManager {
     pub async fn select_cook_and_run(&self, id: Uuid) -> Result<CookAndRunData, String> {
         match self.local.select_cook_and_run(id).await {
             Ok(data) => Ok(data),
-            Err(e_local) => match self.cloud.select_cook_and_run(id).await {
+            Err(e_local) => match self.get_cloud()?.select_cook_and_run(id).await {
                 Ok(data) => Ok(data),
                 Err(e_cloud) => Err(format!(
                     "Cook and run with id {} not found in local or cloud storage: {} | {}",
@@ -564,7 +605,7 @@ impl StorageManager {
     pub async fn select_cook_and_run_meta(&self, id: Uuid) -> Result<CookAndRunMetaData, String> {
         match self.local.select_cook_and_run_meta(id).await {
             Ok(data) => Ok(data),
-            Err(e_local) => match self.cloud.select_cook_and_run_meta(id).await {
+            Err(e_local) => match self.get_cloud()?.select_cook_and_run_meta(id).await {
                 Ok(data) => Ok(data),
                 Err(e_cloud) => Err(format!(
                     "Cook and run with id {} not found in local or cloud storage: {} | {}",
@@ -577,7 +618,7 @@ impl StorageManager {
     pub async fn select_cook_and_run_meta_list(&self) -> Result<Vec<CookAndRunMetaData>, String> {
         let local_data = self.local.select_cook_and_run_meta_list().await?;
 
-        let cloud_data = match self.cloud.select_cook_and_run_meta_list().await {
+        let cloud_data = match self.get_cloud()?.select_cook_and_run_meta_list().await {
             Ok(data) => data,
             Err(e) => {
                 console::warn_1(
@@ -618,7 +659,8 @@ impl StorageManager {
                 .update_start_point_in_cook_and_run(cook_and_run_id, start_point)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .update_start_point_in_cook_and_run(cook_and_run_id, start_point)
                 .await
         }
@@ -640,7 +682,8 @@ impl StorageManager {
                 .update_end_point_in_cook_and_run(cook_and_run_id, end_point)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .update_end_point_in_cook_and_run(cook_and_run_id, end_point)
                 .await
         }
@@ -662,7 +705,8 @@ impl StorageManager {
                 .create_cook_and_run_share_config(cook_and_run_id, share_config)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .create_cook_and_run_share_config(cook_and_run_id, share_config)
                 .await
         }
@@ -684,7 +728,8 @@ impl StorageManager {
                 .update_cook_and_run_share_config(cook_and_run_id, share_config)
                 .await
         } else {
-            self.cloud
+            let cloud = self.get_cloud_mut()?;
+            cloud
                 .update_cook_and_run_share_config(cook_and_run_id, share_config)
                 .await
         }
@@ -696,7 +741,7 @@ impl StorageManager {
     ) -> Result<Option<MeetingPointData>, String> {
         match self.local.select_cook_and_run_start_point(id).await {
             Ok(data) => Ok(data),
-            Err(e_local) => match self.cloud.select_cook_and_run_start_point(id).await {
+            Err(e_local) => match self.get_cloud()?.select_cook_and_run_start_point(id).await {
                 Ok(data) => Ok(data),
                 Err(e_cloud) => Err(format!(
                     "Cook and run with id {} not found in local or cloud storage: {} | {}",
@@ -712,7 +757,7 @@ impl StorageManager {
     ) -> Result<Option<MeetingPointData>, String> {
         match self.local.select_cook_and_run_end_point(id).await {
             Ok(data) => Ok(data),
-            Err(e_local) => match self.cloud.select_cook_and_run_end_point(id).await {
+            Err(e_local) => match self.get_cloud()?.select_cook_and_run_end_point(id).await {
                 Ok(data) => Ok(data),
                 Err(e_cloud) => Err(format!(
                     "Cook and run with id {} not found in local or cloud storage: {} | {}",
@@ -733,7 +778,7 @@ impl StorageManager {
         {
             Ok(data) => Ok(data),
             Err(e_local) => match self
-                .cloud
+                .get_cloud()?
                 .select_cook_and_run_course_list(cook_and_run_id)
                 .await
             {
@@ -757,7 +802,7 @@ impl StorageManager {
         {
             Ok(data) => Ok(data),
             Err(e_local) => match self
-                .cloud
+                .get_cloud()?
                 .select_cook_and_run_share_config(cook_and_run_id)
                 .await
             {

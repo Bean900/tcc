@@ -1,3 +1,6 @@
+use async_std::task::sleep;
+use std::time::Duration;
+
 use crate::side::details::address::{Address, AddressParam};
 use crate::side::details::{ErrorPage, LoadingPage};
 use crate::side::AsyncAction;
@@ -30,6 +33,33 @@ const NATIVE_INPUT: &str = "w-full px-3 py-2 rounded-xl border border-amber-200 
      text-sm text-zinc-800 placeholder-zinc-400 \
      focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 \
      transition-colors duration-150";
+
+// ─────────────────────────────────────────────
+//  CSS: Keyframe-Animation für den grünen Glow
+// ─────────────────────────────────────────────
+
+const SAVE_GLOW_CSS: &str = r#"
+@keyframes save-glow {
+    0%   { border-color:#d1fae5; box-shadow:0 0 0 0px rgba(34,197,94,0),   0 1px 3px 0 rgba(0,0,0,0.06); }
+    20%  { border-color:#22c55e; box-shadow:0 0 0 5px rgba(34,197,94,0.22),0 1px 3px 0 rgba(0,0,0,0.06); }
+    55%  { border-color:#16a34a; box-shadow:0 0 0 5px rgba(34,197,94,0.10),0 1px 3px 0 rgba(0,0,0,0.06); }
+    100% { border-color:#bbf7d0; box-shadow:0 0 0 0px rgba(34,197,94,0),   0 1px 3px 0 rgba(0,0,0,0.06); }
+}
+.save-glow-dialog { animation: save-glow 2s ease-in-out forwards; }
+.save-glow-dialog .save-glow-header {
+    background-color: rgba(240,253,244,0.70) !important;
+    border-bottom-color: #bbf7d0 !important;
+    transition: background-color 0.4s ease, border-color 0.4s ease;
+}
+.save-glow-dialog .save-glow-accent {
+    background-color: rgba(34,197,94,0.75) !important;
+    transition: background-color 0.4s ease;
+}
+.save-glow-dialog .save-glow-title {
+    color: #166534 !important;
+    transition: color 0.4s ease;
+}
+"#;
 
 // Tab class helper – avoids duplicating the ternary in every button
 fn tab_cls(active: bool) -> &'static str {
@@ -520,6 +550,7 @@ fn AddTeamDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> E
                         members_error_signal,
                         diets_signal,
                         address_param: address_param.clone(),
+                        on_change: move |_| {},
                     }
 
                     div { class: "flex justify-center mt-5",
@@ -595,6 +626,12 @@ fn EditTeamDialog(
     let mut is_edit_team_signal = use_signal(|| true);
     let address_param = AddressParam::new(&team_data.address);
 
+    // true  → grüner Glow für 2 s, dann Dialog schließen
+    let mut save_success_signal = use_signal(|| false);
+
+    // true  → Felder wurden verändert → Update-Button aktiv
+    let mut has_unsaved_changes = use_signal(|| false);
+
     use_effect(move || {
         check_all(
             team_name_signal,
@@ -621,17 +658,47 @@ fn EditTeamDialog(
         None,
     );
 
+    let is_success = *save_success_signal.read();
+    let can_update = *has_unsaved_changes.read();
+    let update_btn_wrapper_class = if can_update {
+        ""
+    } else {
+        "opacity-40 pointer-events-none cursor-not-allowed"
+    };
+
+    // Dialog-Rahmen: im Erfolgsfall grüner Glow
+    let dialog_class = if is_success {
+        "relative bg-white rounded-2xl border shadow-xl w-224 overflow-y-auto max-h-[90vh] save-glow-dialog"
+    } else {
+        "relative bg-white rounded-2xl border border-amber-100 shadow-xl w-224 overflow-y-auto max-h-[90vh]"
+    };
+    let header_class = if is_success {
+        "px-6 py-4 border-b flex items-center gap-2.5 save-glow-header"
+    } else {
+        "px-6 py-4 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5"
+    };
+    let accent_class = if is_success {
+        "w-1.5 h-5 rounded-full save-glow-accent"
+    } else {
+        "w-1.5 h-5 rounded-full bg-amber-400/70"
+    };
+    let title_class = if is_success {
+        "text-base font-semibold save-glow-title"
+    } else {
+        "text-base font-semibold text-zinc-800"
+    };
+
     rsx! {
+        style { dangerous_inner_html: SAVE_GLOW_CSS }
+
         div { class: "backdrop-blur-sm fixed inset-0 flex h-screen w-screen \
                       justify-center items-center bg-black/20 z-50",
-            div { class: "relative bg-white rounded-2xl border border-amber-100 \
-                          shadow-xl w-224 overflow-y-auto max-h-[90vh]",
+            div { class: "{dialog_class}",
 
                 // Dialog header
-                div { class: "px-6 py-4 bg-amber-50/70 border-b border-amber-100 \
-                              flex items-center gap-2.5",
-                    div { class: "w-1.5 h-5 rounded-full bg-amber-400/70" }
-                    span { class: "text-base font-semibold text-zinc-800", "Edit Team" }
+                div { class: "{header_class}",
+                    div { class: "{accent_class}" }
+                    span { class: "{title_class}", "Edit Team" }
                 }
 
                 // Close button
@@ -667,6 +734,7 @@ fn EditTeamDialog(
                                         let new_value = !*needs_check_signal.read();
                                         team_data.needs_check = new_value;
                                         needs_check_signal.set(new_value);
+                                        has_unsaved_changes.set(true);
                                     },
                                 }
                                 span { class: "text-[13px] text-zinc-500 group-hover:text-zinc-700 transition-colors",
@@ -691,10 +759,12 @@ fn EditTeamDialog(
                             members_error_signal,
                             diets_signal,
                             address_param,
+                            on_change: move |_| { has_unsaved_changes.set(true); },
                         }
 
                         div { class: "flex justify-center mt-5",
-                            ConfirmButton {
+                            div { class: "{update_btn_wrapper_class}",
+                                ConfirmButton {
                                 text: "Update Team".to_string(),
                                 error_signal: error_signal.clone(),
                                 action: async_action!(
@@ -735,11 +805,18 @@ fn EditTeamDialog(
                                                 .into(),
                                             );
                                         } else {
-                                            team_dialog_signal.set(PopUpWindow::None);
+                                            // Erfolg: Dialog grün aufblinken lassen,
+                                            // nach 2 s automatisch schließen
+                                            save_success_signal.set(true);
+                                            spawn(async move {
+                                                sleep(Duration::from_millis(2000)).await;
+                                                team_dialog_signal.set(PopUpWindow::None);
+                                            });
                                         }
                                     }
                                 ),
                             }
+                            }  // end update_btn_wrapper_class div
                         }
                     } else {
                         TeamNotes {
@@ -772,6 +849,8 @@ fn TeamDialog(
     members_error_signal: Signal<String>,
     diets_signal: Signal<String>,
     address_param: AddressParam,
+    // Callback: wird bei jeder Feldänderung aufgerufen (z.B. für has_unsaved_changes)
+    on_change: EventHandler<()>,
 ) -> Element {
     rsx! {
         div { class: "flex flex-col md:flex-row gap-6",
@@ -789,6 +868,7 @@ fn TeamDialog(
                             let team_name = e.value();
                             team_name_signal.set(team_name.clone());
                             check_team_name(team_name_signal, team_name_error_signal);
+                            on_change.call(());
                         },
                     }
                     InputError { error: team_name_error_signal.read() }
@@ -804,6 +884,7 @@ fn TeamDialog(
                             let team_email = e.value();
                             team_email_signal.set(team_email.clone());
                             check_team_email(team_email_signal, team_email_error_signal);
+                            on_change.call(());
                         },
                     }
                     InputError { error: team_email_error_signal.read() }
@@ -819,6 +900,7 @@ fn TeamDialog(
                             let team_tel = e.value();
                             team_tel_signal.set(team_tel.clone());
                             check_team_tel(team_tel_signal, team_tel_error_signal);
+                            on_change.call(());
                         },
                     }
                     InputError { error: team_tel_error_signal.read() }
@@ -834,6 +916,7 @@ fn TeamDialog(
                             let members = e.value();
                             members_signal.set(members.clone());
                             check_members(members_signal, members_error_signal);
+                            on_change.call(());
                         },
                     }
                     InputError { error: members_error_signal.read() }
@@ -849,6 +932,7 @@ fn TeamDialog(
                             oninput: move |e: Event<FormData>| {
                                 let diets = e.value();
                                 diets_signal.set(diets.clone());
+                                on_change.call(());
                             },
                         }
                     }

@@ -5,12 +5,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use web_sys::{console, window};
 
-const AUTH0_DOMAIN: &str = "beancode.eu.auth0.com";
-const AUTH0_CLIENT_ID: &str = "KPdjRob3k5SRCqs4wExmQOPrOkqaUJTQ";
-//const AUTH0_REDIRECT: &str = "http://tcc.beancode.de";
-const AUTH0_REDIRECT: &str = "http://localhost:8080";
-const AUTH0_AUDIENCE: &str = "https://home.beancode.de/tcc/backend";
-const SCOPE: &str = "read:cook_and_run delete:cook_and_run update:cook_and_run openid";
+use crate::config::AppConfig;
+
+const SCOPE: &str = "create:project read:project delete:project update:project openid";
 
 #[derive(Debug, Clone)]
 pub enum AuthState {
@@ -137,7 +134,7 @@ impl AuthState {
         AuthState::LoggedOut
     }
 
-    pub fn login(state: String) -> (Self, String) {
+    pub fn login(config: &AppConfig, state: String) -> (Self, String) {
         console::debug_1(&"Starting login process...".into());
         let code_verifier = generate_random_string(128);
         let code_challenge = generate_code_challenge(&code_verifier);
@@ -154,14 +151,15 @@ impl AuthState {
                 "".to_string(),
             );
         }
+
         let auth_url = format!(
             "https://{}/authorize?response_type=code&client_id={}&redirect_uri={}{}&scope={}&audience={}&state={}&code_challenge={}&code_challenge_method=S256",
-            AUTH0_DOMAIN,
-            AUTH0_CLIENT_ID,
-            urlencoding::encode(AUTH0_REDIRECT),
+            &config.auth0_domain,
+            &config.auth0_client_id,
+            urlencoding::encode(&config.auth0_redirect),
             urlencoding::encode("/callback"),
             urlencoding::encode(SCOPE),
-            urlencoding::encode(AUTH0_AUDIENCE),
+            urlencoding::encode(&config.auth0_audience),
             state,
             code_challenge
         );
@@ -169,23 +167,31 @@ impl AuthState {
         (AuthState::Loading(process_data), auth_url)
     }
 
-    pub async fn callback(&self, code: &str, state: &str) -> Self {
+    pub async fn callback(&self, config: &AppConfig, code: &str, state: &str) -> Self {
         console::debug_1(
             &format!("Handling callback with code: {} and state: {}", code, state).into(),
         );
         let process_data = match self {
             AuthState::Loading(data) => data,
-            _ => return AuthState::Error("Invalid auth state for callback".to_string()),
+            _ => {
+                return {
+                    let _ = ProcessData::clear();
+                    AuthState::Error("Invalid auth state for callback".to_string())
+                }
+            }
         };
 
         let (access_token, valid_until) =
-            match exchange_code_for_token(process_data, &code, &state).await {
+            match exchange_code_for_token(config, process_data, &code, &state).await {
                 Ok((access_token, valid_until)) => (access_token, valid_until),
-                Err(e) => return AuthState::Error(e),
+                Err(e) => {
+                    let _ = ProcessData::clear();
+                    return AuthState::Error(e);
+                }
             };
 
         let _ = ProcessData::clear();
-        match get_user_info(&access_token).await {
+        match get_user_info(config, &access_token).await {
             Ok(user) => {
                 let session_data = SessionData {
                     access_token,
@@ -195,11 +201,14 @@ impl AuthState {
                 let _ = session_data.save();
                 AuthState::LoggedIn(session_data)
             }
-            Err(e) => AuthState::Error(e),
+            Err(e) => {
+                let _ = ProcessData::clear();
+                AuthState::Error(e)
+            }
         }
     }
 
-    pub fn logout(&self, return_to_path: &str) -> (Self, String) {
+    pub fn logout(&self, config: &AppConfig, return_to_path: &str) -> (Self, String) {
         console::debug_1(&"Starting logout process...".into());
         if !matches!(self, AuthState::LoggedIn(_)) {
             console::error_1(&"Cannot logout when not logged in".into());
@@ -207,11 +216,10 @@ impl AuthState {
         }
 
         let logout_url = format!(
-            "https://{}/v2/logout?client_id={}&returnTo={}/{}",
-            AUTH0_DOMAIN,
-            AUTH0_CLIENT_ID,
-            urlencoding::encode(AUTH0_REDIRECT),
-            urlencoding::encode(return_to_path)
+            "https://{}/v2/logout?client_id={}&returnTo={}",
+            &config.auth0_domain,
+            &config.auth0_client_id,
+            urlencoding::encode(&config.auth0_redirect)
         );
         let _ = SessionData::clear();
         console::debug_1(&format!("Logout URL: {}", logout_url).into());
@@ -219,10 +227,10 @@ impl AuthState {
     }
 }
 
-async fn get_user_info(access_token: &str) -> Result<UserData, String> {
+async fn get_user_info(config: &AppConfig, access_token: &str) -> Result<UserData, String> {
     let client = reqwest::Client::new();
     let response = client
-        .get(&format!("https://{}/userinfo", AUTH0_DOMAIN))
+        .get(&format!("https://{}/userinfo", config.auth0_domain))
         .bearer_auth(access_token)
         .send()
         .await
@@ -241,6 +249,7 @@ async fn get_user_info(access_token: &str) -> Result<UserData, String> {
 }
 
 async fn exchange_code_for_token(
+    config: &AppConfig,
     process_data: &ProcessData,
     code: &str,
     state: &str,
@@ -251,15 +260,15 @@ async fn exchange_code_for_token(
 
     let token_request = TokenRequest {
         grant_type: "authorization_code",
-        client_id: AUTH0_CLIENT_ID,
+        client_id: &config.auth0_client_id,
         code_verifier: &process_data.code_verifier,
         code,
-        redirect_uri: AUTH0_REDIRECT,
+        redirect_uri: &config.auth0_redirect,
     };
 
     let client = reqwest::Client::new();
     let response = client
-        .post(&format!("https://{}/oauth/token", AUTH0_DOMAIN))
+        .post(&format!("https://{}/oauth/token", &config.auth0_domain))
         .header("Content-Type", "application/x-www-form-urlencoded")
         .form(&token_request)
         .send()

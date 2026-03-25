@@ -1,6 +1,7 @@
 mod address_connector;
 pub mod auth0;
 mod calculator;
+pub mod config;
 mod side;
 mod storage;
 use dioxus::prelude::*;
@@ -18,6 +19,7 @@ use web_sys::console;
 use web_sys::window;
 
 pub use crate::auth0::AuthState;
+use crate::config::AppConfig;
 use crate::side::Menu;
 use crate::storage::StorageManager;
 
@@ -70,19 +72,29 @@ enum Route {
 impl Route {
     fn to_string(&self) -> String {
         match self {
+            Route::Home {} => "-".to_string(),
+            Route::Callback {
+                code: _code,
+                state: _state,
+            } => "-".to_string(),
             Route::Dashboard {} => "cook-and-run".to_string(),
             Route::Overview { cook_and_run_id } => format!("overview.{}", cook_and_run_id),
             Route::Teams { cook_and_run_id } => format!("teams.{}", cook_and_run_id),
             Route::StartEnd { cook_and_run_id } => format!("startend.{}", cook_and_run_id),
             Route::Courses { cook_and_run_id } => format!("courses.{}", cook_and_run_id),
             Route::Calculate { cook_and_run_id } => format!("calculate.{}", cook_and_run_id),
-            _ => "-".to_string(),
+            Route::Plan {
+                cook_and_run_id,
+                team_id,
+            } => format!("plan.{}.{}", cook_and_run_id, team_id),
+            _ => "cook-and-run".to_string(),
         }
     }
 
     fn from_string(s: &str) -> Self {
         let parts: Vec<&str> = s.split('.').collect();
         match parts[0] {
+            "-" => Route::Home {},
             "cook-and-run" => Route::Dashboard {},
             "overview" => {
                 if parts.len() == 2 {
@@ -137,6 +149,21 @@ impl Route {
                     if let Ok(uuid) = Uuid::parse_str(parts[1]) {
                         return Route::Calculate {
                             cook_and_run_id: uuid,
+                        };
+                    }
+                }
+                Route::NotFound {
+                    route: vec![s.to_string()],
+                }
+            }
+            "plan" => {
+                if parts.len() == 3 {
+                    if let (Ok(cook_and_run_id), Ok(team_id)) =
+                        (Uuid::parse_str(parts[1]), Uuid::parse_str(parts[2]))
+                    {
+                        return Route::Plan {
+                            cook_and_run_id,
+                            team_id,
                         };
                     }
                 }
@@ -232,12 +259,162 @@ fn NotFound(route: Vec<String>) -> Element {
 #[component]
 fn Wrapper() -> Element {
     let mut storage_signal = use_context::<Signal<StorageManager>>();
+    let config_resource = use_resource(move || async move { AppConfig::fetch().await });
 
-    // Shared auth button base class
+    // ── AUTH_BTN muss VOR dem match definiert sein, da es dort verwendet wird ──
     const AUTH_BTN: &str = "flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium \
          text-zinc-600 bg-amber-50 border border-amber-200 \
          hover:bg-amber-100 hover:border-amber-300 \
          transition-colors duration-150 cursor-pointer";
+
+    // ── Config aus der Resource als owned Wert extrahieren ──────────────────
+    // Fix: config wird sofort geklont, damit keine Referenz in den Guard
+    // (MappedReadGuard) in move-Closures wandert → kein Lifetime-Fehler.
+    let config_result: Option<Result<AppConfig, String>> = match &*config_resource.read_unchecked()
+    {
+        None => None,
+        Some(Err(e)) => {
+            console::error_1(&format!("Error while loading auth config: {}", e).into());
+            Some(Err(e.clone()))
+        }
+        Some(Ok(config)) => Some(Ok(config.clone())),
+    };
+
+    let error_rsx = rsx!(
+        button {
+            class: "{AUTH_BTN} opacity-60 cursor-not-allowed",
+            disabled: true,
+            svg {
+                class: "w-3.5 h-3.5 text-red-400",
+                view_box: "0 0 24 24",
+                fill: "none",
+                xmlns: "http://www.w3.org/2000/svg",
+                stroke: "currentColor",
+                stroke_width: "2",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" }
+                path { d: "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" }
+                line { x1: "2", y1: "2", x2: "22", y2: "22" }
+            }
+            "Error"
+        }
+    );
+
+    // ── Auth-Button je nach Lade- / Fehlerzustand zusammenbauen ────────────
+    let login = match config_result {
+        // Config lädt noch
+        None => rsx!(
+            button {
+                class: "{AUTH_BTN} opacity-60 cursor-not-allowed",
+                disabled: true,
+                svg {
+                    class: "w-3.5 h-3.5 animate-spin text-amber-400",
+                    view_box: "0 0 24 24",
+                    fill: "none",
+                    xmlns: "http://www.w3.org/2000/svg",
+                    circle {
+                        cx: "12", cy: "12", r: "10",
+                        stroke: "currentColor",
+                        stroke_width: "3",
+                        stroke_dasharray: "40",
+                        stroke_dashoffset: "10",
+                    }
+                }
+                "Loading..."
+            }
+        ),
+
+        // Config-Ladefehler
+        Some(Err(_)) => error_rsx,
+
+        // Config erfolgreich geladen → Auth-Zustand prüfen
+        // config ist jetzt ein owned AppConfig, kann sicher in move-Closures
+        Some(Ok(config)) => match storage_signal.read().get_auth_state() {
+            Err(e) => {
+                console::warn_1(&format!("Error while loading auth state: {}", e).into());
+                error_rsx
+            }
+            Ok(AuthState::Loading(_)) => rsx! {
+                button {
+                    class: "{AUTH_BTN} opacity-60 cursor-not-allowed",
+                    disabled: true,
+                    svg {
+                        class: "w-3.5 h-3.5 animate-spin text-amber-400",
+                        view_box: "0 0 24 24",
+                        fill: "none",
+                        xmlns: "http://www.w3.org/2000/svg",
+                        circle {
+                            cx: "12", cy: "12", r: "10",
+                            stroke: "currentColor",
+                            stroke_width: "3",
+                            stroke_dasharray: "40",
+                            stroke_dashoffset: "10",
+                        }
+                    }
+                    "Logging in…"
+                }
+            },
+            Ok(AuthState::LoggedOut) => rsx! {
+                button {
+                    class: "{AUTH_BTN}",
+                    onclick: move |_| {
+                        let path = use_route::<Route>();
+                        let (auth_state, auth_url) = AuthState::login(&config, path.to_string());
+                        let result = storage_signal.write().set_auth_state(auth_state);
+                        if let Err(e)=result{
+                            console::error_1(&format!("Error while setting auth state: {}",e).into());
+                        }else{
+                        window().unwrap().location().set_href(&auth_url).unwrap();}
+                    },
+                    "Login"
+                }
+            },
+            Ok(AuthState::LoggedIn(_)) => rsx! {
+                button {
+                    class: "{AUTH_BTN}",
+                    onclick: move |_| {
+                        let path = use_route::<Route>();
+                        let auth_state = storage_signal
+                            .read()
+                            .get_auth_state();
+                        let auth_state = match auth_state{
+                            Err(e)=> {console::warn_1(&format!("Error while loading auth state: {}", e).into());return},
+                            Ok(auth_state)=>auth_state,
+                        };
+                        let (auth_state, auth_url) =auth_state
+                            .logout(&config, &path.to_string());
+                        let result = storage_signal.write().set_auth_state(auth_state);
+                        if let Err(e)=result{
+                            console::error_1(&format!("Error while setting auth state: {}",e).into());
+                        }else{
+                        window().unwrap().location().set_href(&auth_url).unwrap();}
+                    },
+                    img {
+                        src: PROVILE,
+                        alt: "Profile",
+                        class: "h-6 w-6 rounded-full border border-amber-200",
+                    }
+                    "Logout"
+                }
+            },
+            Ok(AuthState::Error(_)) => rsx! {
+                button {
+                    class: "{AUTH_BTN} border-red-200 text-red-600 bg-red-50 hover:bg-red-100",
+                    onclick: move |_| {
+                        let path = use_route::<Route>();
+                        let (auth_state, auth_url) = AuthState::login(&config, path.to_string());
+                       let result=  storage_signal.write().set_auth_state(auth_state);
+                       if let Err(e)=result{
+                            console::error_1(&format!("Error while setting auth state: {}",e).into());
+                        }else{
+                        window().unwrap().location().set_href(&auth_url).unwrap();}
+                    },
+                    "Retry Login"
+                }
+            },
+        },
+    };
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
@@ -260,73 +437,7 @@ fn Wrapper() -> Element {
 
                     // Auth button
                     div { class: "flex items-center gap-3",
-                        match storage_signal.read().get_auth_state() {
-                            AuthState::Loading(_) => rsx! {
-                                button {
-                                    class: "{AUTH_BTN} opacity-60 cursor-not-allowed",
-                                    disabled: true,
-                                    // Mini amber spinner
-                                    svg {
-                                        class: "w-3.5 h-3.5 animate-spin text-amber-400",
-                                        view_box: "0 0 24 24",
-                                        fill: "none",
-                                        xmlns: "http://www.w3.org/2000/svg",
-                                        circle {
-                                            cx: "12", cy: "12", r: "10",
-                                            stroke: "currentColor",
-                                            stroke_width: "3",
-                                            stroke_dasharray: "40",
-                                            stroke_dashoffset: "10",
-                                        }
-                                    }
-                                    "Logging in…"
-                                }
-                            },
-                            AuthState::LoggedOut => rsx! {
-                                button {
-                                    class: "{AUTH_BTN}",
-                                    onclick: move |_| {
-                                        let path = use_route::<Route>();
-                                        let (auth_state, auth_url) = AuthState::login(path.to_string());
-                                        storage_signal.write().set_auth_state(auth_state);
-                                        window().unwrap().location().set_href(&auth_url).unwrap();
-                                    },
-                                    "Login"
-                                }
-                            },
-                            AuthState::LoggedIn(_) => rsx! {
-                                button {
-                                    class: "{AUTH_BTN}",
-                                    onclick: move |_| {
-                                        let path = use_route::<Route>();
-                                        let (auth_state, auth_url) = storage_signal
-                                            .read()
-                                            .get_auth_state()
-                                            .logout(&path.to_string());
-                                        storage_signal.write().set_auth_state(auth_state);
-                                        window().unwrap().location().set_href(&auth_url).unwrap();
-                                    },
-                                    img {
-                                        src: PROVILE,
-                                        alt: "Profile",
-                                        class: "h-6 w-6 rounded-full border border-amber-200",
-                                    }
-                                    "Logout"
-                                }
-                            },
-                            AuthState::Error(_) => rsx! {
-                                button {
-                                    class: "{AUTH_BTN} border-red-200 text-red-600 bg-red-50 hover:bg-red-100",
-                                    onclick: move |_| {
-                                        let path = use_route::<Route>();
-                                        let (auth_state, auth_url) = AuthState::login(path.to_string());
-                                        storage_signal.write().set_auth_state(auth_state);
-                                        window().unwrap().location().set_href(&auth_url).unwrap();
-                                    },
-                                    "Retry Login"
-                                }
-                            },
-                        }
+                        {login}
                     }
                 }
             }
@@ -343,17 +454,42 @@ fn Wrapper() -> Element {
 
 #[component]
 fn App() -> Element {
-    use_context_provider(|| {
-        let auth_state = AuthState::new();
-        let storage = StorageManager::new(auth_state);
-        match storage {
-            Ok(s) => Signal::new(s),
-            Err(err) => {
-                console::error_1(&format!("Fatal: {}", err).into());
-                panic!("Storage failed: {}", err);
-            }
-        }
+    let storage = StorageManager::new().unwrap_or_else(|err| {
+        console::error_1(&format!("Fatal: {}", err).into());
+        panic!("Storage failed: {}", err);
     });
+
+    let mut storage_signal = use_signal(|| storage);
+    let mut cloud_loaded = use_signal(|| false);
+
+    use_context_provider(|| storage_signal);
+
+    use_effect(move || {
+        spawn(async move {
+            let auth_state = AuthState::new();
+            let storage = storage_signal.read().clone();
+
+            match storage.load_cloud(auth_state).await {
+                Ok(s) => {
+                    storage_signal.set(s);
+                    console::log_1(&"Cloud connection successfully created!".into());
+                }
+                Err(e) => {
+                    console::error_1(&format!("Error loading cloud: {}", e).into());
+                }
+            }
+
+            cloud_loaded.set(true); // immer setzen, auch bei Fehler
+        });
+    });
+
+    // Router wird erst gerendert wenn Cloud geladen (oder fehlgeschlagen)
+    if !cloud_loaded() {
+        return rsx! {
+            div { class: "loading", "Verbindung wird aufgebaut..." }
+        };
+    }
+
     rsx! {
         Router::<Route> {}
     }

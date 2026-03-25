@@ -11,10 +11,10 @@ use tracing::warn;
 
 use crate::rest_error::RestError;
 
-pub const CREATE_PERMISSION: &str = "create:cook_and_run";
-pub const READ_PERMISSION: &str = "read:cook_and_run";
-pub const UPDATE_PERMISSION: &str = "update:cook_and_run";
-pub const DELETE_PERMISSION: &str = "delete:cook_and_run";
+pub const CREATE_PERMISSION: &str = "create:project";
+pub const READ_PERMISSION: &str = "read:project";
+pub const UPDATE_PERMISSION: &str = "update:project";
+pub const DELETE_PERMISSION: &str = "delete:project";
 
 #[derive(Debug)]
 pub enum AuthUser {
