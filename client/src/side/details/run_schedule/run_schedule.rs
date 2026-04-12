@@ -39,16 +39,45 @@ const LEAF_2: Asset = asset!("/assets/leaf_2.png");
 const CAKE: Asset = asset!("/assets/cake.png");
 const CARROT: Asset = asset!("/assets/carrot.png");
 
+fn strip_html(s: &str) -> String {
+    let mut result = String::new();
+    let mut inside_tag = false;
+    for c in s.chars() {
+        match c {
+            '<' => inside_tag = true,
+            '>' => inside_tag = false,
+            _ if !inside_tag => result.push(c),
+            _ => {}
+        }
+    }
+    result.trim().to_string()
+}
+
 pub async fn download(plan_title: String, team_name: String) {
+    let safe_title = strip_html(&plan_title)
+        .replace('\\', "\\\\")
+        .replace('\'', "\\'")
+        .replace('\n', "\\n")
+        .replace('\r', "");
+    let safe_name = strip_html(&team_name)
+        .replace('\\', "\\\\")
+        .replace('\'', "\\'")
+        .replace('\n', "\\n")
+        .replace('\r', "");
+
     let js = format!(
         r#"
         const el = document.getElementById('section-to-print');
+        if (typeof htmlToImage === 'undefined') {{
+            console.error('html-to-image not loaded yet');
+            return;
+        }}
         htmlToImage.toPng(el).then(dataUrl => {{
             const link = document.createElement('a');
-            link.download = '{plan_title}_{team_name}.png';
+            link.download = '{safe_title}_{safe_name}.png';
             link.href = dataUrl;
             link.click();
-        }});
+        }}).catch(err => console.error('Download failed:', err));
         "#
     );
     let _ = document::eval(&js).await;

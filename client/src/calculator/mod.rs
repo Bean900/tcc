@@ -53,6 +53,7 @@ impl Hosting {
     }
 }
 
+#[derive(Debug)]
 pub struct Team {
     pub id: Uuid,
     pub point: Point,
@@ -67,6 +68,7 @@ impl DataMapper<TeamData> for Team {
     }
 }
 
+#[derive(Debug)]
 pub struct Point {
     pub latitude: f64,
     pub longitude: f64,

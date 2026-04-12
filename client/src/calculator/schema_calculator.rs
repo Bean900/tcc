@@ -56,21 +56,16 @@ impl Schema {
         let mut mapping = HashMap::new();
 
         let mut team_idx = 0 as u8;
-
-        self.plan.keys().for_each(|idx| {
-            console::debug_1(&format!("Creating mapping for host index {:?} ", idx).into());
-            mapping.insert(*idx, sorted_team_list[team_idx as usize].id);
+        let mut sorted_plan = self
+            .plan
+            .iter()
+            .map(|(host_idx, course)| (host_idx, course.course_type.rank()))
+            .collect::<Vec<(&u8, usize)>>();
+        sorted_plan.sort_by(|a, b| a.1.cmp(&b.1));
+        sorted_plan.iter().for_each(|(idx, _course)| {
+            mapping.insert(**idx, sorted_team_list[team_idx as usize].id);
             team_idx += 1;
         });
-
-        console::debug_1(
-            &format!(
-                "Size of mapping: {}, size of team list: {}",
-                mapping.len(),
-                sorted_team_list.len()
-            )
-            .into(),
-        );
 
         mapping
     }
@@ -1196,7 +1191,22 @@ impl<'a> SchemaCalculator<'a> {
                 .map(|(team, _angle)| (*team, self.calculate_distance(&team.point)))
                 .collect::<Vec<(&Team, f64)>>();
 
-            team_list.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+            team_list.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+
+            let debug_string = team_list
+                .iter()
+                .map(|(team, _)| {
+                    format!("&point={}%2C{}", team.point.latitude, team.point.longitude)
+                })
+                .collect::<Vec<String>>()
+                .join("");
+            console::debug_1(
+                &format!(
+                    "https://graphhopper.com/maps/?{}&profile=foot&layer=Omniscale",
+                    debug_string
+                )
+                .into(),
+            );
 
             group
                 .sorted_team_list
@@ -1212,7 +1222,6 @@ impl<'a> SchemaCalculator<'a> {
         let mut assigned_course_list = vec![];
 
         for group in groups {
-            console::log_1(&format!("Group size: {}", group.sorted_team_list.len()).into());
             let schema = self
                 .schema_list
                 .get(&(group.sorted_team_list.len() as u8))
@@ -1220,13 +1229,6 @@ impl<'a> SchemaCalculator<'a> {
 
             let mapping = schema.create_mapping(&group.sorted_team_list);
             schema.plan.values().for_each(|schema_course| {
-                console::debug_1(
-                    &format!(
-                        "Host: {:?}, Guest list for host {:?}: {:?}",
-                        schema_course.host, schema_course.guest_list, mapping
-                    )
-                    .into(),
-                );
                 let host = mapping
                     .get(&schema_course.host)
                     .expect("Host index not found in mapping")
