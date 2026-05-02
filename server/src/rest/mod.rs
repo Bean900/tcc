@@ -10,6 +10,7 @@ mod note;
 mod plan;
 mod sharing;
 mod team;
+mod validated_json;
 
 pub struct Rest {}
 

@@ -11,25 +11,24 @@ use crate::db::Database;
 use crate::db::schema::address::{self};
 use crate::db::schema::cook_and_run as c_a_r;
 use crate::db::schema::team::{self};
+use crate::error::AppError;
 
 impl Database {
-    pub fn create_team(
-        &mut self,
-        data: &Team,
-        address_data: &Address,
-    ) -> Result<(), diesel::result::Error> {
+    #[tracing::instrument(skip(self, data, address_data))]
+    pub fn create_team(&mut self, data: &Team, address_data: &Address) -> Result<(), AppError> {
         self.get_connection()?.transaction(|t| {
             create_address(t, address_data)?;
-            insert_into(team::dsl::team).values(data).execute(t)?;
+            insert_into(team::dsl::team)
+                .values(data)
+                .execute(t)
+                .map_err(AppError::DatabaseError)?;
 
             Ok(())
         })
     }
 
-    pub fn count_teams(
-        &mut self,
-        cook_and_run_id_filter: &Uuid,
-    ) -> Result<i64, diesel::result::Error> {
+    #[tracing::instrument(skip(self))]
+    pub fn count_teams(&mut self, cook_and_run_id_filter: &Uuid) -> Result<i64, AppError> {
         let conn = &mut self.get_connection()?;
 
         team::table
@@ -37,13 +36,15 @@ impl Database {
             .filter(c_a_r::dsl::id.eq(cook_and_run_id_filter))
             .count()
             .get_result(conn)
+            .map_err(AppError::DatabaseError)
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn select_all_team(
         &mut self,
         cook_and_run_id_filter: &Uuid,
         user_id_filter: &str,
-    ) -> Result<Vec<(Team, Address)>, diesel::result::Error> {
+    ) -> Result<Vec<(Team, Address)>, AppError> {
         let conn = &mut self.get_connection()?;
 
         team::table
@@ -54,14 +55,16 @@ impl Database {
             .order(team::created.asc())
             .select((Team::as_select(), Address::as_select()))
             .load::<(Team, Address)>(conn)
+            .map_err(AppError::DatabaseError)
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn select_team(
         &mut self,
         id_filter: &Uuid,
         cook_and_run_id_filter: &Uuid,
         user_id_filter: &str,
-    ) -> Result<(Team, Address), diesel::result::Error> {
+    ) -> Result<(Team, Address), AppError> {
         let conn = &mut self.get_connection()?;
 
         team::table
@@ -72,14 +75,16 @@ impl Database {
             .inner_join(address::table)
             .select((Team::as_select(), Address::as_select()))
             .first::<(Team, Address)>(conn)
+            .map_err(AppError::DatabaseError)
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn delete_team(
         &mut self,
         id_filter: &Uuid,
         cook_and_run_id_filter: &Uuid,
         user_id_filter: &str,
-    ) -> Result<(), diesel::result::Error> {
+    ) -> Result<(), AppError> {
         let conn = &mut self.get_connection()?;
 
         let affected = delete(
@@ -94,23 +99,28 @@ impl Database {
                 ),
             ),
         )
-        .execute(conn)?;
+        .execute(conn)
+        .map_err(AppError::DatabaseError)?;
 
         if affected == 0 {
-            return Err(diesel::result::Error::NotFound);
+            return Err(AppError::TeamNotFound(
+                id_filter.clone(),
+                user_id_filter.to_string(),
+                cook_and_run_id_filter.clone(),
+            ));
         }
         Ok(())
     }
 
+    #[tracing::instrument(skip(self, data, address_data))]
     pub fn update_team(
         &mut self,
         data: &Team,
         address_data: &Address,
         user_id_filter: &str,
-    ) -> Result<(), diesel::result::Error> {
+    ) -> Result<(), AppError> {
         self.get_connection()?.transaction(|t| {
-            create_address(t, address_data)
-                .map_err(|_| diesel::result::Error::RollbackTransaction)?;
+            create_address(t, address_data)?;
 
             let affected = update(team::table.find(data.id))
                 .filter(
@@ -135,10 +145,15 @@ impl Database {
                     team::diets.eq(data.diets.clone()),
                     team::needs_check.eq(data.needs_check),
                 ))
-                .execute(t)?;
+                .execute(t)
+                .map_err(AppError::DatabaseError)?;
 
             if affected == 0 {
-                return Err(diesel::result::Error::NotFound);
+                return Err(AppError::TeamNotFound(
+                    data.id,
+                    user_id_filter.to_string(),
+                    data.cook_and_run_id,
+                ));
             }
             Ok(())
         })

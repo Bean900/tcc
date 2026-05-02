@@ -1,4 +1,4 @@
-use dotenv::dotenv;
+use dotenvy::dotenv;
 
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};

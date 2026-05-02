@@ -1,11 +1,11 @@
 use chrono::NaiveDateTime;
 use diesel::result::DatabaseErrorKind;
-use tracing::{error, warn};
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::{
     db::{self, models::Share, Database},
-    rest_error::{map_not_found_cook_and_run, RestError},
+    error::AppError,
 };
 
 #[derive(Debug, Clone)]
@@ -93,32 +93,20 @@ pub fn create(
     cook_and_run_id: &Uuid,
     user_id: &str,
     data: &ShareTeamConfig,
-) -> Result<(), RestError> {
+) -> Result<(), AppError> {
     match db.create_share(cook_and_run_id, user_id, &data.to_db()) {
         Ok(_) => Ok(()),
-        Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _)) => {
+        Err(AppError::DatabaseError(diesel::result::Error::DatabaseError(
+            DatabaseErrorKind::UniqueViolation,
+            _,
+        ))) => {
             warn!(
                 operation = "Create Share",
                 "Could not create share in database due to unique violation"
             );
             return Ok(());
         }
-        Err(diesel::result::Error::NotFound) => {
-            return Err(map_not_found_cook_and_run(
-                cook_and_run_id,
-                "create share",
-                diesel::result::Error::NotFound,
-            ));
-        }
-        Err(e) => {
-            error!(
-                operation = "Create Share",
-                "Could not create share in database: {}", e
-            );
-            return Err(RestError::InternalServer {
-                message: "Could not create share in database".to_string(),
-            });
-        }
+        Err(e) => Err(e),
     }
 }
 
@@ -127,32 +115,16 @@ pub fn update(
     cook_and_run_id: &Uuid,
     user_id: &str,
     data: &ShareTeamConfig,
-) -> Result<(), RestError> {
+) -> Result<(), AppError> {
     match db.update_share(cook_and_run_id, user_id, &data.to_db()) {
         Ok(_) => Ok(()),
-        Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _)) => {
-            warn!(
-                operation = "Update Share",
-                "Could not update share in database due to unique violation"
-            );
+        Err(AppError::DatabaseError(diesel::result::Error::DatabaseError(
+            DatabaseErrorKind::UniqueViolation,
+            _,
+        ))) => {
             return Ok(());
         }
-        Err(diesel::result::Error::NotFound) => {
-            return Err(map_not_found_cook_and_run(
-                cook_and_run_id,
-                "Update share",
-                diesel::result::Error::NotFound,
-            ));
-        }
-        Err(e) => {
-            error!(
-                operation = "Update Share",
-                "Could not update share in database: {}", e
-            );
-            return Err(RestError::InternalServer {
-                message: "Could not update share in database".to_string(),
-            });
-        }
+        Err(e) => Err(e),
     }
 }
 
@@ -160,28 +132,8 @@ pub fn get_by_id(
     db: &mut Database,
     cook_and_run_id: &Uuid,
     user_id: &str,
-) -> Result<ShareTeamConfig, RestError> {
-    let config = db
-        .select_share(cook_and_run_id, user_id)
-        .map_err(|e| match e {
-            diesel::result::Error::NotFound => {
-                map_not_found_cook_and_run(cook_and_run_id, "get share", e)
-            }
-            _ => {
-                error!(
-                    operation = "Find Share",
-                    "Could not get share of in cook and run project with id {} in database: {}",
-                    cook_and_run_id,
-                    e
-                );
-                RestError::InternalServer {
-                    message: format!(
-                        "Could not get share of cook and run project with id {} in database",
-                        cook_and_run_id
-                    ),
-                }
-            }
-        })?;
+) -> Result<ShareTeamConfig, AppError> {
+    let config = db.select_share(cook_and_run_id, user_id)?;
 
     Ok(ShareTeamConfig::from(config))
 }
@@ -190,26 +142,7 @@ pub(crate) fn delete(
     db: &mut Database,
     cook_and_run_id: &Uuid,
     user_id: &str,
-) -> Result<(), RestError> {
-    db.delete_share(cook_and_run_id, user_id)
-        .map_err(|e| match e {
-            diesel::result::Error::NotFound => {
-                map_not_found_cook_and_run(cook_and_run_id, "delete share", e)
-            }
-            _ => {
-                error!(
-                    operation = "Delete Share",
-                    "Could not delete share of in cook and run project with id {} in database: {}",
-                    cook_and_run_id,
-                    e
-                );
-                RestError::InternalServer {
-                    message: format!(
-                        "Could not delete share of cook and run project with id {} in database",
-                        cook_and_run_id
-                    ),
-                }
-            }
-        })?;
+) -> Result<(), AppError> {
+    db.delete_share(cook_and_run_id, user_id)?;
     Ok(())
 }

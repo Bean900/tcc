@@ -4,14 +4,20 @@ use axum::{
     Json,
 };
 use chrono::{NaiveDate, NaiveDateTime};
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::{
     plan::{self},
     rest::auth::{AuthUser, AuthenticatedUser},
 };
+
+// HH:MM format (00:00 – 23:59).
+static TIME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([01]\d|2[0-3]):[0-5]\d$").unwrap());
 
 // Common types
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,10 +33,10 @@ pub struct PaginationInfo {
 impl PaginationInfo {
     pub fn new() -> Self {
         PaginationInfo {
-            page: 1 as u32,
-            limit: 1 as u32,
-            total: 1 as u64,
-            total_pages: 1 as u32,
+            page: 1,
+            limit: 20,
+            total: 0,
+            total_pages: 0,
             has_next: false,
             has_prev: false,
         }
@@ -38,10 +44,13 @@ impl PaginationInfo {
 }
 
 // Address model
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct Address {
+    #[validate(length(min = 1, max = 500, message = "must be between 1 and 500 characters"))]
     pub address: String,
+    #[validate(range(min = -90.0, max = 90.0, message = "must be between -90 and 90"))]
     pub latitude: f64,
+    #[validate(range(min = -180.0, max = 180.0, message = "must be between -180 and 180"))]
     pub longitude: f64,
 }
 
@@ -71,10 +80,13 @@ impl IntoResponse for Address {
 }
 
 // Point model
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct Point {
+    #[validate(nested)]
     pub address: Address,
+    #[validate(length(min = 1, max = 200, message = "must be between 1 and 200 characters"))]
     pub name: String,
+    #[validate(regex(path = *TIME_REGEX, message = "must be in HH:MM format"))]
     pub time: String,
 }
 
@@ -133,10 +145,13 @@ impl IntoResponse for CookAndRunMeta {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct CookAndRunCreateData {
+    #[validate(length(min = 1, max = 200, message = "must be between 1 and 200 characters"))]
     pub name: String,
     #[serde(rename = "userId")]
+    // user_id is provided by the client but cross-checked against the JWT subject — no length
+    // restriction needed beyond what Auth0 guarantees.
     pub user_id: String,
 }
 
@@ -163,7 +178,7 @@ impl AuthenticatedUser for CookAndRunCreateData {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct CookAndRun {
     pub id: Uuid,
     pub user_id: String,
@@ -173,7 +188,6 @@ pub struct CookAndRun {
     pub occur: NaiveDateTime,
     pub team_list: Vec<Team>,
     pub course_list: Vec<Course>,
-
     pub start_point: Option<Point>,
     pub end_point: Option<Point>,
     pub share_team_config: Option<ShareTeamConfig>,
@@ -218,17 +232,19 @@ impl AuthenticatedUser for CookAndRun {
 }
 
 // Course models
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct CourseCreateData {
+    #[validate(length(min = 1, max = 200, message = "must be between 1 and 200 characters"))]
     pub name: String,
-    pub time: String, // HH:MM format
+    #[validate(regex(path = *TIME_REGEX, message = "must be in HH:MM format"))]
+    pub time: String,
 }
 
 impl CourseCreateData {
     pub fn to(&self, cook_and_run_id: &Uuid, course_id: &Uuid) -> crate::course::Course {
         crate::course::Course {
-            id: course_id.clone(),
-            cook_and_run_id: cook_and_run_id.clone(),
+            id: *course_id,
+            cook_and_run_id: *cook_and_run_id,
             name: self.name.clone(),
             time: self.time.clone(),
             has_multiple_hosts: false,
@@ -236,17 +252,20 @@ impl CourseCreateData {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct CourseUpdateData {
+    #[validate(length(min = 1, max = 200, message = "must be between 1 and 200 characters"))]
     pub name: String,
+    #[validate(regex(path = *TIME_REGEX, message = "must be in HH:MM format"))]
     pub time: String,
     pub has_multiple_hosts: bool,
 }
+
 impl CourseUpdateData {
     pub fn to(&self, cook_and_run_id: &Uuid, course_id: &Uuid) -> crate::course::Course {
         crate::course::Course {
-            id: course_id.clone(),
-            cook_and_run_id: cook_and_run_id.clone(),
+            id: *course_id,
+            cook_and_run_id: *cook_and_run_id,
             name: self.name.clone(),
             time: self.time.clone(),
             has_multiple_hosts: self.has_multiple_hosts,
@@ -280,15 +299,21 @@ impl IntoResponse for Course {
 }
 
 // Team models
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct TeamCreateData {
+    #[validate(length(min = 1, max = 200, message = "must be between 1 and 200 characters"))]
     pub name: String,
     #[serde(rename = "userId")]
     pub user_id: Option<String>,
+    #[validate(nested)]
     pub address: Address,
+    #[validate(email(message = "must be a valid email address"))]
     pub mail: Option<String>,
+    #[validate(length(max = 50, message = "must be at most 50 characters"))]
     pub phone: Option<String>,
+    #[validate(range(min = 1, max = 10_000, message = "must be between 1 and 10,000"))]
     pub members: Option<u32>,
+    #[validate(length(max = 500, message = "must be at most 500 characters"))]
     pub diets: Option<String>,
     #[serde(default)]
     pub needs_check: bool,
@@ -302,22 +327,46 @@ impl TeamCreateData {
         time: &NaiveDateTime,
     ) -> crate::team::Team {
         let address = self.address.to();
-        let team = crate::team::Team {
-            id: team_id.clone(),
-            cook_and_run_id: cook_and_run_id.clone(),
+        crate::team::Team {
+            id: *team_id,
+            cook_and_run_id: *cook_and_run_id,
             created_by_user: self.user_id.clone(),
             name: self.name.clone(),
             created: *time,
             edited: *time,
-            address: address,
+            address,
             mail: self.mail.clone(),
             phone: self.phone.clone(),
             members: self.members,
             diets: self.diets.clone(),
             needs_check: self.needs_check,
             note_list: vec![],
-        };
-        team
+        }
+    }
+
+    pub fn to_with_user(
+        &self,
+        cook_and_run_id: &Uuid,
+        team_id: &Uuid,
+        created_by_user: &str,
+        time: &NaiveDateTime,
+    ) -> crate::team::Team {
+        let address = self.address.to();
+        crate::team::Team {
+            id: *team_id,
+            cook_and_run_id: *cook_and_run_id,
+            created_by_user: Some(created_by_user.to_string()),
+            name: self.name.clone(),
+            created: *time,
+            edited: *time,
+            address,
+            mail: self.mail.clone(),
+            phone: self.phone.clone(),
+            members: self.members,
+            diets: self.diets.clone(),
+            needs_check: self.needs_check,
+            note_list: vec![],
+        }
     }
 }
 
@@ -331,13 +380,19 @@ impl AuthenticatedUser for TeamCreateData {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct TeamUpdateData {
+    #[validate(length(min = 1, max = 200, message = "must be between 1 and 200 characters"))]
     pub name: String,
+    #[validate(nested)]
     pub address: Address,
+    #[validate(email(message = "must be a valid email address"))]
     pub mail: Option<String>,
+    #[validate(length(max = 50, message = "must be at most 50 characters"))]
     pub phone: Option<String>,
+    #[validate(range(min = 1, max = 10_000, message = "must be between 1 and 10,000"))]
     pub members: Option<u32>,
+    #[validate(length(max = 500, message = "must be at most 500 characters"))]
     pub diets: Option<String>,
     pub needs_check: bool,
 }
@@ -351,39 +406,47 @@ impl TeamUpdateData {
         time: &NaiveDateTime,
     ) -> crate::team::Team {
         let address = self.address.to();
-        let team = crate::team::Team {
-            id: team_id.clone(),
-            cook_and_run_id: cook_and_run_id.clone(),
+        crate::team::Team {
+            id: *team_id,
+            cook_and_run_id: *cook_and_run_id,
             created_by_user: Some(created_by_user.to_string()),
             name: self.name.clone(),
             created: *time,
             edited: *time,
-            address: address,
+            address,
             mail: self.mail.clone(),
             phone: self.phone.clone(),
             members: self.members,
             diets: self.diets.clone(),
             needs_check: self.needs_check,
             note_list: vec![],
-        };
-        team
+        }
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Team {
-    pub id: Uuid,
-    pub created_by_user: String,
     pub name: String,
-    pub created: NaiveDateTime,
-    pub edited: NaiveDateTime,
     pub address: Address,
     pub mail: Option<String>,
     pub phone: Option<String>,
     pub members: Option<u32>,
     pub diets: Option<String>,
     pub needs_check: bool,
-    pub note_list: Vec<Note>,
+}
+
+impl Team {
+    pub fn from(team: crate::team::Team) -> Self {
+        Team {
+            name: team.name,
+            address: Address::from(team.address),
+            mail: team.mail,
+            phone: team.phone,
+            members: team.members,
+            diets: team.diets,
+            needs_check: team.needs_check,
+        }
+    }
 }
 
 impl IntoResponse for Team {
@@ -392,35 +455,23 @@ impl IntoResponse for Team {
     }
 }
 
-impl Team {
-    pub fn from(team: crate::team::Team) -> Self {
-        Team {
-            id: team.id,
-            created_by_user: team.created_by_user.unwrap_or_default(),
-            name: team.name,
-            created: team.created,
-            edited: team.edited,
-            address: Address::from(team.address),
-            mail: team.mail,
-            phone: team.phone,
-            members: team.members,
-            diets: team.diets,
-            needs_check: team.needs_check,
-            note_list: team.note_list.into_iter().map(Note::from).collect(),
-        }
-    }
-}
-
 // Note models
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct NoteCreateData {
+    #[validate(length(min = 1, max = 200, message = "must be between 1 and 200 characters"))]
     pub headline: String,
+    #[validate(length(
+        min = 1,
+        max = 50_000,
+        message = "must be between 1 and 50,000 characters"
+    ))]
     pub content: String,
 }
+
 impl NoteCreateData {
     pub(crate) fn to(&self, note_id: &Uuid, time: NaiveDateTime) -> crate::note::Note {
         crate::note::Note {
-            id: note_id.clone(),
+            id: *note_id,
             headline: self.headline.clone(),
             content: self.content.clone(),
             created: time,
@@ -527,19 +578,11 @@ impl Access {
         }
     }
 
-    fn from_list(db_field_list: Vec<plan::Access>) -> Vec<Self> {
-        db_field_list.into_iter().map(Access::from).collect()
-    }
-
     fn to(&self) -> plan::Access {
         match self {
             Access::Link => plan::Access::Link,
             Access::Account => plan::Access::Account,
         }
-    }
-
-    fn to_list(access_list: &[Access]) -> Vec<plan::Access> {
-        access_list.iter().map(Access::to).collect()
     }
 }
 
@@ -566,9 +609,11 @@ impl Language {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct PlanConfig {
+    #[validate(length(min = 1, max = 200, message = "must be between 1 and 200 characters"))]
     title: String,
+    #[validate(length(max = 2000, message = "must be at most 2,000 characters"))]
     description: String,
     date: NaiveDate,
     language: Language,
@@ -601,12 +646,13 @@ impl IntoResponse for PlanConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct Hosting {
     pub id: Uuid,
-    pub name: Uuid,            // Course ID
-    pub host: Uuid,            // Team ID
-    pub guest_list: Vec<Uuid>, // Team ID
+    pub name: Uuid,
+    pub host: Uuid,
+    #[validate(length(min = 1, max = 5, message = "must be between 1 and 5 characters"))]
+    pub guest_list: Vec<Uuid>,
 }
 
 impl Hosting {
@@ -635,9 +681,11 @@ impl IntoResponse for Hosting {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct Plan {
+    #[validate(length(min = 1, max = 200, message = "must be between 1 and 200 Hostings"))]
     pub hosting_list: Vec<Hosting>,
+    #[validate(length(min = 1, max = 200, message = "must be between 1 and 200 characters"))]
     pub walking_path: HashMap<Uuid, Vec<Uuid>>,
 }
 

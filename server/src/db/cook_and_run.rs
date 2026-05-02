@@ -6,23 +6,26 @@ use crate::db::address::create_address;
 use crate::db::models::{Address, CookAndRun, CookAndRunUpdate, Point};
 use crate::db::point::{create_point, delete_point};
 use crate::db::{models::CookAndRunCreate, Database};
+use crate::error::AppError;
 impl Database {
-    pub fn create_cook_and_run(
-        &mut self,
-        data: &CookAndRunCreate,
-    ) -> Result<(), diesel::result::Error> {
+    #[tracing::instrument(skip(self, data))]
+    pub fn create_cook_and_run(&mut self, data: &CookAndRunCreate) -> Result<(), AppError> {
         let conn = &mut self.get_connection()?;
         use crate::db::schema::cook_and_run::dsl::*;
-        insert_into(cook_and_run).values(data).execute(conn)?;
+        insert_into(cook_and_run)
+            .values(data)
+            .execute(conn)
+            .map_err(AppError::DatabaseError)?;
         Ok(())
     }
 
+    #[tracing::instrument(skip(self, meta_data))]
     pub fn update_cook_and_run_meta(
         &mut self,
         id_filter: &Uuid,
         user_id_filter: &str,
         meta_data: &CookAndRunUpdate,
-    ) -> Result<(), diesel::result::Error> {
+    ) -> Result<(), AppError> {
         let conn = &mut self.get_connection()?;
         use crate::db::schema::cook_and_run::dsl::*;
         let affected = update(cook_and_run.find(id_filter))
@@ -32,31 +35,35 @@ impl Database {
                 edited.eq(meta_data.edited),
                 occur.eq(meta_data.occur),
             ))
-            .execute(conn)?;
+            .execute(conn)
+            .map_err(AppError::DatabaseError)?;
 
         if affected == 0 {
-            return Err(diesel::result::Error::NotFound);
+            return Err(AppError::ProjectNotFound(id_filter.clone()));
         }
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn select_all_cook_and_run(
         &mut self,
         user_id_filter: &str,
-    ) -> Result<Vec<CookAndRun>, diesel::result::Error> {
+    ) -> Result<Vec<CookAndRun>, AppError> {
         let conn = &mut self.get_connection()?;
         use crate::db::schema::cook_and_run::dsl::*;
         cook_and_run
             .filter(user_id.eq(user_id_filter))
             .select(CookAndRun::as_select())
             .load(conn)
+            .map_err(AppError::DatabaseError)
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn select_cook_and_run(
         &mut self,
         id_filter: &Uuid,
         user_id_filter: &str,
-    ) -> Result<CookAndRun, diesel::result::Error> {
+    ) -> Result<CookAndRun, AppError> {
         let conn = &mut self.get_connection()?;
         use crate::db::schema::cook_and_run::dsl::*;
         cook_and_run
@@ -64,13 +71,15 @@ impl Database {
             .filter(user_id.eq(user_id_filter))
             .select(CookAndRun::as_select())
             .first(conn)
+            .map_err(AppError::DatabaseError)
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn delete_cook_and_run(
         &mut self,
         id_filter: &Uuid,
         user_id_filter: &str,
-    ) -> Result<(), diesel::result::Error> {
+    ) -> Result<(), AppError> {
         let c_a_r = self.select_cook_and_run(id_filter, user_id_filter)?;
         let conn = &mut self.get_connection()?;
 
@@ -89,17 +98,18 @@ impl Database {
                 .execute(t)?;
 
             if affected == 0 {
-                return Err(diesel::result::Error::NotFound);
+                return Err(AppError::ProjectNotFound(id_filter.clone()));
             }
             Ok(())
         })
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn select_cook_and_run_start_point_id(
         &mut self,
         id_filter: &Uuid,
         user_id_filter: &str,
-    ) -> Result<Option<Uuid>, diesel::result::Error> {
+    ) -> Result<Option<Uuid>, AppError> {
         let conn = &mut self.get_connection()?;
         use crate::db::schema::cook_and_run::dsl::*;
         cook_and_run
@@ -107,15 +117,17 @@ impl Database {
             .filter(user_id.eq(user_id_filter))
             .select(start_point)
             .first(conn)
+            .map_err(AppError::DatabaseError)
     }
 
+    #[tracing::instrument(skip(self, point, address))]
     pub fn set_cook_and_run_start_point(
         &mut self,
         id_filter: &Uuid,
         user_id_filter: &str,
         point: &Point,
         address: &Address,
-    ) -> Result<(), diesel::result::Error> {
+    ) -> Result<(), AppError> {
         self.get_connection()?.transaction(|t| {
             create_address(t, &address)?;
             create_point(t, &point)?;
@@ -123,21 +135,23 @@ impl Database {
             let affected = update(cook_and_run.find(id_filter))
                 .filter(user_id.eq(user_id_filter))
                 .set(start_point.eq(point.id))
-                .execute(t)?;
+                .execute(t)
+                .map_err(AppError::DatabaseError)?;
 
             if affected == 0 {
-                return Err(diesel::result::Error::NotFound);
+                return Err(AppError::ProjectNotFound(id_filter.clone()));
             }
 
             Ok(())
         })
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn delete_cook_and_run_start_point(
         &mut self,
         id_filter: &Uuid,
         user_id_filter: &str,
-    ) -> Result<(), diesel::result::Error> {
+    ) -> Result<(), AppError> {
         self.get_connection()?.transaction(|t| {
             let start_point_id =
                 self.select_cook_and_run_start_point_id(id_filter, user_id_filter)?;
@@ -148,22 +162,23 @@ impl Database {
                     .set(start_point.eq(None::<Uuid>))
                     .execute(t)?;
                 if affected == 0 {
-                    return Err(diesel::result::Error::NotFound);
+                    return Err(AppError::ProjectNotFound(id_filter.clone()));
                 }
                 delete_point(t, &start_point_id)?;
             } else {
-                return Err(diesel::result::Error::NotFound);
+                return Err(AppError::ProjectNotFound(id_filter.clone()));
             }
 
             Ok(())
         })
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn select_cook_and_run_end_point_id(
         &mut self,
         id_filter: &Uuid,
         user_id_filter: &str,
-    ) -> Result<Option<Uuid>, diesel::result::Error> {
+    ) -> Result<Option<Uuid>, AppError> {
         let conn = &mut self.get_connection()?;
         use crate::db::schema::cook_and_run::dsl::*;
         cook_and_run
@@ -171,15 +186,17 @@ impl Database {
             .filter(user_id.eq(user_id_filter))
             .select(end_point)
             .first(conn)
+            .map_err(AppError::DatabaseError)
     }
 
+    #[tracing::instrument(skip(self, point, address))]
     pub fn set_cook_and_run_end_point(
         &mut self,
         id_filter: &Uuid,
         user_id_filter: &str,
         point: &Point,
         address: &Address,
-    ) -> Result<(), diesel::result::Error> {
+    ) -> Result<(), AppError> {
         self.get_connection()?.transaction(|t| {
             create_address(t, &address)?;
             create_point(t, &point)?;
@@ -191,18 +208,19 @@ impl Database {
                 .execute(t)?;
 
             if affected == 0 {
-                return Err(diesel::result::Error::NotFound);
+                return Err(AppError::ProjectNotFound(id_filter.clone()));
             }
 
             Ok(())
         })
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn delete_cook_and_run_end_point(
         &mut self,
         id_filter: &Uuid,
         user_id_filter: &str,
-    ) -> Result<(), diesel::result::Error> {
+    ) -> Result<(), AppError> {
         self.get_connection()?.transaction(|t| {
             let end_point_id = self.select_cook_and_run_end_point_id(id_filter, user_id_filter)?;
             if let Some(end_point_id) = end_point_id {
@@ -210,13 +228,14 @@ impl Database {
                 let affected = update(cook_and_run.find(id_filter))
                     .filter(user_id.eq(user_id_filter))
                     .set(end_point.eq(None::<Uuid>))
-                    .execute(t)?;
+                    .execute(t)
+                    .map_err(AppError::DatabaseError)?;
                 if affected == 0 {
-                    return Err(diesel::result::Error::NotFound);
+                    return Err(AppError::ProjectNotFound(id_filter.clone()));
                 }
                 delete_point(t, &end_point_id)?;
             } else {
-                return Err(diesel::result::Error::NotFound);
+                return Err(AppError::ProjectNotFound(id_filter.clone()));
             }
 
             Ok(())

@@ -9,6 +9,7 @@ use axum::{
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::{
     cook_and_run::{
@@ -17,22 +18,25 @@ use crate::{
         get_cook_and_run_meta, get_cook_and_run_start_point, get_list_of_cook_and_run_meta,
         set_cook_and_run_end_point, set_cook_and_run_start_point, update_cook_and_run_meta,
     },
+    error::AppError,
     rest::{
         auth::{
             is_user_authenticated, require_permission, AuthUser, AuthenticatedUser, Claims,
             CREATE_PERMISSION, DELETE_PERMISSION, READ_PERMISSION, UPDATE_PERMISSION,
         },
         models::{CookAndRun, CookAndRunCreateData, CookAndRunMeta, PaginationInfo, Point},
+        validated_json::ValidatedJson,
     },
-    rest_error::RestError,
     AppState,
 };
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct ListCookAndRunQuery {
     #[serde(rename = "userId")]
     pub user_id: String,
+    #[validate(range(min = 1, message = "must be at least 1"))]
     pub page: Option<u32>,
+    #[validate(range(min = 1, max = 100, message = "must be between 1 and 100"))]
     pub limit: Option<u32>,
     pub sort: Option<SortOption>,
 }
@@ -72,20 +76,24 @@ impl AuthenticatedUser for CookAndRunListResponse {
     }
 }
 
-#[derive(Debug, Deserialize)]
+/// Metadata-only update payload. `id` and `user_id` come from the path and JWT
+/// respectively — they are never accepted from the request body.
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateMetaRequest {
+    #[validate(length(min = 1, max = 200, message = "must be between 1 and 200 characters"))]
     pub name: String,
     pub occur: NaiveDateTime,
 }
 
 impl UpdateMetaRequest {
-    fn to(&self) -> crate::cook_and_run::CookAndRunMeta {
+    fn to_domain(&self) -> crate::cook_and_run::CookAndRunMeta {
+        let now = chrono::Utc::now().naive_utc();
         crate::cook_and_run::CookAndRunMeta {
             id: Uuid::nil(),
-            user_id: "DUMMY".to_string(),
+            user_id: String::new(),
             name: self.name.clone(),
-            created: chrono::Utc::now().naive_utc(),
-            edited: chrono::Utc::now().naive_utc(),
+            created: now,
+            edited: now,
             occur: self.occur,
         }
     }
@@ -101,77 +109,77 @@ pub fn routes(app_state: AppState) -> Router<AppState> {
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id",
+            "/cook_and_run/{cook_and_run_id}",
             post(create_cook_and_run_project).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(CREATE_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id",
+            "/cook_and_run/{cook_and_run_id}",
             get(get_cook_and_run_project).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/metadata",
+            "/cook_and_run/{cook_and_run_id}/metadata",
             get(get_cook_and_run_project_meta).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id",
+            "/cook_and_run/{cook_and_run_id}",
             delete(delete_cook_and_run_project).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(DELETE_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/metadata",
+            "/cook_and_run/{cook_and_run_id}/metadata",
             patch(patch_cook_and_run_meta).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/start_point",
+            "/cook_and_run/{cook_and_run_id}/start_point",
             get(get_start_point).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/start_point",
+            "/cook_and_run/{cook_and_run_id}/start_point",
             patch(patch_start_point).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/start_point",
+            "/cook_and_run/{cook_and_run_id}/start_point",
             delete(delete_start_point).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(DELETE_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/end_point",
+            "/cook_and_run/{cook_and_run_id}/end_point",
             get(get_end_point).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/end_point",
+            "/cook_and_run/{cook_and_run_id}/end_point",
             patch(patch_end_point).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/end_point",
+            "/cook_and_run/{cook_and_run_id}/end_point",
             delete(delete_end_point).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(DELETE_PERMISSION),
@@ -179,12 +187,13 @@ pub fn routes(app_state: AppState) -> Router<AppState> {
         )
 }
 
-/// List all cook and run projects
+#[tracing::instrument(skip(claims, state))]
 async fn list_cook_and_run_projects(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Query(params): Query<ListCookAndRunQuery>,
-) -> Result<CookAndRunListResponse, RestError> {
+) -> Result<CookAndRunListResponse, AppError> {
+    params.validate()?;
     is_user_authenticated(&params, Some(&claims.sub))?;
 
     let result: Vec<CookAndRunMeta> =
@@ -194,8 +203,7 @@ async fn list_cook_and_run_projects(
             .collect();
 
     let len = result.len();
-
-    let response = CookAndRunListResponse {
+    Ok(CookAndRunListResponse {
         data: result,
         pagination: PaginationInfo {
             page: params.page.unwrap_or(1),
@@ -205,129 +213,132 @@ async fn list_cook_and_run_projects(
             has_next: false,
             has_prev: false,
         },
-    };
-
-    Ok(response)
+    })
 }
 
-/// Create a new cook and run project
+#[tracing::instrument(skip(claims, state))]
 async fn create_cook_and_run_project(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-    Json(payload): Json<CookAndRunCreateData>,
-) -> Result<(), RestError> {
+    ValidatedJson(payload): ValidatedJson<CookAndRunCreateData>,
+) -> Result<(), AppError> {
     is_user_authenticated(&payload, Some(&claims.sub))?;
-
     let time = chrono::Utc::now().naive_utc();
-
     create_cook_and_run(
         &mut state.db,
         payload.to_cook_and_run_create(&cook_and_run_id, &time),
     )
 }
 
-/// Get cook and run project details
-async fn get_cook_and_run_project_meta(
-    Extension(claims): Extension<Claims>,
-    State(mut state): State<AppState>,
-    Path(cook_and_run_id): Path<Uuid>,
-) -> Result<CookAndRunMeta, RestError> {
-    let result = get_cook_and_run_meta(&mut state.db, &cook_and_run_id, &claims.sub)?;
-    Ok(CookAndRunMeta::from(&result))
-}
-
-/// Get cook and run project meta data
+#[tracing::instrument(skip(claims, state))]
 async fn get_cook_and_run_project(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-) -> Result<CookAndRun, RestError> {
-    let result = get_cook_and_run(&mut state.db, &cook_and_run_id, &claims.sub)?;
-    Ok(CookAndRun::from(result))
+) -> Result<CookAndRun, AppError> {
+    Ok(CookAndRun::from(get_cook_and_run(
+        &mut state.db,
+        &cook_and_run_id,
+        &claims.sub,
+    )?))
 }
 
-/// Delete cook and run project
+#[tracing::instrument(skip(claims, state))]
+async fn get_cook_and_run_project_meta(
+    Extension(claims): Extension<Claims>,
+    State(mut state): State<AppState>,
+    Path(cook_and_run_id): Path<Uuid>,
+) -> Result<CookAndRunMeta, AppError> {
+    Ok(CookAndRunMeta::from(&get_cook_and_run_meta(
+        &mut state.db,
+        &cook_and_run_id,
+        &claims.sub,
+    )?))
+}
+
+#[tracing::instrument(skip(claims, state))]
 async fn delete_cook_and_run_project(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-) -> Result<(), RestError> {
+) -> Result<(), AppError> {
     delete_cook_and_run(&mut state.db, &cook_and_run_id, &claims.sub)
 }
 
-/// Update cook and run project name
+#[tracing::instrument(skip(claims, state))]
 async fn patch_cook_and_run_meta(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-    Json(payload): Json<UpdateMetaRequest>,
-) -> Result<(), RestError> {
-    update_cook_and_run_meta(&mut state.db, &cook_and_run_id, &claims.sub, &payload.to())
+    ValidatedJson(payload): ValidatedJson<UpdateMetaRequest>,
+) -> Result<(), AppError> {
+    update_cook_and_run_meta(
+        &mut state.db,
+        &cook_and_run_id,
+        &claims.sub,
+        &payload.to_domain(),
+    )
 }
 
-/// Get start point
+#[tracing::instrument(skip(claims, state))]
 async fn get_start_point(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-) -> Result<Point, RestError> {
-    let point = get_cook_and_run_start_point(&mut state.db, &cook_and_run_id, &claims.sub)?;
-    match point {
-        Some(point) => Ok(Point::from(point)),
-        None => Err(RestError::NoContent {}),
+) -> Result<Point, AppError> {
+    match get_cook_and_run_start_point(&mut state.db, &cook_and_run_id, &claims.sub)? {
+        Some(p) => Ok(Point::from(p)),
+        None => Err(AppError::StartPointNotFound(cook_and_run_id)),
     }
 }
 
-/// Update start point
+#[tracing::instrument(skip(claims, state))]
 async fn patch_start_point(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-    Json(payload): Json<Point>,
-) -> Result<(), RestError> {
-    let point = payload.to();
-    set_cook_and_run_start_point(&mut state.db, &cook_and_run_id, &claims.sub, &point)
+    ValidatedJson(payload): ValidatedJson<Point>,
+) -> Result<(), AppError> {
+    set_cook_and_run_start_point(&mut state.db, &cook_and_run_id, &claims.sub, &payload.to())
 }
 
-/// Get end point
+#[tracing::instrument(skip(claims, state))]
 async fn get_end_point(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-) -> Result<Point, RestError> {
-    let point = get_cook_and_run_end_point(&mut state.db, &cook_and_run_id, &claims.sub)?;
-    match point {
-        Some(point) => Ok(Point::from(point)),
-        None => Err(RestError::NoContent {}),
+) -> Result<Point, AppError> {
+    match get_cook_and_run_end_point(&mut state.db, &cook_and_run_id, &claims.sub)? {
+        Some(p) => Ok(Point::from(p)),
+        None => Err(AppError::EndPointNotFound(cook_and_run_id)),
     }
 }
 
-/// Update end point
+#[tracing::instrument(skip(claims, state))]
 async fn patch_end_point(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-    Json(payload): Json<Point>,
-) -> Result<(), RestError> {
-    let point = payload.to();
-    set_cook_and_run_end_point(&mut state.db, &cook_and_run_id, &claims.sub, &point)
+    ValidatedJson(payload): ValidatedJson<Point>,
+) -> Result<(), AppError> {
+    set_cook_and_run_end_point(&mut state.db, &cook_and_run_id, &claims.sub, &payload.to())
 }
 
-// Delete start point
+#[tracing::instrument(skip(claims, state))]
 async fn delete_start_point(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-) -> Result<(), RestError> {
+) -> Result<(), AppError> {
     delete_cook_and_run_start_point(&mut state.db, &cook_and_run_id, &claims.sub)
 }
 
-// Delete end point
+#[tracing::instrument(skip(claims, state))]
 async fn delete_end_point(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-) -> Result<(), RestError> {
+) -> Result<(), AppError> {
     delete_cook_and_run_end_point(&mut state.db, &cook_and_run_id, &claims.sub)
 }

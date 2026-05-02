@@ -5,40 +5,55 @@ use diesel::{
 };
 use uuid::Uuid;
 
-use crate::db::{models::Point, Database};
+use crate::{
+    db::{models::Point, Database},
+    error::AppError,
+};
 
 impl Database {
-    pub fn select_point(&mut self, id_filter: &Uuid) -> Result<Point, diesel::result::Error> {
+    #[tracing::instrument(skip(self))]
+    pub fn select_point(&mut self, id_filter: &Uuid) -> Result<Point, AppError> {
         let conn = &mut self.get_connection()?;
         use crate::db::schema::point::dsl::*;
-        let test = point.find(id_filter).select(Point::as_select()).first(conn);
-        test
+        point
+            .find(id_filter)
+            .select(Point::as_select())
+            .first(conn)
+            .map_err(AppError::DatabaseError)
     }
 
-    pub fn delete_point(&mut self, to_delete_point_id: &Uuid) -> Result<(), diesel::result::Error> {
+    #[tracing::instrument(skip(self))]
+    pub fn delete_point(&mut self, to_delete_point_id: &Uuid) -> Result<(), AppError> {
         let conn = &mut self.get_connection()?;
         delete_point(conn, to_delete_point_id)
     }
 }
 
+#[tracing::instrument(skip(conn, data))]
 pub fn create_point(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     data: &Point,
-) -> Result<(), diesel::result::Error> {
+) -> Result<(), AppError> {
     use crate::db::schema::point::dsl::*;
 
-    insert_into(point).values(data).execute(conn)?;
+    insert_into(point)
+        .values(data)
+        .execute(conn)
+        .map_err(AppError::DatabaseError)?;
     Ok(())
 }
 
+#[tracing::instrument(skip(conn))]
 pub fn delete_point(
     conn: &mut PooledConnection<ConnectionManager<PgConnection>>,
     to_delete_point_id: &Uuid,
-) -> Result<(), diesel::result::Error> {
+) -> Result<(), AppError> {
     use crate::db::schema::point::dsl::*;
-    let affected = delete(point.find(to_delete_point_id)).execute(conn)?;
+    let affected = delete(point.find(to_delete_point_id))
+        .execute(conn)
+        .map_err(AppError::DatabaseError)?;
     if affected == 0 {
-        return Err(diesel::result::Error::NotFound);
+        return Err(AppError::PointNotFound(to_delete_point_id.clone()));
     }
     Ok(())
 }

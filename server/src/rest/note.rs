@@ -10,12 +10,13 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
+    error::AppError,
     note::{self},
     rest::{
         auth::{require_permission, Claims, DELETE_PERMISSION, READ_PERMISSION, UPDATE_PERMISSION},
         models::{Note, NoteCreateData, PaginationInfo},
+        validated_json::ValidatedJson,
     },
-    rest_error::RestError,
     AppState,
 };
 
@@ -46,28 +47,28 @@ impl IntoResponse for NoteListResponse {
 pub fn routes(app_state: AppState) -> Router<AppState> {
     Router::new()
         .route(
-            "/cook_and_run/:cook_and_run_id/team/:team_id/notes",
+            "/cook_and_run/{cook_and_run_id}/team/{team_id}/notes",
             get(get_team_notes).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/team/:team_id/note/:note_id",
+            "/cook_and_run/{cook_and_run_id}/team/{team_id}/note/{note_id}",
             get(get_note).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/team/:team_id/note/:note_id",
+            "/cook_and_run/{cook_and_run_id}/team/{team_id}/note/{note_id}",
             post(create_team_note).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/team/:team_id/note/:note_id",
+            "/cook_and_run/{cook_and_run_id}/team/{team_id}/note/{note_id}",
             delete(delete_team_note).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(DELETE_PERMISSION),
@@ -76,11 +77,12 @@ pub fn routes(app_state: AppState) -> Router<AppState> {
 }
 
 /// Get all notes for a team
+#[tracing::instrument(skip(claims, state))]
 async fn get_team_notes(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path((cook_and_run_id, team_id)): Path<(Uuid, Uuid)>,
-) -> Result<NoteListResponse, RestError> {
+) -> Result<NoteListResponse, AppError> {
     let result = note::get_list_by_cook_and_run_id_and_team_id(
         &mut state.db,
         &cook_and_run_id,
@@ -100,11 +102,12 @@ async fn get_team_notes(
 }
 
 /// Get note
+#[tracing::instrument(skip(claims, state))]
 async fn get_note(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path((cook_and_run_id, team_id, note_id)): Path<(Uuid, Uuid, Uuid)>,
-) -> Result<Note, RestError> {
+) -> Result<Note, AppError> {
     let result = note::get(
         &mut state.db,
         &cook_and_run_id,
@@ -117,12 +120,13 @@ async fn get_note(
 }
 
 /// Create note for team
+#[tracing::instrument(skip(claims, state))]
 async fn create_team_note(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path((cook_and_run_id, team_id, note_id)): Path<(Uuid, Uuid, Uuid)>,
-    Json(payload): Json<NoteCreateData>,
-) -> Result<(), RestError> {
+    ValidatedJson(payload): ValidatedJson<NoteCreateData>,
+) -> Result<(), AppError> {
     let time = chrono::Utc::now().naive_utc();
     note::create(
         &mut state.db,
@@ -134,11 +138,12 @@ async fn create_team_note(
 }
 
 /// Delete note for team
+#[tracing::instrument(skip(claims, state))]
 async fn delete_team_note(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path((cook_and_run_id, team_id, note_id)): Path<(Uuid, Uuid, Uuid)>,
-) -> Result<(), RestError> {
+) -> Result<(), AppError> {
     note::delete(
         &mut state.db,
         &cook_and_run_id,

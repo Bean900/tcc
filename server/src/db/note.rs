@@ -10,22 +10,28 @@ use crate::db::Database;
 use crate::db::schema::cook_and_run as c_a_r;
 use crate::db::schema::note::{self};
 use crate::db::schema::team::{self};
+use crate::error::AppError;
 
 impl Database {
-    pub fn create_note(&mut self, data: &Note) -> Result<(), diesel::result::Error> {
+    #[tracing::instrument(skip(self, data))]
+    pub fn create_note(&mut self, data: &Note) -> Result<(), AppError> {
         let conn = &mut self.get_connection()?;
         use crate::db::schema::note::dsl::*;
-        insert_into(note).values(data).execute(conn)?;
+        insert_into(note)
+            .values(data)
+            .execute(conn)
+            .map_err(AppError::DatabaseError)?;
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn select_note_with_filter(
         &mut self,
         cook_and_run_id_filter: Option<&Uuid>,
         team_id_filter: Option<&Uuid>,
         note_id_filter: Option<&Uuid>,
         user_id_filter: Option<&str>,
-    ) -> Result<Vec<Note>, diesel::result::Error> {
+    ) -> Result<Vec<Note>, AppError> {
         let conn = &mut self.get_connection()?;
 
         if cook_and_run_id_filter.is_some() || user_id_filter.is_some() {
@@ -51,6 +57,7 @@ impl Database {
                 .order_by(note::created.asc())
                 .select(Note::as_select())
                 .load::<Note>(conn)
+                .map_err(AppError::DatabaseError)
         } else {
             let mut query = note::table.into_boxed();
 
@@ -65,16 +72,18 @@ impl Database {
                 .order_by(note::created.asc())
                 .select(Note::as_select())
                 .load::<Note>(conn)
+                .map_err(AppError::DatabaseError)
         }
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn delete_note(
         &mut self,
         cook_and_run_id_filter: &Uuid,
         team_id_filter: &Uuid,
         note_id_filter: &Uuid,
         user_id_filter: &str,
-    ) -> Result<(), diesel::result::Error> {
+    ) -> Result<(), AppError> {
         let conn = &mut self.get_connection()?;
 
         let affected = delete(
@@ -97,10 +106,16 @@ impl Database {
                 ),
             ),
         )
-        .execute(conn)?;
+        .execute(conn)
+        .map_err(AppError::DatabaseError)?;
 
         if affected == 0 {
-            return Err(diesel::result::Error::NotFound);
+            return Err(AppError::NoteNotFound(
+                note_id_filter.clone(),
+                user_id_filter.to_string(),
+                cook_and_run_id_filter.clone(),
+                team_id_filter.clone(),
+            ));
         }
         Ok(())
     }

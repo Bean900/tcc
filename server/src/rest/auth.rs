@@ -7,9 +7,9 @@ use axum::{
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::warn;
+use tracing::{debug, warn};
 
-use crate::rest_error::RestError;
+use crate::error::AppError;
 
 pub const CREATE_PERMISSION: &str = "create:project";
 pub const READ_PERMISSION: &str = "read:project";
@@ -82,14 +82,29 @@ pub struct AuthState {
 }
 
 impl AuthState {
-    pub async fn new(domain: &str, audience: &str) -> Result<Self, String> {
+    pub async fn new(domain: &str, audience: &str) -> Result<Self, AppError> {
+        debug!(
+            domain = domain,
+            audience = audience,
+            "Initializing AuthState."
+        );
         let jwks_url = format!("https://{}/.well-known/jwks.json", domain);
         let jwks: Jwks = reqwest::get(&jwks_url)
             .await
-            .map_err(|e| format!("Error while requesting JWKS: {}", e.to_string()))?
+            .map_err(|e| {
+                AppError::AuthorizationError(format!(
+                    "Error while requesting JWKS: {}",
+                    e.to_string()
+                ))
+            })?
             .json()
             .await
-            .map_err(|e| format!("Error while parsing JWKS-Response: {}", e.to_string()))?;
+            .map_err(|e| {
+                AppError::AuthorizationError(format!(
+                    "Error while parsing JWKS-Response: {}",
+                    e.to_string()
+                ))
+            })?;
 
         Ok(AuthState {
             auth0_domain: domain.to_string(),
@@ -102,35 +117,46 @@ impl AuthState {
         self.jwks.keys.iter().find(|key| key.kid == kid)
     }
 
-    pub fn verify_token(&self, token: &str) -> Result<Claims, String> {
-        let header = decode_header(token)
-            .map_err(|e| format!("Error while decoding header: {}", e.to_string()))?;
+    pub fn verify_token(&self, token: &str) -> Result<Claims, AppError> {
+        debug!("Verifying token.");
+        let header = decode_header(token).map_err(|e| {
+            AppError::AuthorizationError(format!("Error while decoding header: {}", e.to_string()))
+        })?;
         let kid = header
             .kid
-            .ok_or_else(|| "Token has no key id".to_string())?;
+            .ok_or_else(|| AppError::AuthorizationError("Token has no key id".to_string()))?;
 
         let key = self
             .get_key(&kid)
-            .ok_or_else(|| format!("Kid id {} not found!", kid).to_string())?;
+            .ok_or_else(|| AppError::AuthorizationError(format!("Kid id {} not found!", kid)))?;
 
-        let decoding_key = DecodingKey::from_rsa_components(&key.n, &key.e)
-            .map_err(|e| format!("Error while decoding JWKS-Data: {}", e.to_string()))?;
+        let decoding_key = DecodingKey::from_rsa_components(&key.n, &key.e).map_err(|e| {
+            AppError::AuthorizationError(format!(
+                "Error while decoding JWKS-Data: {}",
+                e.to_string()
+            ))
+        })?;
 
         let mut validation = Validation::new(Algorithm::RS256);
         validation.set_audience(&[&self.auth0_audience]);
         validation.set_issuer(&[&format!("https://{}/", self.auth0_domain)]);
 
         let token_data = decode::<Claims>(token, &decoding_key, &validation).map_err(|e| {
-            format!(
+            AppError::AuthorizationError(format!(
                 "Error while validating Token and extracting claims: {}",
                 e.to_string()
-            )
+            ))
         })?;
 
         Ok(token_data.claims)
     }
 
     pub fn has_permission(&self, claims: &Claims, required_permission: &str) -> bool {
+        debug!(
+            user = %claims.sub,
+            required_permission = required_permission,
+            "Checking permissions for user."
+        );
         // Prüfe zuerst das permissions Array (Auth0 Standard)
         if claims
             .permissions
@@ -159,6 +185,10 @@ pub fn require_permission(
     Box<dyn std::future::Future<Output = Result<Response, StatusCode>> + Send>,
 > + Clone {
     move |State(state): State<crate::AppState>, mut request: Request, next: Next| {
+        debug!(
+            required_permission = permission,
+            "Executing permission check middleware."
+        );
         Box::pin(async move {
             let auth_header = request
                 .headers()
@@ -201,48 +231,69 @@ pub fn require_permission(
 pub fn is_user_authenticated<T: AuthenticatedUser>(
     user: &T,
     c_user_id: Option<&str>,
-) -> Result<(), RestError> {
+) -> Result<(), AppError> {
     let auth_user = user.user_id();
-    let is_autherised = match &auth_user {
-        AuthUser::Anonymous => true,
-        AuthUser::None => false,
+    debug!(
+        auth_user = ?auth_user,
+        c_user_id = ?c_user_id,
+        "Checking if user is authenticated."
+    );
+    match &auth_user {
+        AuthUser::Anonymous => Ok(()),
+        AuthUser::None => Err(AppError::Unauthorized(
+            c_user_id
+                .map(|id| id.to_string())
+                .unwrap_or_else(|| "NONE".to_string()),
+            "No user in resource".to_string(),
+        )),
         AuthUser::Id(id) => {
             if let Some(c_user_id) = c_user_id {
-                c_user_id == *id
-            } else {
-                false
+                if c_user_id == *id {
+                    return Ok(());
+                }
             }
-        }
-        AuthUser::AnyOf(ids) => ids.iter().any(|id| {
-            if let Some(c_user_id) = c_user_id {
-                c_user_id == *id
-            } else {
-                false
-            }
-        }),
-        AuthUser::AllOf(items) => items.iter().all(|id| {
-            if let Some(c_user_id) = c_user_id {
-                c_user_id == *id
-            } else {
-                false
-            }
-        }),
-    };
-
-    if !is_autherised {
-        warn!(
-            operation = "Authorization",
-            "User \"{}\" is not authorized. The following auth user was expected: {:?}",
-            if let Some(c_user_id) = c_user_id {
+            Err(AppError::Unauthorized(
                 c_user_id
-            } else {
-                "NOT SET"
-            },
-            auth_user
-        );
-        return Err(RestError::Unauthorized {
-            message: "User is not authorized".to_string(),
-        });
+                    .map(|id| id.to_string())
+                    .unwrap_or_else(|| "NONE".to_string()),
+                "User ID does not match required ID".to_string(),
+            ))
+        }
+        AuthUser::AnyOf(ids) => ids
+            .iter()
+            .any(|id| {
+                if let Some(c_user_id) = c_user_id {
+                    c_user_id == *id
+                } else {
+                    false
+                }
+            })
+            .then_some(())
+            .ok_or_else(|| {
+                AppError::Unauthorized(
+                    c_user_id
+                        .map(|id| id.to_string())
+                        .unwrap_or_else(|| "NONE".to_string()),
+                    "User ID does not match any of the required IDs".to_string(),
+                )
+            }),
+        AuthUser::AllOf(items) => items
+            .iter()
+            .all(|id| {
+                if let Some(c_user_id) = c_user_id {
+                    c_user_id == *id
+                } else {
+                    false
+                }
+            })
+            .then_some(())
+            .ok_or_else(|| {
+                AppError::Unauthorized(
+                    c_user_id
+                        .map(|id| id.to_string())
+                        .unwrap_or_else(|| "NONE".to_string()),
+                    "User ID does not match all of the required IDs".to_string(),
+                )
+            }),
     }
-    Ok(())
 }

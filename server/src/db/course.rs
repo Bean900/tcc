@@ -8,21 +8,25 @@ use crate::db::Database;
 
 use crate::db::schema::cook_and_run as c_a_r;
 use crate::db::schema::course::{self, has_multiple_hosts, name, time};
+use crate::error::AppError;
 
 impl Database {
-    pub fn create_course(&mut self, data: &Course) -> Result<(), diesel::result::Error> {
+    #[tracing::instrument(skip(self, data))]
+    pub fn create_course(&mut self, data: &Course) -> Result<(), AppError> {
         let conn = &mut self.get_connection()?;
         insert_into(course::dsl::course)
             .values(data)
-            .execute(conn)?;
+            .execute(conn)
+            .map_err(AppError::DatabaseError)?;
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn select_all_course(
         &mut self,
         cook_and_run_id_filter: &Uuid,
         user_id_filter: &str,
-    ) -> Result<Vec<Course>, diesel::result::Error> {
+    ) -> Result<Vec<Course>, AppError> {
         let conn = &mut self.get_connection()?;
 
         course::table
@@ -32,14 +36,16 @@ impl Database {
             .order(time.asc())
             .select(Course::as_select())
             .load::<Course>(conn)
+            .map_err(AppError::DatabaseError)
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn select_course(
         &mut self,
         id_filter: &Uuid,
         cook_and_run_id_filter: &Uuid,
         user_id_filter: &str,
-    ) -> Result<Course, diesel::result::Error> {
+    ) -> Result<Course, AppError> {
         let conn = &mut self.get_connection()?;
         course::table
             .find(id_filter)
@@ -48,14 +54,16 @@ impl Database {
             .filter(c_a_r::user_id.eq(user_id_filter))
             .select(Course::as_select())
             .first(conn)
+            .map_err(AppError::DatabaseError)
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn delete_course(
         &mut self,
         id_filter: &Uuid,
         cook_and_run_id_filter: &Uuid,
         user_id_filter: &str,
-    ) -> Result<(), diesel::result::Error> {
+    ) -> Result<(), AppError> {
         let conn = &mut self.get_connection()?;
 
         let affected = delete(
@@ -70,19 +78,21 @@ impl Database {
                 ),
             ),
         )
-        .execute(conn)?;
+        .execute(conn)
+        .map_err(AppError::DatabaseError)?;
 
         if affected == 0 {
-            return Err(diesel::result::Error::NotFound);
+            return Err(AppError::CourseNotFound(
+                id_filter.clone(),
+                user_id_filter.to_string(),
+                Some(cook_and_run_id_filter.clone()),
+            ));
         }
         Ok(())
     }
 
-    pub fn update_course(
-        &mut self,
-        data: &Course,
-        user_id_filter: &str,
-    ) -> Result<(), diesel::result::Error> {
+    #[tracing::instrument(skip(self, data))]
+    pub fn update_course(&mut self, data: &Course, user_id_filter: &str) -> Result<(), AppError> {
         let conn = &mut self.get_connection()?;
 
         let affected = update(course::table.find(data.id))
@@ -99,9 +109,14 @@ impl Database {
                 time.eq(data.time.clone()),
                 has_multiple_hosts.eq(data.has_multiple_hosts),
             ))
-            .execute(conn)?;
+            .execute(conn)
+            .map_err(AppError::DatabaseError)?;
         if affected == 0 {
-            return Err(diesel::result::Error::NotFound);
+            return Err(AppError::CourseNotFound(
+                data.id.clone(),
+                user_id_filter.to_string(),
+                None,
+            ));
         }
         Ok(())
     }

@@ -1,14 +1,14 @@
 use chrono::NaiveDateTime;
 use diesel::result::DatabaseErrorKind;
-use tracing::{debug, error, warn};
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 use crate::{
     address::Address,
     cook_and_run::get_cook_and_run,
     db::{self, Database},
+    error::AppError,
     note::{get_list_by_team_id, Note},
-    rest_error::{map_not_found_cook_and_run, RestError},
     sharing::ShareTeamConfig,
 };
 
@@ -70,26 +70,15 @@ pub(crate) fn get_list(
     db: &mut Database,
     cook_and_run_id: &Uuid,
     user_id: &str,
-) -> Result<Vec<Team>, RestError> {
+) -> Result<Vec<Team>, AppError> {
     let team_list = db
-        .select_all_team(cook_and_run_id, user_id)
-        .map_err(|e| {
-            error!(
-                operation = "Find Project",
-                "Database error while selecting team list for cook and run id {}: {}",
-                cook_and_run_id,
-                e
-            );
-            RestError::InternalServer {
-                message: "Database error while selecting team list!".to_string(),
-            }
-        })?
+        .select_all_team(cook_and_run_id, user_id)?
         .into_iter()
         .map(|team_address| {
             let note_list = get_list_by_team_id(db, &team_address.0.id)?;
             Ok(Team::from(team_address.0, team_address.1, note_list))
         })
-        .collect::<Result<Vec<_>, RestError>>()?;
+        .collect::<Result<Vec<_>, AppError>>()?;
     Ok(team_list)
 }
 
@@ -98,29 +87,8 @@ pub(crate) fn get(
     cook_and_run_id: &Uuid,
     user_id: &str,
     team_id: &Uuid,
-) -> Result<Team, RestError> {
-    let (team, address) =
-        db.select_team(team_id, cook_and_run_id, user_id)
-            .map_err(|e| match e {
-                diesel::result::Error::NotFound => {
-                    map_not_found_cook_and_run(cook_and_run_id, "loading team", e)
-                }
-                _ => {
-                    error!(
-                        operation = "Find Team",
-                        "Could not get team {} in project with id {} from database: {}",
-                        team_id,
-                        cook_and_run_id,
-                        e
-                    );
-                    RestError::InternalServer {
-                        message: format!(
-                        "Could not get team {} in cook and run project with id {} from database",
-                        team_id, cook_and_run_id
-                    ),
-                    }
-                }
-            })?;
+) -> Result<Team, AppError> {
+    let (team, address) = db.select_team(team_id, cook_and_run_id, user_id)?;
     Ok(Team::from(team, address, get_list_by_team_id(db, team_id)?))
 }
 
@@ -129,108 +97,34 @@ pub(crate) fn delete(
     cook_and_run_id: &Uuid,
     user_id: &str,
     team_id: &Uuid,
-) -> Result<(), RestError> {
-    db.delete_team(team_id, cook_and_run_id, user_id)
-        .map_err(|e| match e {
-            diesel::result::Error::NotFound => {
-                map_not_found_cook_and_run(cook_and_run_id, "delete team", e)
-            }
-            _ => {
-                error!(
-                    operation = "Delete Team",
-                    "Could not delete team {} in cook and run project with id {} in database: {}",
-                    team_id,
-                    cook_and_run_id,
-                    e
-                );
-                RestError::InternalServer {
-                    message: format!(
-                        "Could not delete team {} cook and run project with id {} in database",
-                        team_id, cook_and_run_id
-                    ),
-                }
-            }
-        })?;
+) -> Result<(), AppError> {
+    db.delete_team(team_id, cook_and_run_id, user_id)?;
     Ok(())
 }
 
-pub(crate) fn update(db: &mut Database, user_id: &str, data: &Team) -> Result<(), RestError> {
+pub(crate) fn update(db: &mut Database, user_id: &str, data: &Team) -> Result<(), AppError> {
     db.update_team(&data.to(), &data.address.to_db(), user_id)
-        .map_err(|e| match e {
-            diesel::result::Error::NotFound => {
-                map_not_found_cook_and_run(&data.cook_and_run_id, "updating team", e)
-            }
-            _ => {
-                error!(
-                    operation = "Update Team",
-                    "Could not update team {} in cook and run project with id {} in database: {}",
-                    data.id,
-                    data.cook_and_run_id,
-                    e
-                );
-                RestError::InternalServer {
-                    message: format!(
-                        "Could not update team {} in cook and run project with id {} in database",
-                        data.id, data.cook_and_run_id
-                    ),
-                }
-            }
-        })
 }
 
-pub fn create(db: &mut Database, user_id: &Option<String>, data: &Team) -> Result<(), RestError> {
+pub fn create(db: &mut Database, user_id: &Option<String>, data: &Team) -> Result<(), AppError> {
     match db.select_share_uncheckt(&data.cook_and_run_id) {
         Ok(share) => check_team_against_share(db, &ShareTeamConfig::from(share), user_id, data)?,
-        Err(diesel::result::Error::NotFound) => {
-            if let Some(user_id) = user_id {
-                debug!(
-                    operation = "Create Team with user_id - Find share",
-                    "No share config found for cook and run id {}, checking if user is owner",
-                    data.cook_and_run_id
-                );
-                let _ = get_cook_and_run(db, &data.cook_and_run_id, user_id)?;
-            } else {
-                warn!(
-                    operation = "Create Team without user_id",
-                    "Could not find share config for cook and run id {}, and no user id provided",
-                    data.cook_and_run_id
-                );
-                return Err(RestError::NotFound {
-                    message: "Could not find cook and run project or share".to_string(),
-                });
-            }
-        }
-        Err(e) => {
-            error!(
-                operation = "Create Team - Find share config",
-                "Database error while selecting share config for id {}: {}",
-                data.cook_and_run_id,
-                e
-            );
-            return Err(RestError::InternalServer {
-                message: "Database error while selecting share config".to_string(),
-            });
-        }
+        Err(e) => return Err(e),
     }
 
     match db.create_team(&data.to(), &data.address.to_db()) {
         Ok(_) => Ok(()),
-        Err(diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _)) => {
+        Err(AppError::DatabaseError(diesel::result::Error::DatabaseError(
+            DatabaseErrorKind::UniqueViolation,
+            _,
+        ))) => {
             warn!(
-                operation = "Create Team",
+                project_id = %data.cook_and_run_id,
                 "Could not create team in database due to unique violation"
             );
-            return Ok(());
+            Ok(())
         }
-        Err(e) => {
-            error!(
-                operation = "Create Team",
-                "Could not create team in database: {}", e
-            );
-            return Err(RestError::InternalServer {
-                message: "Could not create team in database".to_string(),
-            });
-        }
+        Err(e) => Err(e),
     }
 }
 
@@ -239,102 +133,78 @@ fn check_team_against_share(
     share: &ShareTeamConfig,
     user_id: &Option<String>,
     data: &Team,
-) -> Result<(), RestError> {
-    debug!("Checking team against share config: {:?}", share);
+) -> Result<(), AppError> {
+    debug!(share = ?share, "Checking team against share config");
     if user_id
         .clone()
         .is_some_and(|user_id| get_cook_and_run(db, &data.cook_and_run_id, &user_id).is_ok())
     {
-        debug!("User is the owner of the cook and run project, skipping share checks");
+        debug!(user_id = ?user_id, share = ?share, project_id = %data.cook_and_run_id, "User is the owner of the cook and run project, skipping share checks");
         return Ok(());
     }
 
-    debug!("User is not the owner of the cook and run project, performing share checks");
+    debug!(user_id = ?user_id, share = ?share, project_id = %data.cook_and_run_id, "User is not the owner of the cook and run project, performing share checks");
 
     let deadline = share.registration_deadline;
-    if deadline.is_some_and(|deadline| deadline < chrono::Utc::now().naive_utc()) {
-        warn!(
-            operation = "Check deadline",
-            "Registration deadline has passed: {:?}", deadline
-        );
-        return Err(RestError::Forbidden {
-            message: "The registration deadline has passed".to_string(),
-        });
+    if let Some(deadline) = deadline {
+        if deadline < chrono::Utc::now().naive_utc() {
+            return Err(AppError::DeadlineExceeded(deadline, data.cook_and_run_id));
+        }
     }
 
     if share.needs_login && user_id.is_none() {
-        warn!(
-            operation = "Check login status",
-            "User is not logged in, but login is required to register a team"
-        );
-        return Err(RestError::Unprocessable {
-            message: "You need to be logged in to register a team".to_string(),
-        });
+        return Err(AppError::NeedLoginToCreateTeam(data.cook_and_run_id));
     }
 
     if let Some(max_team_size) = share.max_teams {
-        let team_size = db.count_teams(&data.cook_and_run_id).map_err(|e| {
-            error!(
-                operation = "Check max teams",
-                "Could not get team count from database: {}", e
-            );
-            RestError::InternalServer {
-                message: "Could not create team in database".to_string(),
-            }
-        })?;
+        let team_size = db.count_teams(&data.cook_and_run_id)?;
         if team_size >= max_team_size as i64 {
-            warn!(
-                operation = "Check max teams",
-                "Maximum number of teams reached: {}", max_team_size
-            );
-            return Err(RestError::Forbidden {
-                message: "The maximum number of teams has been reached".to_string(),
-            });
+            return Err(AppError::MaxTeamSizeExceeded(
+                max_team_size,
+                data.cook_and_run_id,
+            ));
         }
     }
 
     if share.default_needs_check && !data.needs_check {
-        warn!(
-            operation = "Check needs_check",
-            "The needs_check field must be true, but is false"
-        );
-        return Err(RestError::Unprocessable {
-            message: "The needs_check field must be true".to_string(),
-        });
+        return Err(AppError::MissingField(
+            "needs_check".to_string(),
+            data.cook_and_run_id,
+        ));
     }
 
     for required_field in share.required_fields.iter() {
         match required_field {
             crate::sharing::RequiredField::Mail => {
                 if data.mail.is_none() {
-                    warn!(operation = "Check mail", "The mail field is required");
-                    return Err(RestError::Unprocessable {
-                        message: "The mail field is required".to_string(),
-                    });
+                    return Err(AppError::MissingField(
+                        "mail".to_string(),
+                        data.cook_and_run_id,
+                    ));
                 }
             }
             crate::sharing::RequiredField::Phone => {
                 if data.phone.is_none() {
-                    warn!(operation = "Check phone", "The phone field is required");
-                    return Err(RestError::Unprocessable {
-                        message: "The phone field is required".to_string(),
-                    });
+                    return Err(AppError::MissingField(
+                        "phone".to_string(),
+                        data.cook_and_run_id,
+                    ));
                 }
             }
             crate::sharing::RequiredField::Members => {
                 if data.members.is_none() {
-                    warn!(operation = "Check members", "The members field is required");
-                    return Err(RestError::Unprocessable {
-                        message: "The members field is required".to_string(),
-                    });
+                    return Err(AppError::MissingField(
+                        "members".to_string(),
+                        data.cook_and_run_id,
+                    ));
                 }
             }
             crate::sharing::RequiredField::Diets => {
                 if data.diets.is_none() {
-                    warn!(operation = "Check diets", "The diets field is required");
-                    return Err(RestError::Unprocessable {
-                        message: "The diets field is required".to_string(),
-                    });
+                    return Err(AppError::MissingField(
+                        "diets".to_string(),
+                        data.cook_and_run_id,
+                    ));
                 }
             }
         }

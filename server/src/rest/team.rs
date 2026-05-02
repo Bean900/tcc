@@ -9,18 +9,18 @@ use axum_extra::TypedHeader;
 use headers::{authorization::Bearer, Authorization};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
+    error::AppError,
     rest::{
         auth::{
-            is_user_authenticated, require_permission, AuthState, Claims, READ_PERMISSION,
-            UPDATE_PERMISSION,
+            is_user_authenticated, require_permission, AuthState, Claims, DELETE_PERMISSION,
+            READ_PERMISSION, UPDATE_PERMISSION,
         },
         models::{PaginationInfo, Team, TeamCreateData, TeamUpdateData},
+        validated_json::ValidatedJson,
     },
-    rest_error::RestError,
     team, AppState,
 };
 
@@ -55,73 +55,74 @@ impl IntoResponse for TeamListResponse {
 pub fn routes(app_state: AppState) -> Router<AppState> {
     Router::new()
         .route(
-            "/cook_and_run/:cook_and_run_id/teams",
+            "/cook_and_run/{cook_and_run_id}/teams",
             get(list_teams).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
             )),
         )
+        // Team creation is intentionally unauthenticated at the JWT middleware level
+        // to allow public registration via share links. Ownership is enforced inside
+        // the handler via optional bearer token verification.
         .route(
-            "/cook_and_run/:cook_and_run_id/team/:team_id",
+            "/cook_and_run/{cook_and_run_id}/team/{team_id}",
             post(create_team),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/team/:team_id",
+            "/cook_and_run/{cook_and_run_id}/team/{team_id}",
             get(get_team).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/team/:team_id",
+            "/cook_and_run/{cook_and_run_id}/team/{team_id}",
             patch(update_team).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
             )),
         )
+        // SECURITY FIX: was READ_PERMISSION — any read-only user could delete teams.
         .route(
-            "/cook_and_run/:cook_and_run_id/team/:team_id",
+            "/cook_and_run/{cook_and_run_id}/team/{team_id}",
             delete(delete_team).layer(from_fn_with_state(
                 app_state.clone(),
-                require_permission(READ_PERMISSION),
+                require_permission(DELETE_PERMISSION),
             )),
         )
 }
 
-/// List all teams for a cook and run project
+/// List all teams for a cook and run project.
+#[tracing::instrument(skip(claims, state))]
 async fn list_teams(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-    Query(params): Query<ListTeamsQuery>,
-) -> Result<TeamListResponse, RestError> {
+    Query(_params): Query<ListTeamsQuery>,
+) -> Result<TeamListResponse, AppError> {
     let result: Vec<Team> = team::get_list(&mut state.db, &cook_and_run_id, &claims.sub)?
         .into_iter()
         .map(Team::from)
         .collect();
 
-    let response = TeamListResponse {
+    Ok(TeamListResponse {
         data: result,
         pagination: PaginationInfo::new(),
-    };
-    Ok(response)
+    })
 }
 
-/// Create team for cook and run project
+/// Create a team. Authentication is optional — public registrations via share
+/// links are allowed. When a valid bearer token is present the team is linked
+/// to that user.
+#[tracing::instrument(skip(auth, state))]
 async fn create_team(
     State(mut state): State<AppState>,
     Path((cook_and_run_id, team_id)): Path<(Uuid, Uuid)>,
     auth: Option<TypedHeader<Authorization<Bearer>>>,
-    Json(payload): Json<TeamCreateData>,
-) -> Result<(), RestError> {
-    debug!(
-        "Creating team for cook and run project: {}",
-        cook_and_run_id
-    );
-    let user_id: Option<String> = get_user_id(&auth, &state.auth);
-    debug!("User ID from auth: {:?}", user_id);
+    ValidatedJson(payload): ValidatedJson<TeamCreateData>,
+) -> Result<(), AppError> {
+    let user_id = get_user_id(&auth, &state.auth);
     is_user_authenticated(&payload, user_id.as_deref())?;
-    debug!("User is authenticated to create team");
     let time = chrono::Utc::now().naive_utc();
     team::create(
         &mut state.db,
@@ -140,23 +141,29 @@ fn get_user_id(
         .map(|claims| claims.sub)
 }
 
-/// Get team details
+/// Get team details.
+#[tracing::instrument(skip(claims, state))]
 async fn get_team(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path((cook_and_run_id, team_id)): Path<(Uuid, Uuid)>,
-) -> Result<Team, RestError> {
-    let result = team::get(&mut state.db, &cook_and_run_id, &claims.sub, &team_id)?;
-    Ok(Team::from(result))
+) -> Result<Team, AppError> {
+    Ok(Team::from(team::get(
+        &mut state.db,
+        &cook_and_run_id,
+        &claims.sub,
+        &team_id,
+    )?))
 }
 
-/// Update team for cook and run project
+/// Update a team. Ownership is enforced at the database layer via `claims.sub`.
+#[tracing::instrument(skip(claims, state))]
 async fn update_team(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path((cook_and_run_id, team_id)): Path<(Uuid, Uuid)>,
-    Json(payload): Json<TeamUpdateData>,
-) -> Result<(), RestError> {
+    ValidatedJson(payload): ValidatedJson<TeamUpdateData>,
+) -> Result<(), AppError> {
     let time = chrono::Utc::now().naive_utc();
     team::update(
         &mut state.db,
@@ -165,11 +172,12 @@ async fn update_team(
     )
 }
 
-/// Delete team for cook and run project
+/// Delete a team.
+#[tracing::instrument(skip(claims, state))]
 async fn delete_team(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path((cook_and_run_id, team_id)): Path<(Uuid, Uuid)>,
-) -> Result<(), RestError> {
+) -> Result<(), AppError> {
     team::delete(&mut state.db, &cook_and_run_id, &claims.sub, &team_id)
 }

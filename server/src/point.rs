@@ -1,10 +1,9 @@
-use tracing::event;
 use uuid::Uuid;
 
 use crate::{
     address::{self, Address},
     db::{self, Database},
-    rest_error::RestError,
+    error::AppError,
 };
 
 #[derive(Debug, Clone)]
@@ -35,18 +34,8 @@ impl Point {
     }
 }
 
-pub fn get_by_id(db: &mut Database, point_id: &Uuid) -> Result<Point, RestError> {
-    let point = db.select_point(point_id).map_err(|e| {
-        event!(
-            tracing::Level::ERROR,
-            "Database error while selecting point with id {}: {}",
-            point_id,
-            e
-        );
-        RestError::InternalServer {
-            message: "Database error while selecting point".to_string(),
-        }
-    })?;
+pub fn get_by_id(db: &mut Database, point_id: &Uuid) -> Result<Point, AppError> {
+    let point = db.select_point(point_id)?;
     let address = address::get_by_id(db, &point.address)?;
     Ok(Point::from(point, address))
 }

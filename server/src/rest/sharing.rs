@@ -9,23 +9,31 @@ use axum::{
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::{
+    error::AppError,
     rest::{
         auth::{require_permission, Claims, READ_PERMISSION, UPDATE_PERMISSION},
         models::{RequiredField, ShareTeamConfig},
+        validated_json::ValidatedJson,
     },
-    rest_error::RestError,
     sharing::{self},
     AppState,
 };
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateShareConfigRequest {
+    #[validate(length(
+        min = 1,
+        max = 5000,
+        message = "must be between 1 and 5,000 characters"
+    ))]
     pub invite_text: String,
     pub needs_login: bool,
     pub default_needs_check: bool,
     pub required_fields: Vec<RequiredField>,
+    #[validate(range(min = 1, max = 10_000, message = "must be between 1 and 10,000"))]
     pub max_teams: Option<u32>,
     pub registration_deadline: Option<NaiveDateTime>,
 }
@@ -52,7 +60,7 @@ impl CreateShareConfigRequest {
                 })
                 .collect(),
             max_teams: self.max_teams,
-            registration_deadline: self.registration_deadline.clone(),
+            registration_deadline: self.registration_deadline,
             created: *time,
         }
     }
@@ -75,28 +83,28 @@ impl IntoResponse for ShareConfigResponse {
 pub fn routes(app_state: AppState) -> Router<AppState> {
     Router::new()
         .route(
-            "/cook_and_run/:cook_and_run_id/share_team_config",
+            "/cook_and_run/{cook_and_run_id}/share_team_config",
             post(create_share_config).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/share_team_config",
+            "/cook_and_run/{cook_and_run_id}/share_team_config",
             patch(update_share_config).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/share_team_config",
+            "/cook_and_run/{cook_and_run_id}/share_team_config",
             get(get_share_config).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/share_team_config",
+            "/cook_and_run/{cook_and_run_id}/share_team_config",
             delete(delete_share_config).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
@@ -104,61 +112,66 @@ pub fn routes(app_state: AppState) -> Router<AppState> {
         )
 }
 
-/// Create team sharing configuration
+/// Create a new team sharing configuration.
+#[tracing::instrument(skip(claims, state))]
 async fn create_share_config(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-    Json(payload): Json<CreateShareConfigRequest>,
-) -> Result<(), RestError> {
+    ValidatedJson(payload): ValidatedJson<CreateShareConfigRequest>,
+) -> Result<(), AppError> {
     let time = chrono::Utc::now().naive_utc();
-
     sharing::create(
         &mut state.db,
         &cook_and_run_id,
         &claims.sub,
         &payload.to(&Uuid::new_v4(), &time),
     )?;
-
     Ok(())
 }
 
-/// Update team sharing configuration
+/// Update an existing team sharing configuration.
+///
+/// The existing config is fetched first so its stable ID is preserved.
+#[tracing::instrument(skip(claims, state))]
 async fn update_share_config(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-    Json(payload): Json<CreateShareConfigRequest>,
-) -> Result<(), RestError> {
+    ValidatedJson(payload): ValidatedJson<CreateShareConfigRequest>,
+) -> Result<(), AppError> {
+    let existing = sharing::get_by_id(&mut state.db, &cook_and_run_id, &claims.sub)?;
     let time = chrono::Utc::now().naive_utc();
-
     sharing::update(
         &mut state.db,
         &cook_and_run_id,
         &claims.sub,
-        &payload.to(&Uuid::new_v4(), &time),
+        &payload.to(&existing.id, &time),
     )?;
-
     Ok(())
 }
 
-/// Get team sharing configuration
+/// Get the team sharing configuration.
+#[tracing::instrument(skip(claims, state))]
 async fn get_share_config(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-) -> Result<ShareTeamConfig, RestError> {
-    let share = sharing::get_by_id(&mut state.db, &cook_and_run_id, &claims.sub)?;
-
-    Ok(ShareTeamConfig::from(share))
+) -> Result<ShareTeamConfig, AppError> {
+    Ok(ShareTeamConfig::from(sharing::get_by_id(
+        &mut state.db,
+        &cook_and_run_id,
+        &claims.sub,
+    )?))
 }
 
-/// Delete team sharing configuration
+/// Delete the team sharing configuration.
+#[tracing::instrument(skip(claims, state))]
 async fn delete_share_config(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-) -> Result<(), RestError> {
+) -> Result<(), AppError> {
     sharing::delete(&mut state.db, &cook_and_run_id, &claims.sub)?;
     Ok(())
 }

@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::error::AppError;
+
 // ========================================
 // Address
 // ========================================
@@ -271,8 +273,8 @@ pub struct PlanRow {
 }
 
 impl PlanRow {
-    pub fn from_plan(plan: Plan) -> Result<PlanRow, serde_json::Error> {
-        let data = serde_json::to_value(plan.data)?;
+    pub fn from_plan(plan: Plan) -> Result<PlanRow, AppError> {
+        let data = serde_json::to_value(plan.data).map_err(AppError::SerializationError)?;
         Ok(PlanRow { id: plan.id, data })
     }
 }
@@ -283,8 +285,9 @@ pub struct Plan {
 }
 
 impl Plan {
-    pub fn from_plan_row(row: PlanRow) -> Result<Self, serde_json::Error> {
-        let data: PlanData = serde_json::from_value(row.data)?;
+    pub fn from_plan_row(row: PlanRow) -> Result<Self, AppError> {
+        let data: PlanData =
+            serde_json::from_value(row.data).map_err(AppError::SerializationError)?;
         Ok(Plan { id: row.id, data })
     }
 }

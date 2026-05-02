@@ -11,11 +11,12 @@ use uuid::Uuid;
 
 use crate::{
     course::{self},
+    error::AppError,
     rest::{
         auth::{require_permission, Claims, READ_PERMISSION, UPDATE_PERMISSION},
         models::{Course, CourseCreateData, CourseUpdateData, PaginationInfo},
+        validated_json::ValidatedJson,
     },
-    rest_error::RestError,
     AppState,
 };
 
@@ -46,35 +47,35 @@ impl IntoResponse for CourseListResponse {
 pub fn routes(app_state: AppState) -> Router<AppState> {
     Router::new()
         .route(
-            "/cook_and_run/:cook_and_run_id/courses",
+            "/cook_and_run/{cook_and_run_id}/courses",
             get(list_courses).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/course/:course_id",
+            "/cook_and_run/{cook_and_run_id}/course/{course_id}",
             post(create_course).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/course/:course_id",
+            "/cook_and_run/{cook_and_run_id}/course/{course_id}",
             get(get_course).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/course/:course_id",
+            "/cook_and_run/{cook_and_run_id}/course/{course_id}",
             patch(update_course).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
             )),
         )
         .route(
-            "/cook_and_run/:cook_and_run_id/course/:course_id",
+            "/cook_and_run/{cook_and_run_id}/course/{course_id}",
             delete(delete_course).layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
@@ -83,12 +84,14 @@ pub fn routes(app_state: AppState) -> Router<AppState> {
 }
 
 /// List all courses for a cook and run project
+
+#[tracing::instrument(skip(claims, state))]
 async fn list_courses(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path(cook_and_run_id): Path<Uuid>,
-    Query(params): Query<ListCoursesQuery>,
-) -> Result<CourseListResponse, RestError> {
+    Query(_): Query<ListCoursesQuery>,
+) -> Result<CourseListResponse, AppError> {
     let result: Vec<Course> = course::get_list(&mut state.db, &cook_and_run_id, &claims.sub)?
         .into_iter()
         .map(Course::from)
@@ -102,12 +105,13 @@ async fn list_courses(
 }
 
 /// Create course for cook and run project
+#[tracing::instrument(skip(claims, state))]
 async fn create_course(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path((cook_and_run_id, course_id)): Path<(Uuid, Uuid)>,
-    Json(payload): Json<CourseCreateData>,
-) -> Result<(), RestError> {
+    ValidatedJson(payload): ValidatedJson<CourseCreateData>,
+) -> Result<(), AppError> {
     course::create(
         &mut state.db,
         &claims.sub,
@@ -116,22 +120,24 @@ async fn create_course(
 }
 
 /// Get course details
+#[tracing::instrument(skip(claims, state))]
 async fn get_course(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path((cook_and_run_id, course_id)): Path<(Uuid, Uuid)>,
-) -> Result<Course, RestError> {
+) -> Result<Course, AppError> {
     let result = course::get(&mut state.db, &cook_and_run_id, &claims.sub, &course_id)?;
     Ok(Course::from(result))
 }
 
 /// Update course for cook and run project
+#[tracing::instrument(skip(claims, state))]
 async fn update_course(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path((cook_and_run_id, course_id)): Path<(Uuid, Uuid)>,
-    Json(payload): Json<CourseUpdateData>,
-) -> Result<(), RestError> {
+    ValidatedJson(payload): ValidatedJson<CourseUpdateData>,
+) -> Result<(), AppError> {
     course::update(
         &mut state.db,
         &claims.sub,
@@ -140,10 +146,11 @@ async fn update_course(
 }
 
 /// Delete course for cook and run project
+#[tracing::instrument(skip(claims, state))]
 async fn delete_course(
     Extension(claims): Extension<Claims>,
     State(mut state): State<AppState>,
     Path((cook_and_run_id, course_id)): Path<(Uuid, Uuid)>,
-) -> Result<(), RestError> {
+) -> Result<(), AppError> {
     course::delete(&mut state.db, &cook_and_run_id, &claims.sub, &course_id)
 }

@@ -1,9 +1,8 @@
-use tracing::event;
 use uuid::Uuid;
 
 use crate::{
     db::{self, Database},
-    rest_error::RestError,
+    error::AppError,
 };
 
 #[derive(Debug, Clone)]
@@ -34,17 +33,6 @@ impl Address {
     }
 }
 
-pub fn get_by_id(db: &mut Database, address_id: &Uuid) -> Result<Address, RestError> {
-    let address = db.select_address(address_id).map_err(|e| {
-        event!(
-            tracing::Level::ERROR,
-            "Database error while selecting address with id {}: {}",
-            address_id,
-            e
-        );
-        RestError::InternalServer {
-            message: "Database error while selecting address".to_string(),
-        }
-    })?;
-    Ok(Address::from(address))
+pub fn get_by_id(db: &mut Database, address_id: &Uuid) -> Result<Address, AppError> {
+    db.select_address(address_id).map(Address::from)
 }
