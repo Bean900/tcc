@@ -59,6 +59,7 @@ fn get_token(client_id: String, client_secret: String) -> (String, String) {
             std::env::var("AUTH0_DOMAIN").expect("Missing AUTH0_DOMAIN")
         ))
         .json(&token_request)
+        .header("x-forwarded-for", "127.0.0.1")
         .send()
         .expect("Failed to send request");
 

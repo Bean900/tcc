@@ -50,6 +50,7 @@ fn execute_patch_team(
         ))
         .header("authorization", format!("Bearer {}", token))
         .json(&payload)
+        .header("x-forwarded-for", "127.0.0.1")
         .send()
         .expect("Failed to send request")
 }
@@ -166,15 +167,13 @@ fn assert_team_json(
     assert_eq!(name, "TestTeam2", "team name does not match");
 
     assert!(
-        NaiveDateTime::parse_from_str(created, "%Y-%m-%dT%H:%M:%S").is_ok()
-            || NaiveDateTime::parse_from_str(created, "%Y-%m-%dT%H:%M:%S%.f").is_ok(),
+        NaiveDateTime::parse_from_str(created, "%Y-%m-%dT%H:%M").is_ok(),
         "Created is not a valid NaiveTime: {}",
         created
     );
 
     assert!(
-        NaiveDateTime::parse_from_str(created, "%Y-%m-%dT%H:%M:%S").is_ok()
-            || NaiveDateTime::parse_from_str(created, "%Y-%m-%dT%H:%M:%S%.f").is_ok(),
+        NaiveDateTime::parse_from_str(created, "%Y-%m-%dT%H:%M").is_ok(),
         "Edited is not a valid NaiveTime: {}",
         edited
     );

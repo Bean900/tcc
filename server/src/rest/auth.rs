@@ -137,6 +137,10 @@ impl AuthState {
             ))
         })?;
 
+        debug!(
+            kid = kid,
+            "Token header decoded. Attempting to verify token with corresponding key."
+        );
         let mut validation = Validation::new(Algorithm::RS256);
         validation.set_audience(&[&self.auth0_audience]);
         validation.set_issuer(&[&format!("https://{}/", self.auth0_domain)]);
@@ -148,6 +152,10 @@ impl AuthState {
             ))
         })?;
 
+        debug!(
+            user = %token_data.claims.sub,
+            "Token verified successfully, claims extracted."
+        );
         Ok(token_data.claims)
     }
 
@@ -223,6 +231,7 @@ pub fn require_permission(
             }
 
             request.extensions_mut().insert(claims);
+            debug!("Permission check passed, proceeding to next middleware/handler.");
             Ok(next.run(request).await)
         })
     }

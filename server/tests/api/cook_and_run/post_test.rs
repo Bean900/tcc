@@ -56,6 +56,7 @@ fn execute_create(
         .post(&format!("{}/cook_and_run/{}", base_url, cook_and_run_id))
         .header("authorization", format!("Bearer {}", token))
         .json(&payload)
+        .header("x-forwarded-for", "127.0.0.1")
         .send()
         .expect("Failed to send request")
 }

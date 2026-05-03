@@ -24,7 +24,7 @@ pub fn setup() -> Uuid {
             "diets".to_string(),
         ],
         &Some(5),
-        &Some(NaiveDateTime::parse_from_str("2015-09-05 23:56:04", "%Y-%m-%d %H:%M:%S").unwrap()),
+        &Some(NaiveDateTime::parse_from_str("2015-09-05 23:56", "%Y-%m-%d %H:%M").unwrap()),
     );
     cook_and_run_id
 }
@@ -42,6 +42,6 @@ pub fn get_share_config(cook_and_run_id: &Uuid, token: &str) {
             "diets".to_string(),
         ],
         &Some(5),
-        &Some("2015-09-05T23:56:04"),
+        &Some("2015-09-05T23:56"),
     );
 }

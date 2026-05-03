@@ -22,14 +22,10 @@ use tower_governor::{
     governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor, GovernorLayer,
 };
 use tower_http::{
-    classify::ServerErrorsFailureClass,
-    cors::CorsLayer,
-    limit::RequestBodyLimitLayer,
-    set_header::SetResponseHeaderLayer,
-    timeout::TimeoutLayer,
-    trace::{self, TraceLayer},
+    classify::ServerErrorsFailureClass, cors::CorsLayer, limit::RequestBodyLimitLayer,
+    set_header::SetResponseHeaderLayer, timeout::TimeoutLayer, trace::TraceLayer,
 };
-use tracing::{debug, error, info, warn, Level, Span};
+use tracing::{debug, error, info, warn, Span};
 
 use crate::{db::Database, rest::auth::AuthState};
 
@@ -62,7 +58,7 @@ struct AppState {
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
+        .with_max_level(tracing::Level::INFO)
         .init();
     info!("Loading environment variables...");
 
@@ -130,6 +126,18 @@ async fn main() {
         );
     }
 
+    let (rate_per_second, burst) = if std::env::var("DISABLE_RATE_LIMIT").is_ok() {
+        info!("Rate limiting disabled (DISABLE_RATE_LIMIT is set).");
+        warn!(
+            operation = "Loading environment variable",
+            variable = "DISABLE_RATE_LIMIT",
+            "DISABLE_RATE_LIMIT is true. Rate limiting disable. This is not recommended for production deployments.",
+        );
+        (1_000u64, 10_000u32)
+    } else {
+        (RATE_LIMIT_PER_SECOND, RATE_LIMIT_BURST)
+    };
+
     info!("Starting server...");
 
     debug!("Initializing AuthState...");
@@ -159,10 +167,10 @@ async fn main() {
     // the limiter works correctly behind a reverse proxy (nginx, Caddy, etc.).
     // Clients that exceed the limit receive HTTP 429 with a Retry-After header.
     let governor_conf = GovernorConfigBuilder::default()
-        .per_second(RATE_LIMIT_PER_SECOND)
-        .burst_size(RATE_LIMIT_BURST)
-        .use_headers() // emit Retry-After on 429
-        .key_extractor(SmartIpKeyExtractor) // honours X-Forwarded-For
+        .per_second(rate_per_second)
+        .burst_size(burst)
+        .use_headers()
+        .key_extractor(SmartIpKeyExtractor)
         .finish()
         .expect("Rate limiter configuration is valid");
 
@@ -211,7 +219,7 @@ async fn main() {
     let app = rest::get_routes(app_state.clone())
         .layer(security_headers)
         .layer(cors_layer)
-        // Reject bodies larger than MAX_BODY_BYTES before reading them.
+        //Reject bodies larger than MAX_BODY_BYTES before reading them.
         .layer(RequestBodyLimitLayer::new(MAX_BODY_BYTES))
         // Cancel requests that take longer than REQUEST_TIMEOUT_SECS.
         .layer(TimeoutLayer::with_status_code(
@@ -223,8 +231,8 @@ async fn main() {
         .layer(GovernorLayer::new(governor_conf))
         .layer(
             TraceLayer::new_for_http()
-                .make_span_with(trace::DefaultMakeSpan::new().level(Level::DEBUG))
-                .on_response(trace::DefaultOnResponse::new().level(Level::DEBUG))
+                // .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
+                //.on_response(trace::DefaultOnResponse::new().level(Level::INFO))
                 .on_failure(
                     |error: ServerErrorsFailureClass, latency: Duration, _span: &Span| {
                         tracing::error!(

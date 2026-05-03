@@ -109,9 +109,18 @@ pub(crate) fn update(db: &mut Database, user_id: &str, data: &Team) -> Result<()
 pub fn create(db: &mut Database, user_id: &Option<String>, data: &Team) -> Result<(), AppError> {
     match db.select_share_uncheckt(&data.cook_and_run_id) {
         Ok(share) => check_team_against_share(db, &ShareTeamConfig::from(share), user_id, data)?,
+        Err(AppError::SharingConfigNotFound(_, _)) => {
+            if !(user_id.clone().is_some_and(|user_id| {
+                get_cook_and_run(db, &data.cook_and_run_id, &user_id).is_ok()
+            })) {
+                return Err(AppError::SharingConfigNotFound(
+                    user_id.clone().unwrap_or("NONE".to_string()),
+                    data.cook_and_run_id,
+                ));
+            }
+        }
         Err(e) => return Err(e),
     }
-
     match db.create_team(&data.to(), &data.address.to_db()) {
         Ok(_) => Ok(()),
         Err(AppError::DatabaseError(diesel::result::Error::DatabaseError(

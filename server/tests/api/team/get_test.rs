@@ -106,6 +106,7 @@ pub fn execute_get(
             base_url, cook_and_run_id, team_id
         ))
         .header("authorization", format!("Bearer {}", token))
+        .header("x-forwarded-for", "127.0.0.1")
         .send()
         .expect("Failed to send request")
 }
@@ -135,6 +136,7 @@ fn execute_get_list(cook_and_run_id: &Uuid, token: &str) -> reqwest::blocking::R
             base_url, cook_and_run_id
         ))
         .header("authorization", format!("Bearer {}", token))
+        .header("x-forwarded-for", "127.0.0.1")
         .send()
         .expect("Failed to send request")
 }
@@ -345,18 +347,16 @@ pub fn assert_team_json(
     let edited = json
         .get("edited")
         .and_then(|v| v.as_str())
-        .expect("Missing created");
+        .expect("Missing edited");
 
     assert!(
-        NaiveDateTime::parse_from_str(created, "%Y-%m-%dT%H:%M:%S").is_ok()
-            || NaiveDateTime::parse_from_str(created, "%Y-%m-%dT%H:%M:%S%.f").is_ok(),
+        NaiveDateTime::parse_from_str(created, "%Y-%m-%dT%H:%M").is_ok(),
         "Created is not a valid NaiveTime: {}",
         created
     );
 
     assert!(
-        NaiveDateTime::parse_from_str(edited, "%Y-%m-%dT%H:%M:%S").is_ok()
-            || NaiveDateTime::parse_from_str(edited, "%Y-%m-%dT%H:%M:%S%.f").is_ok(),
+        NaiveDateTime::parse_from_str(edited, "%Y-%m-%dT%H:%M").is_ok(),
         "Edited is not a valid NaiveTime: {}",
         edited
     );

@@ -103,6 +103,7 @@ fn execute_patch_start_point(
         ))
         .header("authorization", format!("Bearer {}", token))
         .json(&payload)
+        .header("x-forwarded-for", "127.0.0.1")
         .send()
         .expect("Failed to send request")
 }
@@ -120,6 +121,7 @@ fn execute_patch_end_point(
         ))
         .header("authorization", format!("Bearer {}", token))
         .json(&payload)
+        .header("x-forwarded-for", "127.0.0.1")
         .send()
         .expect("Failed to send request")
 }
@@ -229,8 +231,7 @@ pub fn assert_point_json(json: &serde_json::Value, expected_address: &str) {
     );
 
     assert!(
-        NaiveTime::parse_from_str(time, "%H:%M:%S").is_ok()
-            || NaiveTime::parse_from_str(time, "%H:%M:%S%.f").is_ok(),
+        NaiveTime::parse_from_str(time, "%H:%M").is_ok(),
         "Time is not a valid NaiveTime: {}",
         time
     );
@@ -258,7 +259,7 @@ pub fn get_point_create_json() -> (String, serde_json::Value) {
     let (address, addr_obj) = get_address_create_json();
     let point_obj = json!({
       "name": "Test Point",
-      "time": "12:00:00",
+      "time": "12:00",
       "address": addr_obj
     });
     (address, point_obj)

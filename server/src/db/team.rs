@@ -18,12 +18,15 @@ impl Database {
     pub fn create_team(&mut self, data: &Team, address_data: &Address) -> Result<(), AppError> {
         self.get_connection()?.transaction(|t| {
             create_address(t, address_data)?;
-            insert_into(team::dsl::team)
-                .values(data)
-                .execute(t)
-                .map_err(AppError::DatabaseError)?;
-
-            Ok(())
+            let result = insert_into(team::dsl::team).values(data).execute(t);
+            match result {
+                Ok(_) => Ok(()),
+                Err(diesel::result::Error::DatabaseError(
+                    diesel::result::DatabaseErrorKind::UniqueViolation,
+                    _,
+                )) => Ok(()),
+                Err(e) => Err(AppError::DatabaseError(e)),
+            }
         })
     }
 
@@ -75,7 +78,14 @@ impl Database {
             .inner_join(address::table)
             .select((Team::as_select(), Address::as_select()))
             .first::<(Team, Address)>(conn)
-            .map_err(AppError::DatabaseError)
+            .map_err(|e| match e {
+                diesel::result::Error::NotFound => AppError::TeamNotFound(
+                    id_filter.clone(),
+                    user_id_filter.to_string(),
+                    cook_and_run_id_filter.clone(),
+                ),
+                _ => AppError::DatabaseError(e),
+            })
     }
 
     #[tracing::instrument(skip(self))]

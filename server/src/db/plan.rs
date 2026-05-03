@@ -25,7 +25,13 @@ impl Database {
             .filter(c_a_r::user_id.eq(user_id_filter))
             .select(PlanRow::as_select())
             .first(conn)
-            .map_err(AppError::DatabaseError)?;
+            .map_err(|e| match e {
+                diesel::result::Error::NotFound => AppError::PlanNotFound(
+                    user_id_filter.to_string(),
+                    cook_and_run_id_filter.clone(),
+                ),
+                _ => AppError::DatabaseError(e),
+            })?;
         Plan::from_plan_row(result)
     }
 
@@ -42,7 +48,13 @@ impl Database {
             .filter(c_a_r::user_id.eq(user_id_filter))
             .select(PlanConfig::as_select())
             .first(conn)
-            .map_err(AppError::DatabaseError)
+            .map_err(|e| match e {
+                diesel::result::Error::NotFound => AppError::PlanConfigNotFound(
+                    user_id_filter.to_string(),
+                    cook_and_run_id_filter.clone(),
+                ),
+                _ => AppError::DatabaseError(e),
+            })
     }
 
     #[tracing::instrument(skip(self, plan_data))]

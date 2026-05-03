@@ -50,6 +50,7 @@ fn execute_patch_course(
         ))
         .header("authorization", format!("Bearer {}", token))
         .json(&payload)
+        .header("x-forwarded-for", "127.0.0.1")
         .send()
         .expect("Failed to send request")
 }
@@ -67,7 +68,7 @@ pub fn get_course_patch_json() -> serde_json::Value {
     let set_time = NaiveTime::from_hms_opt(16, 30, 32).expect("Expect time");
     let json = json!({
         "name": "New Course Name",
-        "time": set_time.format("%H:%M:%S").to_string(),
+        "time": set_time.format("%H:%M").to_string(),
         "has_multiple_hosts": true,
     });
     json
@@ -99,10 +100,10 @@ fn assert_course_json(json: &serde_json::Value, expected_course_id: &Uuid) {
 
     assert_eq!(name, "New Course Name", "Course name does not match");
 
-    let set_time: NaiveTime = NaiveTime::from_hms_opt(16, 30, 32).expect("Expect time");
+    let set_time: NaiveTime = NaiveTime::from_hms_opt(16, 30, 00).expect("Expect time");
 
     assert_eq!(
-        NaiveTime::parse_from_str(time, "%H:%M:%S").expect("Excpet time to be in valid Format!"),
+        NaiveTime::parse_from_str(time, "%H:%M").expect("Excpet time to be in valid Format!"),
         set_time,
         "Time is not a valid NaiveTime: {}",
         time

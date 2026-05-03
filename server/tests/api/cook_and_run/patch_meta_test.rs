@@ -77,6 +77,7 @@ fn execute_patch_meta(
         ))
         .header("authorization", format!("Bearer {}", token))
         .json(&payload)
+        .header("x-forwarded-for", "127.0.0.1")
         .send()
         .expect("Failed to send request")
 }
@@ -123,7 +124,7 @@ fn assert_cook_and_run_json(
     assert_eq!(name, expected_name, "Cook and Run name does not match");
     assert_eq!(
         occure,
-        expected_time.format("%Y-%m-%dT%H:%M:%S%.f").to_string(),
+        expected_time.format("%Y-%m-%dT%H:%M").to_string(),
         "Cook and Run occure time does not match"
     );
 }

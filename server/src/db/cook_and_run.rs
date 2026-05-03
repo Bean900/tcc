@@ -12,11 +12,15 @@ impl Database {
     pub fn create_cook_and_run(&mut self, data: &CookAndRunCreate) -> Result<(), AppError> {
         let conn = &mut self.get_connection()?;
         use crate::db::schema::cook_and_run::dsl::*;
-        insert_into(cook_and_run)
-            .values(data)
-            .execute(conn)
-            .map_err(AppError::DatabaseError)?;
-        Ok(())
+        let result = insert_into(cook_and_run).values(data).execute(conn);
+        match result {
+            Ok(_) => Ok(()),
+            Err(diesel::result::Error::DatabaseError(
+                diesel::result::DatabaseErrorKind::UniqueViolation,
+                _,
+            )) => Ok(()),
+            Err(e) => Err(AppError::DatabaseError(e)),
+        }
     }
 
     #[tracing::instrument(skip(self, meta_data))]
@@ -71,7 +75,10 @@ impl Database {
             .filter(user_id.eq(user_id_filter))
             .select(CookAndRun::as_select())
             .first(conn)
-            .map_err(AppError::DatabaseError)
+            .map_err(|e| match e {
+                diesel::result::Error::NotFound => AppError::ProjectNotFound(id_filter.clone()),
+                _ => AppError::DatabaseError(e),
+            })
     }
 
     #[tracing::instrument(skip(self))]
@@ -117,7 +124,10 @@ impl Database {
             .filter(user_id.eq(user_id_filter))
             .select(start_point)
             .first(conn)
-            .map_err(AppError::DatabaseError)
+            .map_err(|e| match e {
+                diesel::result::Error::NotFound => AppError::ProjectNotFound(Uuid::nil()),
+                _ => AppError::DatabaseError(e),
+            })
     }
 
     #[tracing::instrument(skip(self, point, address))]
@@ -186,7 +196,10 @@ impl Database {
             .filter(user_id.eq(user_id_filter))
             .select(end_point)
             .first(conn)
-            .map_err(AppError::DatabaseError)
+            .map_err(|e| match e {
+                diesel::result::Error::NotFound => AppError::ProjectNotFound(Uuid::nil()),
+                _ => AppError::DatabaseError(e),
+            })
     }
 
     #[tracing::instrument(skip(self, point, address))]

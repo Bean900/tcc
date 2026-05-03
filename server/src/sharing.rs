@@ -86,6 +86,19 @@ impl ShareTeamConfig {
             registration_deadline: self.registration_deadline,
         }
     }
+
+    pub(crate) fn none() -> ShareTeamConfig {
+        ShareTeamConfig {
+            id: Uuid::nil(),
+            invite_text: String::new(),
+            needs_login: true,
+            default_needs_check: true,
+            required_fields: vec![],
+            max_teams: None,
+            registration_deadline: None,
+            created: chrono::Utc::now().naive_utc(),
+        }
+    }
 }
 
 pub fn create(

@@ -24,7 +24,6 @@ fn test_delete_team() {
 #[test]
 fn test_delete_deleted_team() {
     let (cook_and_run_id, team_id) = setup();
-
     let (token, _) = get_auth0_1();
     delete_team(&cook_and_run_id, &team_id, &token); // First deletion
     let res = execute_delete(&cook_and_run_id, &team_id, &token); // Second deletion
@@ -56,6 +55,7 @@ fn execute_delete(
             base_url, cook_and_run_id, team_id
         ))
         .header("authorization", format!("Bearer {}", token))
+        .header("x-forwarded-for", "127.0.0.1")
         .send()
         .expect("Failed to send request")
 }

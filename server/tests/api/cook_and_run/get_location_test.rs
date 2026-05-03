@@ -24,7 +24,7 @@ fn test_get_start_point_cook_and_run_not_found() {
     let (token, _) = get_auth0_1();
     let cook_and_run_id = create_cook_and_run();
     let res = execute_get_start_point(&cook_and_run_id, &token);
-    assert_eq!(res.status(), StatusCode::NO_CONTENT, "Response: {:#?}", res);
+    assert_eq!(res.status(), StatusCode::NOT_FOUND, "Response: {:#?}", res);
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn test_get_end_point_cook_and_run_not_found() {
     let (token, _) = get_auth0_1();
     let cook_and_run_id = create_cook_and_run();
     let res = execute_get_end_point(&cook_and_run_id, &token);
-    assert_eq!(res.status(), StatusCode::NO_CONTENT, "Response: {:#?}", res);
+    assert_eq!(res.status(), StatusCode::NOT_FOUND, "Response: {:#?}", res);
 }
 
 #[test]
@@ -95,6 +95,7 @@ pub fn execute_get_start_point(cook_and_run_id: &Uuid, token: &str) -> reqwest::
             base_url, cook_and_run_id
         ))
         .header("authorization", format!("Bearer {}", token))
+        .header("x-forwarded-for", "127.0.0.1")
         .send()
         .expect("Failed to send request")
 }
@@ -107,6 +108,7 @@ pub fn execute_get_end_point(cook_and_run_id: &Uuid, token: &str) -> reqwest::bl
             base_url, cook_and_run_id
         ))
         .header("authorization", format!("Bearer {}", token))
+        .header("x-forwarded-for", "127.0.0.1")
         .send()
         .expect("Failed to send request")
 }

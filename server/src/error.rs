@@ -27,6 +27,9 @@ pub enum AppError {
     #[error("Plan in project {1} with user id {0} not found")]
     PlanNotFound(String, Uuid),
 
+    #[error("Plan configuration in project {1} with user id {0} not found")]
+    PlanConfigNotFound(String, Uuid),
+
     #[error("Point with id {0} not found")]
     PointNotFound(Uuid),
 
@@ -103,6 +106,9 @@ impl IntoResponse for AppError {
             AppError::PlanNotFound(user_id, project_id) => {
                 tracing::warn!(user.id = %user_id, project.id = %project_id, "Plan not found");
             }
+            AppError::PlanConfigNotFound(user_id, project_id) => {
+                tracing::warn!(user.id = %user_id, project.id = %project_id, "Plan configuration not found");
+            }
             AppError::PointNotFound(uuid) => {
                 tracing::warn!(point.id = %uuid, "Point not found");
             }
@@ -161,6 +167,7 @@ impl IntoResponse for AppError {
             | AppError::ProjectNotFound(_)
             | AppError::CourseNotFound(_, _, _)
             | AppError::PlanNotFound(_, _)
+            | AppError::PlanConfigNotFound(_, _)
             | AppError::PointNotFound(_)
             | AppError::StartPointNotFound(_)
             | AppError::EndPointNotFound(_)

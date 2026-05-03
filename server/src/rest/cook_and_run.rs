@@ -1,9 +1,10 @@
 use axum::{
     extract::{Path, Query, State},
+    handler::Handler,
     http::StatusCode,
     middleware::from_fn_with_state,
     response::{IntoResponse, Json, Response},
-    routing::{delete, get, patch, post},
+    routing::get,
     Extension, Router,
 };
 use chrono::NaiveDateTime;
@@ -100,90 +101,70 @@ impl UpdateMetaRequest {
 }
 
 pub fn routes(app_state: AppState) -> Router<AppState> {
+    // Ein einzelner Router, keine Merge-Konflikte mehr!
     Router::new()
         .route(
             "/cook_and_run",
-            get(list_cook_and_run_projects).layer(from_fn_with_state(
+            get(list_cook_and_run_projects.layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
-            )),
+            ))),
         )
         .route(
             "/cook_and_run/{cook_and_run_id}",
-            post(create_cook_and_run_project).layer(from_fn_with_state(
+            get(get_cook_and_run_project.layer(from_fn_with_state(
+                app_state.clone(),
+                require_permission(READ_PERMISSION),
+            )))
+            .post(create_cook_and_run_project.layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(CREATE_PERMISSION),
-            )),
-        )
-        .route(
-            "/cook_and_run/{cook_and_run_id}",
-            get(get_cook_and_run_project).layer(from_fn_with_state(
+            )))
+            .delete(delete_cook_and_run_project.layer(from_fn_with_state(
                 app_state.clone(),
-                require_permission(READ_PERMISSION),
-            )),
+                require_permission(DELETE_PERMISSION),
+            ))),
         )
         .route(
             "/cook_and_run/{cook_and_run_id}/metadata",
-            get(get_cook_and_run_project_meta).layer(from_fn_with_state(
+            get(get_cook_and_run_project_meta.layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
-            )),
-        )
-        .route(
-            "/cook_and_run/{cook_and_run_id}",
-            delete(delete_cook_and_run_project).layer(from_fn_with_state(
-                app_state.clone(),
-                require_permission(DELETE_PERMISSION),
-            )),
-        )
-        .route(
-            "/cook_and_run/{cook_and_run_id}/metadata",
-            patch(patch_cook_and_run_meta).layer(from_fn_with_state(
+            )))
+            .patch(patch_cook_and_run_meta.layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
-            )),
+            ))),
         )
         .route(
             "/cook_and_run/{cook_and_run_id}/start_point",
-            get(get_start_point).layer(from_fn_with_state(
+            get(get_start_point.layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
-            )),
-        )
-        .route(
-            "/cook_and_run/{cook_and_run_id}/start_point",
-            patch(patch_start_point).layer(from_fn_with_state(
+            )))
+            .patch(patch_start_point.layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
-            )),
-        )
-        .route(
-            "/cook_and_run/{cook_and_run_id}/start_point",
-            delete(delete_start_point).layer(from_fn_with_state(
+            )))
+            .delete(delete_start_point.layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(DELETE_PERMISSION),
-            )),
+            ))),
         )
         .route(
             "/cook_and_run/{cook_and_run_id}/end_point",
-            get(get_end_point).layer(from_fn_with_state(
+            get(get_end_point.layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(READ_PERMISSION),
-            )),
-        )
-        .route(
-            "/cook_and_run/{cook_and_run_id}/end_point",
-            patch(patch_end_point).layer(from_fn_with_state(
+            )))
+            .patch(patch_end_point.layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(UPDATE_PERMISSION),
-            )),
-        )
-        .route(
-            "/cook_and_run/{cook_and_run_id}/end_point",
-            delete(delete_end_point).layer(from_fn_with_state(
+            )))
+            .delete(delete_end_point.layer(from_fn_with_state(
                 app_state.clone(),
                 require_permission(DELETE_PERMISSION),
-            )),
+            ))),
         )
 }
 

@@ -19,7 +19,10 @@ impl Database {
             .find(id_filter)
             .select(Point::as_select())
             .first(conn)
-            .map_err(AppError::DatabaseError)
+            .map_err(|e| match e {
+                diesel::result::Error::NotFound => AppError::PointNotFound(id_filter.clone()),
+                _ => AppError::DatabaseError(e),
+            })
     }
 
     #[tracing::instrument(skip(self))]

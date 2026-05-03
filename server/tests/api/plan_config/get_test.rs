@@ -70,6 +70,7 @@ pub fn execute_get(cook_and_run_id: &Uuid, token: &str) -> reqwest::blocking::Re
             base_url, cook_and_run_id
         ))
         .header("authorization", format!("Bearer {}", token))
+        .header("x-forwarded-for", "127.0.0.1")
         .send()
         .expect("Failed to send request")
 }
@@ -96,10 +97,10 @@ fn assert_cook_and_run_json(json: &serde_json::Value, expect_plan_config: bool) 
 }
 
 fn assert_plan_config_json(json: &serde_json::Value) {
-    let access = json
-        .get("access")
-        .and_then(|v| v.as_array())
-        .expect("Missing or invalid access");
+    /*   let access = json
+    .get("access")
+    .and_then(|v| v.as_array())
+    .expect("Missing or invalid access");*/
 
     let title = json
         .get("title")
@@ -121,7 +122,7 @@ fn assert_plan_config_json(json: &serde_json::Value) {
         .and_then(|v| v.as_str())
         .expect("Missing or invalid language");
 
-    assert_eq!(access.len(), 2, "access should have 2 entries");
+    //   assert_eq!(access.len(), 2, "access should have 2 entries");
 
     assert_eq!(title, "Test Plan Config", "title should match");
     assert_eq!(

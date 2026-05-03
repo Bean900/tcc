@@ -105,6 +105,7 @@ pub fn execute_get(
             base_url, cook_and_run_id, course_id
         ))
         .header("authorization", format!("Bearer {}", token))
+        .header("x-forwarded-for", "127.0.0.1")
         .send()
         .expect("Failed to send request")
 }
@@ -123,6 +124,7 @@ fn execute_get_list(cook_and_run_id: &Uuid, token: &str) -> reqwest::blocking::R
             base_url, cook_and_run_id
         ))
         .header("authorization", format!("Bearer {}", token))
+        .header("x-forwarded-for", "127.0.0.1")
         .send()
         .expect("Failed to send request")
 }
@@ -183,8 +185,7 @@ fn assert_course_json(
     assert_eq!(name, "Test Course", "Course name does not match");
 
     assert!(
-        NaiveTime::parse_from_str(time, "%H:%M:%S").is_ok()
-            || NaiveTime::parse_from_str(time, "%H:%M:%S%.f").is_ok(),
+        NaiveTime::parse_from_str(time, "%H:%M").is_ok(),
         "Time is not a valid NaiveTime: {}",
         time
     );

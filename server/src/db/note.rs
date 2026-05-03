@@ -17,11 +17,16 @@ impl Database {
     pub fn create_note(&mut self, data: &Note) -> Result<(), AppError> {
         let conn = &mut self.get_connection()?;
         use crate::db::schema::note::dsl::*;
-        insert_into(note)
-            .values(data)
-            .execute(conn)
-            .map_err(AppError::DatabaseError)?;
-        Ok(())
+
+        let result = insert_into(note).values(data).execute(conn);
+        match result {
+            Ok(_) => Ok(()),
+            Err(diesel::result::Error::DatabaseError(
+                diesel::result::DatabaseErrorKind::UniqueViolation,
+                _,
+            )) => Ok(()),
+            Err(e) => Err(AppError::DatabaseError(e)),
+        }
     }
 
     #[tracing::instrument(skip(self))]
@@ -57,7 +62,15 @@ impl Database {
                 .order_by(note::created.asc())
                 .select(Note::as_select())
                 .load::<Note>(conn)
-                .map_err(AppError::DatabaseError)
+                .map_err(|e| match e {
+                    diesel::result::Error::NotFound => AppError::NoteNotFound(
+                        note_id_filter.cloned().unwrap_or(Uuid::nil()),
+                        user_id_filter.unwrap_or("").to_string(),
+                        cook_and_run_id_filter.cloned().unwrap_or(Uuid::nil()),
+                        team_id_filter.cloned().unwrap_or(Uuid::nil()),
+                    ),
+                    _ => AppError::DatabaseError(e),
+                })
         } else {
             let mut query = note::table.into_boxed();
 

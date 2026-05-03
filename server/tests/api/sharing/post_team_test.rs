@@ -81,7 +81,7 @@ fn test_create_with_required_login_but_not_loged_in() {
     let res = execute_create(&cook_and_run_id, &team_id, payload, None);
     assert_eq!(
         res.status(),
-        StatusCode::UNPROCESSABLE_ENTITY,
+        StatusCode::BAD_REQUEST,
         "Response: {:#?}",
         res
     );
@@ -206,7 +206,12 @@ fn test_create_team_max_teams() {
     let team_id = Uuid::new_v4();
     let payload = get_team_create_json(None, true, true, true, true, true, true, true);
     let res = execute_create(&cook_and_run_id, &team_id, payload, None);
-    assert_eq!(res.status(), StatusCode::FORBIDDEN, "Response: {:#?}", res);
+    assert_eq!(
+        res.status(),
+        StatusCode::BAD_REQUEST,
+        "Response: {:#?}",
+        res
+    );
     assert_team_not_found(&cook_and_run_id, &team_id);
 }
 
@@ -262,7 +267,12 @@ fn test_create_deadline_over() {
     let team_id = Uuid::new_v4();
     let payload = get_team_create_json(None, true, true, true, true, true, true, true);
     let res = execute_create(&cook_and_run_id, &team_id, payload, None);
-    assert_eq!(res.status(), StatusCode::FORBIDDEN, "Response: {:#?}", res);
+    assert_eq!(
+        res.status(),
+        StatusCode::BAD_REQUEST,
+        "Response: {:#?}",
+        res
+    );
     assert_team_not_found(&cook_and_run_id, &team_id);
 }
 
@@ -293,7 +303,7 @@ fn test_create_team_all_required_not_set() {
     let res = execute_create(&cook_and_run_id, &team_id, payload, None);
     assert_eq!(
         res.status(),
-        StatusCode::UNPROCESSABLE_ENTITY,
+        StatusCode::BAD_REQUEST,
         "Response: {:#?}",
         res
     );
@@ -304,7 +314,7 @@ fn test_create_team_all_required_not_set() {
     let res = execute_create(&cook_and_run_id, &team_id, payload, None);
     assert_eq!(
         res.status(),
-        StatusCode::UNPROCESSABLE_ENTITY,
+        StatusCode::BAD_REQUEST,
         "Response: {:#?}",
         res
     );
@@ -315,7 +325,7 @@ fn test_create_team_all_required_not_set() {
     let res = execute_create(&cook_and_run_id, &team_id, payload, None);
     assert_eq!(
         res.status(),
-        StatusCode::UNPROCESSABLE_ENTITY,
+        StatusCode::BAD_REQUEST,
         "Response: {:#?}",
         res
     );
@@ -326,7 +336,7 @@ fn test_create_team_all_required_not_set() {
     let res = execute_create(&cook_and_run_id, &team_id, payload, None);
     assert_eq!(
         res.status(),
-        StatusCode::UNPROCESSABLE_ENTITY,
+        StatusCode::BAD_REQUEST,
         "Response: {:#?}",
         res
     );
@@ -337,7 +347,7 @@ fn test_create_team_all_required_not_set() {
     let res = execute_create(&cook_and_run_id, &team_id, payload, None);
     assert_eq!(
         res.status(),
-        StatusCode::UNPROCESSABLE_ENTITY,
+        StatusCode::BAD_REQUEST,
         "Response: {:#?}",
         res
     );
@@ -348,7 +358,7 @@ fn test_create_team_all_required_not_set() {
     let res = execute_create(&cook_and_run_id, &team_id, payload, None);
     assert_eq!(
         res.status(),
-        StatusCode::UNPROCESSABLE_ENTITY,
+        StatusCode::BAD_REQUEST,
         "Response: {:#?}",
         res
     );
@@ -359,7 +369,7 @@ fn test_create_team_all_required_not_set() {
     let res = execute_create(&cook_and_run_id, &team_id, payload, None);
     assert_eq!(
         res.status(),
-        StatusCode::UNPROCESSABLE_ENTITY,
+        StatusCode::BAD_REQUEST,
         "Response: {:#?}",
         res
     );
@@ -493,6 +503,7 @@ pub fn execute_create(
     } else {
         request
     }
+    .header("x-forwarded-for", "127.0.0.1")
     .send()
     .expect("Failed to send request")
 }

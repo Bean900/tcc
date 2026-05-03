@@ -14,11 +14,15 @@ impl Database {
     #[tracing::instrument(skip(self, data))]
     pub fn create_course(&mut self, data: &Course) -> Result<(), AppError> {
         let conn = &mut self.get_connection()?;
-        insert_into(course::dsl::course)
-            .values(data)
-            .execute(conn)
-            .map_err(AppError::DatabaseError)?;
-        Ok(())
+        let result = insert_into(course::dsl::course).values(data).execute(conn);
+        match result {
+            Ok(_) => Ok(()),
+            Err(diesel::result::Error::DatabaseError(
+                diesel::result::DatabaseErrorKind::UniqueViolation,
+                _,
+            )) => Ok(()),
+            Err(e) => Err(AppError::DatabaseError(e)),
+        }
     }
 
     #[tracing::instrument(skip(self))]
@@ -54,7 +58,14 @@ impl Database {
             .filter(c_a_r::user_id.eq(user_id_filter))
             .select(Course::as_select())
             .first(conn)
-            .map_err(AppError::DatabaseError)
+            .map_err(|e| match e {
+                diesel::result::Error::NotFound => AppError::CourseNotFound(
+                    id_filter.clone(),
+                    user_id_filter.to_string(),
+                    Some(cook_and_run_id_filter.clone()),
+                ),
+                _ => AppError::DatabaseError(e),
+            })
     }
 
     #[tracing::instrument(skip(self))]
@@ -115,7 +126,7 @@ impl Database {
             return Err(AppError::CourseNotFound(
                 data.id.clone(),
                 user_id_filter.to_string(),
-                None,
+                Some(data.cook_and_run_id.clone()),
             ));
         }
         Ok(())

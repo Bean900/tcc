@@ -11,6 +11,75 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use validator::Validate;
 
+mod naive_datetime_minutes {
+    use chrono::NaiveDateTime;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    const FORMAT: &str = "%Y-%m-%dT%H:%M";
+
+    pub fn serialize<S>(datetime: &NaiveDateTime, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&datetime.format(FORMAT).to_string())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<NaiveDateTime, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        NaiveDateTime::parse_from_str(&s, FORMAT).map_err(serde::de::Error::custom)
+    }
+
+    pub fn serialize_option<S>(
+        datetime: &Option<NaiveDateTime>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match datetime {
+            Some(dt) => serializer.serialize_str(&dt.format(FORMAT).to_string()),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize_option<'de, D>(deserializer: D) -> Result<Option<NaiveDateTime>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let opt = Option::<String>::deserialize(deserializer)?;
+        match opt {
+            Some(s) => Ok(Some(
+                NaiveDateTime::parse_from_str(&s, FORMAT).map_err(serde::de::Error::custom)?,
+            )),
+            None => Ok(None),
+        }
+    }
+
+    pub mod option {
+        use super::*;
+
+        pub fn serialize<S>(
+            datetime: &Option<NaiveDateTime>,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            super::serialize_option(datetime, serializer)
+        }
+
+        pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<NaiveDateTime>, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            super::deserialize_option(deserializer)
+        }
+    }
+}
+
 use crate::{
     plan::{self},
     rest::auth::{AuthUser, AuthenticatedUser},
@@ -121,8 +190,11 @@ pub struct CookAndRunMeta {
     pub id: Uuid,
     pub user_id: String,
     pub name: String,
+    #[serde(with = "naive_datetime_minutes")]
     pub created: NaiveDateTime,
+    #[serde(with = "naive_datetime_minutes")]
     pub edited: NaiveDateTime,
+    #[serde(with = "naive_datetime_minutes")]
     pub occur: NaiveDateTime,
 }
 
@@ -183,8 +255,11 @@ pub struct CookAndRun {
     pub id: Uuid,
     pub user_id: String,
     pub name: String,
+    #[serde(with = "naive_datetime_minutes")]
     pub created: NaiveDateTime,
+    #[serde(with = "naive_datetime_minutes")]
     pub edited: NaiveDateTime,
+    #[serde(with = "naive_datetime_minutes")]
     pub occur: NaiveDateTime,
     pub team_list: Vec<Team>,
     pub course_list: Vec<Course>,
@@ -426,24 +501,36 @@ impl TeamUpdateData {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Team {
+    pub id: Uuid,
     pub name: String,
     pub address: Address,
     pub mail: Option<String>,
     pub phone: Option<String>,
     pub members: Option<u32>,
     pub diets: Option<String>,
+    pub note_list: Vec<Note>,
+    pub created_by_user: Option<String>,
+    #[serde(with = "naive_datetime_minutes")]
+    pub created: NaiveDateTime,
+    #[serde(with = "naive_datetime_minutes")]
+    pub edited: NaiveDateTime,
     pub needs_check: bool,
 }
 
 impl Team {
     pub fn from(team: crate::team::Team) -> Self {
         Team {
+            id: team.id,
             name: team.name,
             address: Address::from(team.address),
             mail: team.mail,
             phone: team.phone,
             members: team.members,
             diets: team.diets,
+            note_list: team.note_list.into_iter().map(Note::from).collect(),
+            created_by_user: team.created_by_user,
+            created: team.created,
+            edited: team.edited,
             needs_check: team.needs_check,
         }
     }
@@ -484,6 +571,7 @@ pub struct Note {
     pub id: Uuid,
     pub headline: String,
     pub content: String,
+    #[serde(with = "naive_datetime_minutes")]
     pub created: NaiveDateTime,
 }
 
@@ -513,7 +601,9 @@ pub struct ShareTeamConfig {
     pub default_needs_check: bool,
     pub required_fields: Vec<RequiredField>,
     pub max_teams: Option<u32>,
+    #[serde(with = "naive_datetime_minutes::option")]
     pub registration_deadline: Option<NaiveDateTime>,
+    #[serde(with = "naive_datetime_minutes")]
     pub created: NaiveDateTime,
 }
 

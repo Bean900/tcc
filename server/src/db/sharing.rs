@@ -98,7 +98,13 @@ impl Database {
             )
             .select(Share::as_select())
             .first::<Share>(conn)
-            .map_err(AppError::DatabaseError)
+            .map_err(|e| match e {
+                diesel::result::Error::NotFound => AppError::SharingConfigNotFound(
+                    user_id_filter.to_string(),
+                    cook_and_run_id_filter.clone(),
+                ),
+                other => AppError::DatabaseError(other),
+            })
     }
 
     #[tracing::instrument(skip(self))]
@@ -119,7 +125,13 @@ impl Database {
             )
             .select(Share::as_select())
             .first::<Share>(conn)
-            .map_err(AppError::DatabaseError)
+            .map_err(|e| match e {
+                diesel::result::Error::NotFound => AppError::SharingConfigNotFound(
+                    "NONE".to_string(),
+                    cook_and_run_id_filter.clone(),
+                ),
+                other => AppError::DatabaseError(other),
+            })
     }
 
     #[tracing::instrument(skip(self))]

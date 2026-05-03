@@ -52,6 +52,7 @@ fn execute_create(
         ))
         .header("authorization", format!("Bearer {}", token))
         .json(&payload)
+        .header("x-forwarded-for", "127.0.0.1")
         .send()
         .expect("Failed to send request")
 }
@@ -66,7 +67,7 @@ pub fn get_course_create_json() -> serde_json::Value {
     let now = chrono::Local::now().time();
     let json = json!({
         "name": "Test Course",
-        "time": now.format("%H:%M:%S").to_string(),
+        "time": now.format("%H:%M").to_string(),
     });
     json
 }
