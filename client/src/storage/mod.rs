@@ -13,7 +13,7 @@ use web_sys::console;
 use std::f64::consts::PI;
 
 use crate::{
-    auth0::AuthState,
+    keycloak::AuthState,
     storage::{cloud::CloudStorage, local::LocalStorage},
 }; // Add this at the top with other imports
 
@@ -618,7 +618,21 @@ impl StorageManager {
     pub async fn select_cook_and_run_meta_list(&self) -> Result<Vec<CookAndRunMetaData>, String> {
         let local_data = self.local.select_cook_and_run_meta_list().await?;
 
-        let cloud_data = match self.get_cloud()?.select_cook_and_run_meta_list().await {
+        let cloud: &CloudStorage = match self.get_cloud() {
+            Ok(cloud) => cloud,
+            Err(e) => {
+                console::warn_1(
+                    &format!(
+                        "Error when loading cloud connection: {}",
+                        e
+                    )
+                    .into(),
+                );
+                return Ok(local_data);
+            }
+        };
+
+        let cloud_data = match cloud.select_cook_and_run_meta_list().await {
             Ok(data) => data,
             Err(e) => {
                 console::warn_1(
@@ -628,6 +642,7 @@ impl StorageManager {
                     )
                     .into(),
                 );
+                
                 Vec::new()
             }
         };

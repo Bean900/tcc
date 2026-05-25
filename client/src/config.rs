@@ -2,10 +2,11 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct AppConfig {
-    pub auth0_domain: String,
-    pub auth0_client_id: String,
-    pub auth0_redirect: String,
-    pub auth0_audience: String,
+    pub auth_domain: String,
+    pub auth_realm: String,
+    pub auth_client_id: String,
+    pub auth_redirect: String,
+    pub auth_audience: String,
 }
 
 impl AppConfig {

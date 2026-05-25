@@ -3,12 +3,10 @@ use uuid::Uuid;
 use web_sys::{console, wasm_bindgen::JsCast, HtmlInputElement};
 
 use crate::{
-    async_action,
-    side::{
+    ToastMessage, async_action, side::{
         AsyncAction, CloseButton, ConfirmButton, ErrorSVG, Headline1, Input, InputError,
         SecondaryButton,
-    },
-    storage::{CookAndRunCreate, CookAndRunData, StorageManager},
+    }, storage::{CookAndRunCreate, CookAndRunData, StorageManager}, trigger_error_toast
 };
 
 // ─────────────────────────────────────────────
@@ -31,6 +29,7 @@ const NATIVE_INPUT: &str = "w-full px-3 py-2 rounded-xl border border-amber-200 
 pub fn Dashboard() -> Element {
     console::debug_1(&"Rendering Dashboard...".into());
     let storage = use_context::<Signal<StorageManager>>();
+    let toasts = use_context::<Signal<Vec<ToastMessage>>>();
     let cook_and_run_list = use_resource(move || async move {
         console::debug_1(&"Loading cook and run list...".into());
         let storage = storage.read();
@@ -38,6 +37,11 @@ pub fn Dashboard() -> Element {
             Ok(list) => Ok(list),
             Err(err) => {
                 console::error_1(&format!("Failed to load cook and run list: {}", err).into());
+                trigger_error_toast(
+                            toasts, 
+                            "Loading error", 
+                            "Failed to load data!"
+                        );
                 Err("Failed to load data!".to_string())
             }
         }
@@ -55,12 +59,8 @@ pub fn Dashboard() -> Element {
             div { class: "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5",
 
                 match &*cook_and_run_list.read_unchecked() {
-                    Some(Err(err)) => rsx! {
-                        div { class: "col-span-full flex items-center gap-3 \
-                                      rounded-2xl border border-red-200 bg-red-50 px-5 py-4",
-                            ErrorSVG {}
-                            span { class: "text-sm text-red-700", "{err}" }
-                        }
+                    Some(Err(_)) => rsx! {
+                        
                     },
                     Some(Ok(list)) => rsx! {
                         {

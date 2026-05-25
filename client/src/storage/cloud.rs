@@ -5,7 +5,7 @@ use uuid::Uuid;
 use web_sys::console;
 
 use crate::{
-    auth0::{AuthState, SessionData},
+    keycloak::{AuthState, SessionData},
     config::AppConfig,
     storage::{
         AddressData, CookAndRunCreate, CookAndRunData, CookAndRunMetaData, CookAndRunMetaUpdate,
@@ -105,7 +105,7 @@ impl CloudStorage {
     pub async fn new(auth_state: AuthState) -> Result<Self, String> {
         let config = AppConfig::fetch().await?;
         Ok(CloudStorage {
-            base_url: config.auth0_audience,
+            base_url: config.auth_audience,
             auth_state,
         })
     }
