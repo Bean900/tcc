@@ -25,14 +25,13 @@ thread_local! {
 }
 
 async fn fetch_discovery(config: &AppConfig) -> Result<OidcDiscovery, String> {
-    // Cache-Treffer: Klon zurückgeben ohne Netzwerk-Request
     let cached = OIDC_CACHE.with(|c| c.borrow().clone());
     if let Some(discovery) = cached {
         return Ok(discovery);
     }
 
     let url = format!(
-        "{}/realms/{}/.well-known/openid-configuration",
+        "https://{}/realms/{}/.well-known/openid-configuration",
         &config.auth_domain,
         urlencoding::encode(&config.auth_realm),
     );
@@ -141,7 +140,6 @@ impl SessionData {
             .map_err(|_| "Could not remove session_data from local storage".to_string())
     }
 
-    /// Gibt zurück, ob der Access Token noch mindestens `margin_secs` gültig ist.
     pub fn is_valid_for(&self, margin_secs: i64) -> bool {
         let threshold = chrono::Local::now().naive_local()
             + chrono::Duration::seconds(margin_secs);
