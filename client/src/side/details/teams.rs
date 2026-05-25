@@ -372,7 +372,7 @@ pub(crate) fn TeamsContent(
     };
 
     rsx! {
-        section { class: "px-8 py-6 space-y-8",
+        section { class: "px-8 py-6 space-y-8 w-full",
 
             // ── Page header ───────────────────────────────────────
             div { class: "pb-5 flex items-end justify-between",

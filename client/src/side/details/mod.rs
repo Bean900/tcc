@@ -4,6 +4,7 @@ pub mod courses;
 pub mod overview;
 pub mod plan;
 mod run_schedule;
+pub mod share_team;
 pub mod startend;
 pub mod teams;
 

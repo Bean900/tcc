@@ -2,5 +2,5 @@
     "auth0_domain": "beancode.eu.auth0.com",
     "auth0_client_id": "KPdjRob3k5SRCqs4wExmQOPrOkqaUJTQ",
     "auth0_redirect": "http://localhost:8080",
-    "auth0_audience": "http://tcc.beancode.de"
+    "auth0_audience": "https://tcc.beancode.de/api"
 }

@@ -245,7 +245,7 @@ fn CoursesContent(cook_and_run_id: Uuid, course_list: Vec<CourseData>) -> Elemen
                                         value: "{course.name.clone()}",
                                         is_error: !course.name_error.clone().is_empty(),
                                         oninput: move |e: Event<FormData>| {
-                                            let name_value = e.value().trim().to_string();
+                                            let name_value = e.value().to_string();
                                             let mut list = course_list_signal.write();
                                             if let Some(c) = list.iter_mut().find(|c| c.id == course.id) {
                                                 check_name(c, &name_value);

@@ -786,18 +786,17 @@ impl Storage for CloudStorage {
         &self,
         id: Uuid,
     ) -> Result<Option<super::ShareTeamConfig>, String> {
-        let session_data = match self.get_access_token() {
-            Ok(sd) => sd,
-            Err(_) => return Err("No auth data!".to_string()),
-        };
+        let session_data = self.get_access_token().ok();
 
         let url = format!("{}/cook_and_run/{}/share_team_config", self.base_url, id);
         let client = reqwest::Client::new();
-        let res = client
-            .get(&url)
-            .bearer_auth(session_data.access_token)
-            .send()
-            .await;
+        let mut request = client.get(&url);
+
+        if let Some(session) = session_data {
+            request = request.bearer_auth(session.access_token);
+        }
+
+        let res = request.send().await;
 
         match res {
             Ok(response) if response.status().is_success() => response

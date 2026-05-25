@@ -11,6 +11,7 @@ use side::Courses;
 use side::Dashboard;
 use side::Overview;
 use side::Plan;
+use side::ShareRegisterPage;
 use side::StartEnd;
 use side::Teams;
 use uuid::Uuid;
@@ -47,6 +48,8 @@ enum Route {
         #[nest("/cook-and-run")]
             #[route("/")]
             Dashboard {},
+            #[route("/:cook_and_run_id/share")]
+            ShareRegisterPage { cook_and_run_id: Uuid },
             #[nest("/:cook_and_run_id")]
                 #[layout(Menu)]
                     #[route("/overview")]
@@ -61,6 +64,7 @@ enum Route {
                     Calculate { cook_and_run_id: Uuid },
                     #[route("/plan/:team_id")]
                     Plan { cook_and_run_id: Uuid, team_id: Uuid },
+                  
                 #[end_layout]
             #[end_nest]
         #[end_nest]
@@ -424,7 +428,7 @@ fn Wrapper() -> Element {
 
             // ── Header ────────────────────────────────────────────
             header { class: "sticky top-0 z-50 bg-[#FDFAF6] border-b border-amber-200/60 shadow-sm",
-                div { class: "max-w-7xl mx-auto px-6 py-3 flex justify-between items-center",
+                div { class: "max-w-7xl mx-auto px-6 py-3 flex justify-between items-center w-full",
 
                     // Logo
                     a { href: "/cook-and-run", class: "flex items-center gap-3",
@@ -443,7 +447,7 @@ fn Wrapper() -> Element {
             }
 
             // ── Page content ──────────────────────────────────────
-            main { class: "flex h-full w-full", Outlet::<Route> {} }
+            main { class: "flex flex-1 w-full", Outlet::<Route> {} }
         }
     }
 }
