@@ -167,8 +167,8 @@ pub fn StartEndContent(
                 cook_and_run_id,
                 start_has_point,
                 end_has_point,
-                &start_name_signal.read(),
-                &end_name_signal.read(),
+                start_name_signal.read().trim(),
+                end_name_signal.read().trim(),
                 *start_time_signal.read(),
                 *end_time_signal.read(),
                 start_adress_param.clone(),
@@ -409,7 +409,7 @@ fn check_name(name: &str, mut error_signal: Signal<String>) -> String {
     } else {
         error_signal.set("".to_string());
     }
-    trim_name.to_string()
+    name.to_string()
 }
 
 fn check_time(time_str: &str) -> Option<NaiveTime> {

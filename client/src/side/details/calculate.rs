@@ -40,7 +40,8 @@ impl TabelContent {
             .map(|hosting| (hosting.id, hosting.host))
             .collect::<std::collections::HashMap<_, _>>();
 
-        plan.walking_path
+        let mut tabel_content_list = plan
+            .walking_path
             .iter()
             .map(|(team_id, host_list_id)| {
                 let team_opt = team_map.get(team_id);
@@ -76,7 +77,9 @@ impl TabelContent {
                     .collect::<Vec<(TeamData, bool)>>();
                 TabelContent { host, guest_list }
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+        tabel_content_list.sort_by(|a, b| a.host.name.cmp(&b.host.name));
+        tabel_content_list
     }
 }
 

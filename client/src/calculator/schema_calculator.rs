@@ -61,7 +61,7 @@ impl Schema {
             .iter()
             .map(|(host_idx, course)| (host_idx, course.course_type.rank()))
             .collect::<Vec<(&u8, usize)>>();
-        sorted_plan.sort_by(|a, b| a.1.cmp(&b.1));
+        sorted_plan.sort_by(|a, b| a.1.cmp(&b.1).then(a.0.cmp(b.0)));
         sorted_plan.iter().for_each(|(idx, _course)| {
             mapping.insert(**idx, sorted_team_list[team_idx as usize].id);
             team_idx += 1;
@@ -1252,7 +1252,12 @@ impl<'a> SchemaCalculator<'a> {
             });
         }
 
-        assigned_course_list.sort_by(|a, b| a.course_type.rank().cmp(&b.course_type.rank()));
+        assigned_course_list.sort_by(|a, b| {
+            a.course_type
+                .rank()
+                .cmp(&b.course_type.rank())
+                .then(a.host.cmp(&b.host))
+        });
 
         assigned_course_list
     }

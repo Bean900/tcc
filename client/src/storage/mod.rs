@@ -810,24 +810,9 @@ impl StorageManager {
         &self,
         cook_and_run_id: Uuid,
     ) -> Result<Option<ShareTeamConfig>, String> {
-        match self
-            .local
+        self.get_cloud()?
             .select_cook_and_run_share_config(cook_and_run_id)
             .await
-        {
-            Ok(data) => Ok(data),
-            Err(e_local) => match self
-                .get_cloud()?
-                .select_cook_and_run_share_config(cook_and_run_id)
-                .await
-            {
-                Ok(data) => Ok(data),
-                Err(e_cloud) => Err(format!(
-                    "Cook and run with id {} not found in local or cloud storage: {} | {}",
-                    cook_and_run_id, e_local, e_cloud
-                )),
-            },
-        }
     }
 }
 

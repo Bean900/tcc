@@ -1,7 +1,7 @@
 mod address_connector;
-pub mod keycloak;
 mod calculator;
 pub mod config;
+pub mod keycloak;
 mod side;
 mod storage;
 use dioxus::prelude::*;
@@ -11,6 +11,7 @@ use side::Courses;
 use side::Dashboard;
 use side::Overview;
 use side::Plan;
+use side::ShareRegisterPage;
 use side::StartEnd;
 use side::Teams;
 use uuid::Uuid;
@@ -18,8 +19,8 @@ use uuid::Uuid;
 use web_sys::console;
 use web_sys::window;
 
-pub use crate::keycloak::AuthState;
 use crate::config::AppConfig;
+pub use crate::keycloak::AuthState;
 use crate::side::Menu;
 use crate::storage::StorageManager;
 
@@ -72,6 +73,8 @@ enum Route {
         #[nest("/cook-and-run")]
             #[route("/")]
             Dashboard {},
+            #[route("/:cook_and_run_id/share")]
+            ShareRegisterPage { cook_and_run_id: Uuid },
             #[nest("/:cook_and_run_id")]
                 #[layout(Menu)]
                     #[route("/overview")]
@@ -86,6 +89,7 @@ enum Route {
                     Calculate { cook_and_run_id: Uuid },
                     #[route("/plan/:team_id")]
                     Plan { cook_and_run_id: Uuid, team_id: Uuid },
+                  
                 #[end_layout]
             #[end_nest]
         #[end_nest]
@@ -98,14 +102,20 @@ impl Route {
     fn to_string(&self) -> String {
         match self {
             Route::Home {} => "-".to_string(),
-            Route::Callback { code: _code, state: _state } => "-".to_string(),
+            Route::Callback {
+                code: _code,
+                state: _state,
+            } => "-".to_string(),
             Route::Dashboard {} => "cook-and-run".to_string(),
             Route::Overview { cook_and_run_id } => format!("overview.{}", cook_and_run_id),
             Route::Teams { cook_and_run_id } => format!("teams.{}", cook_and_run_id),
             Route::StartEnd { cook_and_run_id } => format!("startend.{}", cook_and_run_id),
             Route::Courses { cook_and_run_id } => format!("courses.{}", cook_and_run_id),
             Route::Calculate { cook_and_run_id } => format!("calculate.{}", cook_and_run_id),
-            Route::Plan { cook_and_run_id, team_id } => format!("plan.{}.{}", cook_and_run_id, team_id),
+            Route::Plan {
+                cook_and_run_id,
+                team_id,
+            } => format!("plan.{}.{}", cook_and_run_id, team_id),
             _ => "cook-and-run".to_string(),
         }
     }
@@ -118,54 +128,81 @@ impl Route {
             "overview" => {
                 if parts.len() == 2 {
                     if let Ok(uuid) = Uuid::parse_str(parts[1]) {
-                        return Route::Overview { cook_and_run_id: uuid };
+                        return Route::Overview {
+                            cook_and_run_id: uuid,
+                        };
                     }
                 }
-                Route::NotFound { route: vec![s.to_string()] }
+                Route::NotFound {
+                    route: vec![s.to_string()],
+                }
             }
             "teams" => {
                 if parts.len() == 2 {
                     if let Ok(uuid) = Uuid::parse_str(parts[1]) {
-                        return Route::Teams { cook_and_run_id: uuid };
+                        return Route::Teams {
+                            cook_and_run_id: uuid,
+                        };
                     }
                 }
-                Route::NotFound { route: vec![s.to_string()] }
+                Route::NotFound {
+                    route: vec![s.to_string()],
+                }
             }
             "startend" => {
                 if parts.len() == 2 {
                     if let Ok(uuid) = Uuid::parse_str(parts[1]) {
-                        return Route::StartEnd { cook_and_run_id: uuid };
+                        return Route::StartEnd {
+                            cook_and_run_id: uuid,
+                        };
                     }
                 }
-                Route::NotFound { route: vec![s.to_string()] }
+                Route::NotFound {
+                    route: vec![s.to_string()],
+                }
             }
             "courses" => {
                 if parts.len() == 2 {
                     if let Ok(uuid) = Uuid::parse_str(parts[1]) {
-                        return Route::Courses { cook_and_run_id: uuid };
+                        return Route::Courses {
+                            cook_and_run_id: uuid,
+                        };
                     }
                 }
-                Route::NotFound { route: vec![s.to_string()] }
+                Route::NotFound {
+                    route: vec![s.to_string()],
+                }
             }
             "calculate" => {
                 if parts.len() == 2 {
                     if let Ok(uuid) = Uuid::parse_str(parts[1]) {
-                        return Route::Calculate { cook_and_run_id: uuid };
+                        return Route::Calculate {
+                            cook_and_run_id: uuid,
+                        };
                     }
                 }
-                Route::NotFound { route: vec![s.to_string()] }
+                Route::NotFound {
+                    route: vec![s.to_string()],
+                }
             }
             "plan" => {
                 if parts.len() == 3 {
                     if let (Ok(cook_and_run_id), Ok(team_id)) =
                         (Uuid::parse_str(parts[1]), Uuid::parse_str(parts[2]))
                     {
-                        return Route::Plan { cook_and_run_id, team_id };
+                        return Route::Plan {
+                            cook_and_run_id,
+                            team_id,
+                        };
                     }
                 }
-                Route::NotFound { route: vec![s.to_string()] }
+                Route::NotFound {
+                    route: vec![s.to_string()],
+                }
             }
-            _ => Route::NotFound { route: vec![s.to_string()] },
+            _ => Route::NotFound {
+                route: vec![s.to_string()],
+            },
         }
     }
 }
@@ -258,7 +295,7 @@ pub fn ToastContainer() -> Element {
                             shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-zinc-100 border-l-4 border-l-red-500 \
                             transition-all duration-300 transform translate-y-0 animate-fade-in-up",
                     role: "alert",
-                    
+
                     // Error Icon (mit leicht angepassten Farben)
                     div { class: "shrink-0 mt-0.5",
                         svg {
@@ -271,13 +308,13 @@ pub fn ToastContainer() -> Element {
                             path { stroke_linecap: "round", stroke_linejoin: "round", d: "M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" }
                         }
                     }
-                    
+
                     // Text Content (klarere Typografie)
                     div { class: "flex-1 pr-2",
                         h3 { class: "text-sm font-semibold text-zinc-900", "{toast.headline}" }
                         p { class: "text-sm text-zinc-500 mt-1 leading-relaxed whitespace-pre-line", "{toast.message}" }
                     }
-                    
+
                     // Schließen-Button (subtileres Hover-Verhalten)
                     button {
                         class: "absolute top-4 right-4 text-zinc-400 hover:text-zinc-700 transition-colors duration-200",
@@ -330,7 +367,8 @@ fn Wrapper() -> Element {
         }
     });
 
-    let config_result: Option<Result<AppConfig, String>> = match &*config_resource.read_unchecked() {
+    let config_result: Option<Result<AppConfig, String>> = match &*config_resource.read_unchecked()
+    {
         None => None,
         Some(Err(e)) => Some(Err(e.clone())),
         Some(Ok(config)) => Some(Ok(config.clone())),
@@ -348,17 +386,24 @@ fn Wrapper() -> Element {
                             match auth_result {
                                 Ok(auth) => {
                                     let new_auth = auth.refresh(&config).await;
-                                    if let Err(e) = storage_signal.write().set_auth_state(new_auth) {
-                                        console::error_1(&format!("Error saving refreshed auth state: {}", e).into());
+                                    if let Err(e) = storage_signal.write().set_auth_state(new_auth)
+                                    {
+                                        console::error_1(
+                                            &format!("Error saving refreshed auth state: {}", e)
+                                                .into(),
+                                        );
                                         trigger_error_toast(
                                             toasts,
                                             "Authentication error",
-                                            "Failed to refresh session. Please log in again."
+                                            "Failed to refresh session. Please log in again.",
                                         );
                                     }
                                 }
                                 Err(e) => {
-                                    console::error_1(&format!("Error reading auth state for refresh: {}", e).into());
+                                    console::error_1(
+                                        &format!("Error reading auth state for refresh: {}", e)
+                                            .into(),
+                                    );
                                 }
                             }
                         });
@@ -503,14 +548,18 @@ fn Wrapper() -> Element {
 
         div { class: "min-h-screen flex flex-col bg-[#F8EFE1]",
             header { class: "sticky top-0 z-50 bg-[#FDFAF6] border-b border-amber-200/60 shadow-sm",
-                div { class: "max-w-7xl mx-auto px-6 py-3 flex justify-between items-center",
+                div { class: "max-w-7xl mx-auto px-6 py-3 flex justify-between items-center w-full",
+
+                    // Logo
                     a { href: "/cook-and-run", class: "flex items-center gap-3",
                         img { src: LOGO, alt: "Cook & Run", class: "h-8 w-auto" }
                     }
                     div { class: "flex items-center gap-3", {login} }
                 }
             }
-            main { class: "flex h-full w-full", Outlet::<Route> {} }
+
+            // ── Page content ──────────────────────────────────────
+            main { class: "flex flex-1 w-full", Outlet::<Route> {} }
         }
     }
 }
@@ -528,7 +577,7 @@ fn App() -> Element {
 
     let mut storage_signal = use_signal(|| storage);
     let mut cloud_loaded = use_signal(|| false);
-    
+
     // Globaler Toast-State initialisieren & bereitstellen
     let toasts = use_signal(Vec::<ToastMessage>::new);
     use_context_provider(|| toasts);
@@ -546,11 +595,7 @@ fn App() -> Element {
                 }
                 Err(e) => {
                     console::error_1(&format!("Error loading cloud: {}", e).into());
-                    trigger_error_toast(
-                        toasts,
-                        "Cloud error",
-                        "Failed to connect to cloud."
-                    );
+                    trigger_error_toast(toasts, "Cloud error", "Failed to connect to cloud.");
                 }
             }
             cloud_loaded.set(true);
@@ -559,8 +604,8 @@ fn App() -> Element {
 
     if !cloud_loaded() {
         return rsx! {
-            div { class: "flex items-center justify-center h-screen bg-[#F8EFE1] text-zinc-600 font-medium", 
-                "Loading cloud connection..." 
+            div { class: "flex items-center justify-center h-screen bg-[#F8EFE1] text-zinc-600 font-medium",
+                "Loading cloud connection..."
             }
         };
     }

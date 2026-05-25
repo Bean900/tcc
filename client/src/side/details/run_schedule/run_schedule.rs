@@ -116,7 +116,7 @@ pub fn RunSchedule(plan_config: PlanConfigData, schedule: Schedule) -> Element {
                     }
                     img {
                         src: SPATULA,
-                        class: "pointer-events-none absolute w-48 h-48 rotate-150 right-12",
+                        class: "pointer-events-none absolute w-48 h-48 rotate-150 right-2",
                     }
                     img {
                         src: LEAF_2,
@@ -124,7 +124,7 @@ pub fn RunSchedule(plan_config: PlanConfigData, schedule: Schedule) -> Element {
                     }
                 }
                 div { class: "text-center",
-                    h1 { class: "font-chewy text-9xl text-[#543D2B] tracking-wide",
+                    h1 { class: "font-chewy text-8xl text-[#543D2B] tracking-wide",
                         dangerous_inner_html:titel_html
                     }
                 }
