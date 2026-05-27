@@ -11,7 +11,6 @@ use crate::config::AppConfig;
 
 const SCOPE: &str = "openid profile email offline_access";
 
- 
 #[derive(Debug, Clone, Deserialize)]
 struct OidcDiscovery {
     authorization_endpoint: String,
@@ -31,7 +30,7 @@ async fn fetch_discovery(config: &AppConfig) -> Result<OidcDiscovery, String> {
     }
 
     let url = format!(
-        "https://{}/realms/{}/.well-known/openid-configuration",
+        "{}/realms/{}/.well-known/openid-configuration",
         &config.auth_domain,
         urlencoding::encode(&config.auth_realm),
     );
@@ -127,11 +126,9 @@ impl SessionData {
     }
 
     fn save(&self) -> Result<(), String> {
-        get_storage()?.set_item(
-            "session_data",
-            &serde_json::to_string(self).unwrap(),
-        )
-        .map_err(|_| "Could not write session_data to local storage".to_string())
+        get_storage()?
+            .set_item("session_data", &serde_json::to_string(self).unwrap())
+            .map_err(|_| "Could not write session_data to local storage".to_string())
     }
 
     fn clear() -> Result<(), String> {
@@ -141,8 +138,7 @@ impl SessionData {
     }
 
     pub fn is_valid_for(&self, margin_secs: i64) -> bool {
-        let threshold = chrono::Local::now().naive_local()
-            + chrono::Duration::seconds(margin_secs);
+        let threshold = chrono::Local::now().naive_local() + chrono::Duration::seconds(margin_secs);
         self.valid_until > threshold
     }
 }
@@ -160,11 +156,9 @@ impl ProcessData {
     }
 
     fn save(&self) -> Result<(), String> {
-        get_storage()?.set_item(
-            "process_data",
-            &serde_json::to_string(self).unwrap(),
-        )
-        .map_err(|_| "Could not write process_data to local storage".to_string())
+        get_storage()?
+            .set_item("process_data", &serde_json::to_string(self).unwrap())
+            .map_err(|_| "Could not write process_data to local storage".to_string())
     }
 
     fn clear() -> Result<(), String> {
@@ -234,9 +228,7 @@ impl AuthState {
     }
 
     pub async fn callback(&self, config: &AppConfig, code: &str, state: &str) -> Self {
-        console::debug_1(
-            &format!("Handling callback – code: {}, state: {}", code, state).into(),
-        );
+        console::debug_1(&format!("Handling callback – code: {}, state: {}", code, state).into());
 
         let process_data = match self {
             AuthState::Loading(data) => data,
@@ -341,18 +333,14 @@ impl AuthState {
             // Refresh Token ist abgelaufen oder widerrufen → User muss sich neu anmelden
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            console::error_1(
-                &format!("Refresh token rejected ({}): {}", status, body).into(),
-            );
+            console::error_1(&format!("Refresh token rejected ({}): {}", status, body).into());
             let _ = SessionData::clear();
             return AuthState::LoggedOut;
         }
 
         let token_response: TokenResponse = match response.json().await {
             Ok(t) => t,
-            Err(e) => {
-                return AuthState::Error(format!("Error parsing refresh response: {}", e))
-            }
+            Err(e) => return AuthState::Error(format!("Error parsing refresh response: {}", e)),
         };
 
         let valid_until = chrono::Local::now().naive_local()
@@ -361,7 +349,9 @@ impl AuthState {
         let new_session = SessionData {
             access_token: token_response.access_token,
             id_token: token_response.id_token,
-            refresh_token: token_response.refresh_token.or(session.refresh_token.clone()),
+            refresh_token: token_response
+                .refresh_token
+                .or(session.refresh_token.clone()),
             valid_until,
             user: session.user.clone(),
         };
@@ -467,7 +457,6 @@ async fn exchange_code_for_token(
         .await
         .map_err(|e| format!("Error parsing token response: {}", e))
 }
-
 
 fn generate_random_string(length: usize) -> String {
     const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~";

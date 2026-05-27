@@ -1,7 +1,7 @@
 {
-    "auth_domain": "localhost:8081",
+    "auth_domain": "http://localhost:8081",
     "auth_realm": "tcc",
-    "auth_client_id": "KPdjRob3k5SRCqs4wExmQOPrOkqaUJTQ",
+    "auth_client_id": "public",
     "auth_redirect": "http://localhost:8080",
     "auth_audience": "http://tcc.beancode.de"
 }
