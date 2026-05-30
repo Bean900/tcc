@@ -3,5 +3,5 @@
     "auth_realm": "tcc-realm",
     "auth_client_id": "tcc-client",
     "auth_redirect": "http://localhost:8080",
-    "auth_audience": "http://localhost:3000/api"
+    "auth_audience": "http://localhost:3000"
 }

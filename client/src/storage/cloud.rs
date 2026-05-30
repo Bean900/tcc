@@ -5,8 +5,8 @@ use uuid::Uuid;
 use web_sys::console;
 
 use crate::{
-    keycloak::{AuthState, SessionData},
     config::AppConfig,
+    keycloak::{AuthState, SessionData},
     storage::{
         AddressData, CookAndRunCreate, CookAndRunData, CookAndRunMetaData, CookAndRunMetaUpdate,
         CourseCreate, CourseData, CourseUpdate, MeetingPointData, NoteCreate, Storage, TeamCreate,
@@ -251,7 +251,10 @@ impl Storage for CloudStorage {
         match res {
             Ok(response) if response.status().is_success() => {
                 response.json::<CookAndRunMetaResponse>().await.map_or_else(
-                    |e| Err(e.to_string()),
+                    |e| {
+                        console::warn_1(&format!("Error parsing JSON: {}", e).into());
+                        Err(e.to_string())
+                    },
                     |data| {
                         Ok(data
                             .data
