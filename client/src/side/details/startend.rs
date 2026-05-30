@@ -190,6 +190,8 @@ pub fn StartEndContent(
                     save_success_signal.set(false);
                 });
             }
+        } else {
+            console::warn_1(&format!("Validation failed: Cannot save data!").into());
         }
     });
 
@@ -496,6 +498,7 @@ async fn save_point_data(
     let end_update = storage
         .update_end_point_in_cook_and_run(cook_and_run_id, &end_point)
         .await;
+    console::log_1(&"Saved end point data.".into());
     console::log_1(&"Finished saving point data.".into());
     (start_update, end_update)
 }

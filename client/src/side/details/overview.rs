@@ -236,11 +236,11 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
     let error_login_signal = use_signal(|| match storage_signal.read().get_auth_state() {
         Ok(AuthState::LoggedIn(_)) => "".to_string(),
         Ok(AuthState::Loading(_)) => {
-            console::error_1(&format!("Auth state ist loading!").into());
+            console::info_1(&format!("Auth state is loading!").into());
             "Loading...!".to_string()
         }
         Ok(AuthState::LoggedOut) => {
-            console::error_1(&format!("Auth state ist not logged out!").into());
+            console::info_1(&format!("Auth state is not logged out!").into());
             "Logged out!".to_string()
         }
         Ok(AuthState::Error(e)) => {

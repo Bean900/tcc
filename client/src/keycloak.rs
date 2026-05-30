@@ -9,7 +9,7 @@ use web_sys::{console, window};
 
 use crate::config::AppConfig;
 
-const SCOPE: &str = "openid profile email offline_access";
+const SCOPE: &str = "openid";
 
 #[derive(Debug, Clone, Deserialize)]
 struct OidcDiscovery {
