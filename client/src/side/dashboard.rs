@@ -3,10 +3,13 @@ use uuid::Uuid;
 use web_sys::{console, wasm_bindgen::JsCast, HtmlInputElement};
 
 use crate::{
-    ToastMessage, async_action, side::{
+    async_action,
+    side::{
         AsyncAction, CloseButton, ConfirmButton, ErrorSVG, Headline1, Input, InputError,
         SecondaryButton,
-    }, storage::{CookAndRunCreate, CookAndRunData, StorageManager}, trigger_error_toast
+    },
+    storage::{CookAndRunCreate, CookAndRunData, StorageManager},
+    trigger_error_toast, Route, ToastMessage,
 };
 
 // ─────────────────────────────────────────────
@@ -37,11 +40,7 @@ pub fn Dashboard() -> Element {
             Ok(list) => Ok(list),
             Err(err) => {
                 console::error_1(&format!("Failed to load cook and run list: {}", err).into());
-                trigger_error_toast(
-                            toasts, 
-                            "Loading error", 
-                            "Failed to load data!"
-                        );
+                trigger_error_toast(toasts, "Loading error", "Failed to load data!");
                 Err("Failed to load data!".to_string())
             }
         }
@@ -60,7 +59,7 @@ pub fn Dashboard() -> Element {
 
                 match &*cook_and_run_list.read_unchecked() {
                     Some(Err(_)) => rsx! {
-                        
+
                     },
                     Some(Ok(list)) => rsx! {
                         {
@@ -127,8 +126,8 @@ struct DashboardCardProps {
 #[component]
 fn DashboardCard(props: DashboardCardProps) -> Element {
     rsx! {
-        a {
-            href: format!("/cook-and-run/{}/overview", props.id),
+        Link {
+            to: Route::Overview { cook_and_run_id: props.id },
             class: "relative flex flex-col bg-white rounded-2xl border border-amber-100 \
                     shadow-sm hover:shadow-md transition-all duration-150 cursor-pointer \
                     overflow-hidden group",

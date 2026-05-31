@@ -227,11 +227,11 @@ fn Home() -> Element {
                 }
             }
             div { class: "bg-white rounded-2xl border border-amber-100 shadow-sm px-8 py-6 flex flex-col items-center gap-4",
-                a {
-                    href: "/cook-and-run",
+                Link {
+                    to: Route::Dashboard {},
                     class: "bg-[#D67229] hover:bg-[#C66741] text-white \
-                            rounded-xl px-6 py-2.5 text-sm font-medium \
-                            transition-colors duration-150 cursor-pointer",
+                    rounded-xl px-6 py-2.5 text-sm font-medium \
+                    transition-colors duration-150 cursor-pointer",
                     "Get Started"
                 }
             }
@@ -261,11 +261,11 @@ fn NotFound(route: Vec<String>) -> Element {
                                     rounded-lg px-3 py-1.5 border border-zinc-100",
                             "{route:?}"
                         }
-                        a {
-                            href: "/cook-and-run",
+                        Link {
+                            to: Route::Dashboard {},
                             class: "inline-block bg-[#D67229] hover:bg-[#C66741] text-white \
-                                    rounded-xl px-5 py-2 text-sm font-medium \
-                                    transition-colors duration-150",
+                                                            rounded-xl px-5 py-2 text-sm font-medium \
+                                                            transition-colors duration-150",
                             "Back to Dashboard"
                         }
                     }
@@ -551,7 +551,7 @@ fn Wrapper() -> Element {
                 div { class: "max-w-7xl mx-auto px-6 py-3 flex justify-between items-center w-full",
 
                     // Logo
-                    a { href: "/cook-and-run", class: "flex items-center gap-3",
+                    Link { to: Route::Dashboard {}, class: "flex items-center gap-3",
                         img { src: LOGO, alt: "Cook & Run", class: "h-8 w-auto" }
                     }
                     div { class: "flex items-center gap-3", {login} }

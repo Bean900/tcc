@@ -719,7 +719,7 @@ impl Storage for CloudStorage {
                 .json::<MeetingPointData>()
                 .await
                 .map_or_else(|e| Err(e.to_string()), |data| Ok(Some(data))),
-            Ok(response) if response.status() == StatusCode::NO_CONTENT => Ok(None),
+            Ok(response) if response.status() == StatusCode::NOT_FOUND => Ok(None),
             Ok(response) => Err(format!("Request failed: {}", response.status())),
             Err(e) => Err(format!("Request error: {}", e)),
         }
@@ -751,7 +751,7 @@ impl Storage for CloudStorage {
                 .json::<MeetingPointData>()
                 .await
                 .map_or_else(|e| Err(e.to_string()), |data| Ok(Some(data))),
-            Ok(response) if response.status() == StatusCode::NO_CONTENT => Ok(None),
+            Ok(response) if response.status() == StatusCode::NOT_FOUND => Ok(None),
             Ok(response) => Err(format!("Request failed: {}", response.status())),
             Err(e) => Err(format!("Request error: {}", e)),
         }

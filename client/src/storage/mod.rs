@@ -15,7 +15,7 @@ use std::f64::consts::PI;
 use crate::{
     keycloak::AuthState,
     storage::{cloud::CloudStorage, local::LocalStorage},
-}; // Add this at the top with other imports
+};
 
 #[derive(Debug, Clone)]
 pub struct StorageManager {
@@ -621,13 +621,7 @@ impl StorageManager {
         let cloud: &CloudStorage = match self.get_cloud() {
             Ok(cloud) => cloud,
             Err(e) => {
-                console::warn_1(
-                    &format!(
-                        "Error when loading cloud connection: {}",
-                        e
-                    )
-                    .into(),
-                );
+                console::warn_1(&format!("Error when loading cloud connection: {}", e).into());
                 return Ok(local_data);
             }
         };
@@ -642,7 +636,7 @@ impl StorageManager {
                     )
                     .into(),
                 );
-                
+
                 Vec::new()
             }
         };
