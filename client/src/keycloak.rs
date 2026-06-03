@@ -4,70 +4,27 @@ use chrono::NaiveDateTime;
 use js_sys::Math;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::cell::RefCell;
 use web_sys::{console, window};
 
-use crate::config::AppConfig;
+use crate::config::AuthConfig;
 
 const SCOPE: &str = "openid";
 
+#[derive(Debug, Clone)]
+pub enum AuthState {
+    Loading(AuthConfig, OidcDiscovery, ProcessData),
+    LoggedOut(AuthConfig, OidcDiscovery),
+    LoggedIn(AuthConfig, OidcDiscovery, SessionData),
+    Error(AuthConfig, OidcDiscovery, String),
+    NotAvailable(),
+}
+
 #[derive(Debug, Clone, Deserialize)]
-struct OidcDiscovery {
+pub struct OidcDiscovery {
     authorization_endpoint: String,
     token_endpoint: String,
     userinfo_endpoint: String,
     end_session_endpoint: String,
-}
-
-thread_local! {
-    static OIDC_CACHE: RefCell<Option<OidcDiscovery>> = const { RefCell::new(None) };
-}
-
-async fn fetch_discovery(config: &AppConfig) -> Result<OidcDiscovery, String> {
-    let cached = OIDC_CACHE.with(|c| c.borrow().clone());
-    if let Some(discovery) = cached {
-        return Ok(discovery);
-    }
-
-    let url = format!(
-        "{}/realms/{}/.well-known/openid-configuration",
-        &config.auth_domain,
-        urlencoding::encode(&config.auth_realm),
-    );
-
-    console::debug_1(&format!("Fetching OIDC discovery from {}", url).into());
-
-    let client = reqwest::Client::new();
-    let response = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| format!("OIDC discovery request failed: {}", e))?;
-
-    if !response.status().is_success() {
-        return Err(format!(
-            "OIDC discovery request failed ({})",
-            response.status()
-        ));
-    }
-
-    let discovery: OidcDiscovery = response
-        .json()
-        .await
-        .map_err(|e| format!("Error parsing OIDC discovery response: {}", e))?;
-
-    // Im Cache ablegen
-    OIDC_CACHE.with(|c| *c.borrow_mut() = Some(discovery.clone()));
-
-    Ok(discovery)
-}
-
-#[derive(Debug, Clone)]
-pub enum AuthState {
-    Loading(ProcessData),
-    LoggedOut,
-    LoggedIn(SessionData),
-    Error(String),
 }
 
 #[derive(Serialize)]
@@ -169,31 +126,41 @@ impl ProcessData {
 }
 
 impl AuthState {
-    pub fn new() -> Self {
-        if let Some(session) = SessionData::load() {
-            if session.is_valid_for(0) {
-                return AuthState::LoggedIn(session);
+    pub async fn new(config: AuthConfig) -> Self {
+        let oidc_discovery = match fetch_discovery(&config).await {
+            Ok(oidc_discovery) => oidc_discovery,
+            Err(e) => {
+                console::error_1(&format!("Error fetching OIDC discovery: {}", e).into());
+                return AuthState::NotAvailable();
             }
-            // Abgelaufene Session bereinigen; Caller kann danach `refresh()` aufrufen
-            // wenn ein refresh_token gespeichert war.
-            let _ = SessionData::clear();
+        };
+
+        if let Some(session) = SessionData::load() {
+            let auth_state = AuthState::LoggedIn(config, oidc_discovery, session);
+            return auth_state.refresh().await;
         }
 
         if let Some(process_data) = ProcessData::load() {
-            return AuthState::Loading(process_data);
+            return AuthState::Loading(config, oidc_discovery, process_data);
         }
 
-        AuthState::LoggedOut
+        AuthState::LoggedOut(config, oidc_discovery)
     }
 
-    pub async fn login(config: &AppConfig, state: String) -> (Self, String) {
+    pub async fn login(self, state: String) -> (Self, Option<String>) {
         console::debug_1(&"Starting Keycloak login process...".into());
 
-        let discovery = match fetch_discovery(config).await {
-            Ok(d) => d,
-            Err(e) => {
-                console::error_1(&format!("OIDC discovery failed: {}", e).into());
-                return (AuthState::Error(e), String::new());
+        let (config, oidc_discovery) = match self {
+            AuthState::Loading(config, od, _) => (config, od),
+            AuthState::LoggedOut(config, od) => (config, od),
+            AuthState::LoggedIn(_, _, _) => {
+                console::info_1(&"Already logged in".into());
+                return (self, None);
+            }
+            AuthState::Error(config, od, _) => (config, od),
+            AuthState::NotAvailable() => {
+                console::warn_1(&"AuthState is not suitable for login".into());
+                return (self, None);
             }
         };
 
@@ -208,54 +175,57 @@ impl AuthState {
         if let Err(e) = process_data.save() {
             console::error_1(&format!("Error saving process data: {}", e).into());
             return (
-                AuthState::Error("Error saving process data".to_string()),
-                String::new(),
+                AuthState::Error(
+                    config,
+                    oidc_discovery,
+                    "Error saving process data".to_string(),
+                ),
+                None,
             );
         }
 
         let auth_url = format!(
             "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&code_challenge={}&code_challenge_method=S256",
-            discovery.authorization_endpoint,
-            urlencoding::encode(&config.auth_client_id),
-            urlencoding::encode(&format!("{}/callback", &config.auth_redirect)),
+            oidc_discovery.authorization_endpoint,
+            urlencoding::encode(&config.client_id),
+            urlencoding::encode(&format!("{}/callback", &config.redirect)),
             urlencoding::encode(SCOPE),
             urlencoding::encode(&state),
             code_challenge,
         );
 
         console::debug_1(&format!("Keycloak auth URL: {}", auth_url).into());
-        (AuthState::Loading(process_data), auth_url)
+        (
+            AuthState::Loading(config, oidc_discovery, process_data),
+            Some(auth_url),
+        )
     }
 
-    pub async fn callback(&self, config: &AppConfig, code: &str, state: &str) -> Self {
+    pub async fn callback(self, code: &str, state: &str) -> Self {
         console::debug_1(&format!("Handling callback – code: {}, state: {}", code, state).into());
 
-        let process_data = match self {
-            AuthState::Loading(data) => data,
-            _ => {
-                let _ = ProcessData::clear();
-                return AuthState::Error("Invalid auth state for callback".to_string());
-            }
-        };
-
-        let discovery = match fetch_discovery(config).await {
-            Ok(d) => d,
-            Err(e) => {
-                let _ = ProcessData::clear();
-                return AuthState::Error(e);
+        let (config, discovery, process_data) = match self {
+            AuthState::Loading(config, discovery, p) => (config, discovery, p),
+            invalid => {
+                console::warn_1(
+                    &format!("Received callback in invalid state: {:?}", invalid).into(),
+                );
+                return invalid;
             }
         };
 
         let token_response =
-            match exchange_code_for_token(config, &discovery, process_data, code, state).await {
+            match exchange_code_for_token(&config, &discovery, &process_data, code, state).await {
                 Ok(r) => r,
                 Err(e) => {
                     let _ = ProcessData::clear();
-                    return AuthState::Error(e);
+                    return AuthState::Error(config, discovery, e);
                 }
             };
 
-        let _ = ProcessData::clear();
+        if let Err(e) = ProcessData::clear() {
+            console::error_1(&format!("Error clearing process data: {}", e).into());
+        }
 
         match get_user_info(&discovery, &token_response.access_token).await {
             Ok(user) => {
@@ -271,11 +241,11 @@ impl AuthState {
                 };
                 if let Err(e) = session_data.save() {
                     console::error_1(&format!("Error saving session: {}", e).into());
-                    return AuthState::Error("Error saving session".to_string());
+                    return AuthState::Error(config, discovery, "Error saving session".to_string());
                 }
-                AuthState::LoggedIn(session_data)
+                return AuthState::LoggedIn(config, discovery, session_data);
             }
-            Err(e) => AuthState::Error(e),
+            Err(e) => return AuthState::Error(config, discovery, e),
         }
     }
 
@@ -287,33 +257,43 @@ impl AuthState {
     /// // Im Component, bevor ein API-Call gemacht wird:
     /// if let AuthState::LoggedIn(s) = &*auth {
     ///     if !s.is_valid_for(60) {
-    ///         *auth.write() = auth.read().refresh(&config).await;
+    ///         *auth.write() = auth.read().refresh().await;
     ///     }
     /// }
     /// ```
-    pub async fn refresh(&self, config: &AppConfig) -> Self {
-        let session = match self {
-            AuthState::LoggedIn(s) => s,
-            other => return other.clone(),
+    pub async fn refresh(self) -> Self {
+        let (config, oidc_discovery, session_data) = match self {
+            AuthState::LoggedIn(config, oidc_discovery, session_data) => {
+                (config, oidc_discovery, session_data)
+            }
+            other => {
+                console::warn_1(&format!("Cannot refresh when not logged in: {:?}", other).into());
+                return other;
+            }
         };
 
-        let refresh_token = match &session.refresh_token {
+        if session_data.is_valid_for(300) {
+            console::debug_1(&"Session is still valid, no need to refresh".into());
+            return AuthState::LoggedIn(config, oidc_discovery, session_data);
+        }
+
+        let refresh_token = match &session_data.refresh_token {
             Some(rt) => rt.clone(),
             None => {
                 console::error_1(&"No refresh token available – full re-login required".into());
                 let _ = SessionData::clear();
-                return AuthState::LoggedOut;
+                return AuthState::LoggedOut(config, oidc_discovery);
             }
         };
 
-        let discovery = match fetch_discovery(config).await {
+        let discovery = match fetch_discovery(&config).await {
             Ok(d) => d,
-            Err(e) => return AuthState::Error(e),
+            Err(e) => return AuthState::Error(config, oidc_discovery, e),
         };
 
         let refresh_request = RefreshRequest {
             grant_type: "refresh_token",
-            client_id: &config.auth_client_id,
+            client_id: &config.client_id,
             refresh_token: &refresh_token,
         };
 
@@ -326,7 +306,13 @@ impl AuthState {
             .await
         {
             Ok(r) => r,
-            Err(e) => return AuthState::Error(format!("Refresh request failed: {}", e)),
+            Err(e) => {
+                return AuthState::Error(
+                    config,
+                    oidc_discovery,
+                    format!("Refresh request failed: {}", e),
+                )
+            }
         };
 
         if !response.status().is_success() {
@@ -335,62 +321,80 @@ impl AuthState {
             let body = response.text().await.unwrap_or_default();
             console::error_1(&format!("Refresh token rejected ({}): {}", status, body).into());
             let _ = SessionData::clear();
-            return AuthState::LoggedOut;
+            return AuthState::LoggedOut(config, oidc_discovery);
         }
 
         let token_response: TokenResponse = match response.json().await {
             Ok(t) => t,
-            Err(e) => return AuthState::Error(format!("Error parsing refresh response: {}", e)),
+            Err(e) => {
+                return AuthState::Error(
+                    config,
+                    oidc_discovery,
+                    format!("Error parsing refresh response: {}", e),
+                )
+            }
         };
 
         let valid_until = chrono::Local::now().naive_local()
             + chrono::Duration::seconds(token_response.expires_in);
 
+        let user = match get_user_info(&discovery, &token_response.access_token).await {
+            Ok(user) => user,
+            Err(e) => return AuthState::Error(config, discovery, e),
+        };
+
         let new_session = SessionData {
             access_token: token_response.access_token,
             id_token: token_response.id_token,
-            refresh_token: token_response
-                .refresh_token
-                .or(session.refresh_token.clone()),
+            refresh_token: token_response.refresh_token,
             valid_until,
-            user: session.user.clone(),
+            user,
         };
 
         if let Err(e) = new_session.save() {
-            return AuthState::Error(format!("Error saving refreshed session: {}", e));
+            let _ = ProcessData::clear();
+            return AuthState::Error(
+                config,
+                oidc_discovery,
+                format!("Error saving refreshed session: {}", e),
+            );
         }
 
         console::debug_1(&"Session successfully refreshed".into());
-        AuthState::LoggedIn(new_session)
+        AuthState::LoggedIn(config, oidc_discovery, new_session)
     }
 
-    pub async fn logout(&self, config: &AppConfig) -> (Self, String) {
+    pub async fn logout(self) -> (Self, Option<String>) {
         console::debug_1(&"Starting Keycloak logout process...".into());
 
-        let session = match self {
-            AuthState::LoggedIn(s) => s,
-            _ => {
-                console::error_1(&"Cannot logout when not logged in".into());
-                return (self.clone(), String::new());
+        let (config, oidc_discovery, session_data) = match self {
+            AuthState::LoggedIn(config, oidc_discovery, session_data) => {
+                (config, oidc_discovery, session_data)
             }
-        };
-
-        let discovery = match fetch_discovery(config).await {
-            Ok(d) => d,
-            Err(e) => return (AuthState::Error(e), String::new()),
+            auth_state => {
+                console::warn_1(&"Cannot logout when not logged in".into());
+                return (auth_state, None);
+            }
         };
 
         let logout_url = format!(
             "{}?client_id={}&id_token_hint={}&post_logout_redirect_uri={}",
-            discovery.end_session_endpoint,
-            urlencoding::encode(&config.auth_client_id),
-            urlencoding::encode(&session.id_token),
-            urlencoding::encode(&config.auth_redirect),
+            oidc_discovery.end_session_endpoint,
+            urlencoding::encode(&config.client_id),
+            urlencoding::encode(&session_data.id_token),
+            urlencoding::encode(&config.redirect),
         );
 
-        let _ = SessionData::clear();
+        if let Err(e) = SessionData::clear() {
+            console::warn_1(&format!("Error clearing session data during logout: {}", e).into());
+        }
+
         console::debug_1(&format!("Keycloak logout URL: {}", logout_url).into());
-        (AuthState::LoggedOut, logout_url)
+
+        (
+            AuthState::LoggedOut(config, oidc_discovery),
+            Some(logout_url),
+        )
     }
 }
 
@@ -416,7 +420,7 @@ async fn get_user_info(discovery: &OidcDiscovery, access_token: &str) -> Result<
 }
 
 async fn exchange_code_for_token(
-    config: &AppConfig,
+    config: &AuthConfig,
     discovery: &OidcDiscovery,
     process_data: &ProcessData,
     code: &str,
@@ -428,10 +432,10 @@ async fn exchange_code_for_token(
 
     let token_request = TokenRequest {
         grant_type: "authorization_code",
-        client_id: &config.auth_client_id,
+        client_id: &config.client_id,
         code_verifier: &process_data.code_verifier,
         code,
-        redirect_uri: &format!("{}/callback", &config.auth_redirect),
+        redirect_uri: &format!("{}/callback", &config.redirect),
     };
 
     let client = reqwest::Client::new();
@@ -472,4 +476,35 @@ fn generate_code_challenge(code_verifier: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(code_verifier.as_bytes());
     general_purpose::URL_SAFE_NO_PAD.encode(hasher.finalize())
+}
+
+async fn fetch_discovery(config: &AuthConfig) -> Result<OidcDiscovery, String> {
+    let url = format!(
+        "{}/realms/{}/.well-known/openid-configuration",
+        &config.domain,
+        urlencoding::encode(&config.realm),
+    );
+
+    console::debug_1(&format!("Fetching OIDC discovery from {}", url).into());
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("OIDC discovery request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "OIDC discovery request failed ({})",
+            response.status()
+        ));
+    }
+
+    let discovery: OidcDiscovery = response
+        .json()
+        .await
+        .map_err(|e| format!("Error parsing OIDC discovery response: {}", e))?;
+
+    Ok(discovery)
 }

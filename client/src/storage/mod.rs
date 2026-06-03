@@ -70,10 +70,26 @@ impl StorageManager {
         })
     }
 
-    pub async fn load_cloud(mut self, auth_state: AuthState) -> Result<Self, String> {
-        let cloud = CloudStorage::new(auth_state).await?;
-        self.cloud = Some(cloud);
-        Ok(self)
+    pub async fn load_cloud(
+        mut self,
+        auth_state: AuthState,
+        base_url: String,
+    ) -> Result<Self, String> {
+        let cloud = CloudStorage::new(auth_state, base_url).await;
+        match cloud {
+            Ok(cloud) => {
+                self.cloud = Some(cloud);
+                Ok(self)
+            }
+            Err(e) => {
+                self.cloud = None;
+                Err(format!("Error while loading cloud connection: {}", e))
+            }
+        }
+    }
+
+    pub fn disconnect_cloud(&mut self) {
+        self.cloud = None;
     }
 
     fn get_cloud_mut(&mut self) -> Result<&mut CloudStorage, String> {
@@ -90,16 +106,6 @@ impl StorageManager {
         } else {
             Err("Cloud is not configured".to_string())
         }
-    }
-
-    pub fn get_auth_state(&self) -> Result<AuthState, String> {
-        let cloud = self.get_cloud()?;
-        Ok(cloud.get_auth_state())
-    }
-
-    pub fn set_auth_state(&mut self, auth_state: AuthState) -> Result<(), String> {
-        let cloud = self.get_cloud_mut()?;
-        Ok(cloud.set_auth_state(auth_state))
     }
 
     pub async fn upload_to_cloud(&mut self, cook_and_run_id: Uuid) -> Result<Uuid, String> {

@@ -1,6 +1,7 @@
 mod callback;
 mod dashboard;
 mod details;
+mod legal;
 
 use std::future::Future;
 use std::pin::Pin;
@@ -16,6 +17,10 @@ pub use details::share_team::ShareRegisterPage;
 pub use details::startend::StartEnd;
 pub use details::teams::Teams;
 pub use details::Menu;
+pub use legal::CookieBanner;
+pub use legal::CookieSettings;
+pub use legal::Impressum;
+pub use legal::Privacy;
 
 use dioxus::prelude::*;
 use dioxus::signals::Signal;

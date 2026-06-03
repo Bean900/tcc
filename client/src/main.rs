@@ -4,28 +4,40 @@ pub mod config;
 pub mod keycloak;
 mod side;
 mod storage;
+
+use crate::config::Config;
+use crate::config::LegalConfig;
+use crate::footer::Footer;
 use dioxus::prelude::*;
 use side::Calculate;
 use side::Callback;
+use side::CookieBanner;
+use side::CookieSettings;
 use side::Courses;
 use side::Dashboard;
+use side::Impressum;
 use side::Overview;
 use side::Plan;
+use side::Privacy;
 use side::ShareRegisterPage;
 use side::StartEnd;
 use side::Teams;
+
 use uuid::Uuid;
+
+mod footer;
+mod state;
 
 use web_sys::console;
 use web_sys::window;
 
-use crate::config::AppConfig;
 pub use crate::keycloak::AuthState;
 use crate::side::Menu;
+use crate::state::ConsentState;
 use crate::storage::StorageManager;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
-const PROVILE: Asset = asset!("/assets/profile.png");
+const PROFILE: Asset = asset!("/assets/profile.png");
 const TAILWIND_CSS: Asset = asset!("/assets/output.css");
 const LOGO: Asset = asset!("/assets/logo.png");
 
@@ -58,13 +70,10 @@ pub fn trigger_error_toast(mut toasts: Signal<Vec<ToastMessage>>, headline: &str
     });
 }
 
-// ─────────────────────────────────────────────
-//  Routing
-// ─────────────────────────────────────────────
-
 #[derive(Routable, Clone, PartialEq)]
 #[rustfmt::skip]
 enum Route {
+    // ── Haupt-App (mit Header + Auth-Button + Footer) ──
     #[layout(Wrapper)]
         #[route("/")]
         Home {},
@@ -89,9 +98,14 @@ enum Route {
                     Calculate { cook_and_run_id: Uuid },
                     #[route("/plan/:team_id")]
                     Plan { cook_and_run_id: Uuid, team_id: Uuid },
-                  
                 #[end_layout]
             #[end_nest]
+            #[route("/impressum")]
+            Impressum {},
+            #[route("/datenschutz")]
+            Privacy {},
+            #[route("/cookies")]
+            CookieSettings {},
         #[end_nest]
     #[end_layout]
     #[route("/:..route")]
@@ -276,27 +290,23 @@ fn NotFound(route: Vec<String>) -> Element {
 }
 
 // ─────────────────────────────────────────────
-//  Toast Container Komponente
+//  Toast Container
 // ─────────────────────────────────────────────
 
-// In main.rs
 #[component]
 pub fn ToastContainer() -> Element {
     let mut toasts = use_context::<Signal<Vec<ToastMessage>>>();
 
     rsx! {
-        // Unten rechts platziert wirkt oft moderner und stört die Navigation oben nicht
         div { class: "fixed bottom-6 right-6 z-[100] flex flex-col gap-3 max-w-sm w-full pointer-events-none",
             for toast in toasts.read().iter().cloned() {
                 div {
                     key: "{toast.id}",
-                    // Modernes Styling: Weißer Hintergrund, weicher Drop-Shadow, roter Akzent links
                     class: "pointer-events-auto relative overflow-hidden flex gap-3.5 p-4 bg-white rounded-xl \
                             shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-zinc-100 border-l-4 border-l-red-500 \
                             transition-all duration-300 transform translate-y-0 animate-fade-in-up",
                     role: "alert",
 
-                    // Error Icon (mit leicht angepassten Farben)
                     div { class: "shrink-0 mt-0.5",
                         svg {
                             class: "w-5 h-5 text-red-500",
@@ -309,13 +319,11 @@ pub fn ToastContainer() -> Element {
                         }
                     }
 
-                    // Text Content (klarere Typografie)
                     div { class: "flex-1 pr-2",
                         h3 { class: "text-sm font-semibold text-zinc-900", "{toast.headline}" }
                         p { class: "text-sm text-zinc-500 mt-1 leading-relaxed whitespace-pre-line", "{toast.message}" }
                     }
 
-                    // Schließen-Button (subtileres Hover-Verhalten)
                     button {
                         class: "absolute top-4 right-4 text-zinc-400 hover:text-zinc-700 transition-colors duration-200",
                         onclick: move |_| {
@@ -337,16 +345,8 @@ pub fn ToastContainer() -> Element {
     }
 }
 
-// ─────────────────────────────────────────────
-//  App shell / Wrapper
-// ─────────────────────────────────────────────
-
 #[component]
 fn Wrapper() -> Element {
-    let mut storage_signal = use_context::<Signal<StorageManager>>();
-    let toasts = use_context::<Signal<Vec<ToastMessage>>>();
-    let config_resource = use_resource(move || async move { AppConfig::fetch().await });
-
     let current_route = use_route::<Route>();
     let route_state = current_route.to_string();
 
@@ -354,86 +354,6 @@ fn Wrapper() -> Element {
          text-zinc-600 bg-amber-50 border border-amber-200 \
          hover:bg-amber-100 hover:border-amber-300 \
          transition-colors duration-150 cursor-pointer";
-
-    use_effect(move || {
-        if let Some(Err(e)) = &*config_resource.read_unchecked() {
-            console::error_1(&format!("Error loading config: {}", e).into());
-        }
-    });
-
-    use_effect(move || {
-        if let Ok(AuthState::Error(e)) = storage_signal.read().get_auth_state() {
-            console::error_1(&format!("Authentication error: {}", e).into());
-        }
-    });
-
-    let config_result: Option<Result<AppConfig, String>> = match &*config_resource.read_unchecked()
-    {
-        None => None,
-        Some(Err(e)) => Some(Err(e.clone())),
-        Some(Ok(config)) => Some(Ok(config.clone())),
-    };
-
-    // ── Auto-Refresh: Token proaktiv erneuern ─────────────────────────────
-    {
-        let config_for_refresh = config_result.clone();
-        use_effect(move || {
-            if let Some(Ok(config)) = config_for_refresh.clone() {
-                if let Ok(AuthState::LoggedIn(s)) = storage_signal.read().get_auth_state() {
-                    if !s.is_valid_for(60) {
-                        spawn(async move {
-                            let auth_result = { storage_signal.read().get_auth_state() };
-                            match auth_result {
-                                Ok(auth) => {
-                                    let new_auth = auth.refresh(&config).await;
-                                    if let Err(e) = storage_signal.write().set_auth_state(new_auth)
-                                    {
-                                        console::error_1(
-                                            &format!("Error saving refreshed auth state: {}", e)
-                                                .into(),
-                                        );
-                                        trigger_error_toast(
-                                            toasts,
-                                            "Authentication error",
-                                            "Failed to refresh session. Please log in again.",
-                                        );
-                                    }
-                                }
-                                Err(e) => {
-                                    console::error_1(
-                                        &format!("Error reading auth state for refresh: {}", e)
-                                            .into(),
-                                    );
-                                }
-                            }
-                        });
-                    }
-                }
-            }
-        });
-    }
-
-    // Fallback-Button, falls die Konfiguration fehlschlägt (Toast liefert Details)
-    let error_btn_rsx = rsx!(
-        button {
-            class: "{AUTH_BTN} opacity-60 cursor-not-allowed",
-            disabled: true,
-            svg {
-                class: "w-3.5 h-3.5 text-red-400",
-                view_box: "0 0 24 24",
-                fill: "none",
-                xmlns: "http://www.w3.org/2000/svg",
-                stroke: "currentColor",
-                stroke_width: "2",
-                stroke_linecap: "round",
-                stroke_linejoin: "round",
-                path { d: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" }
-                path { d: "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" }
-                line { x1: "2", y1: "2", x2: "22", y2: "22" }
-            }
-            "Not available"
-        }
-    );
 
     let spinner_svg = rsx! {
         svg {
@@ -451,7 +371,49 @@ fn Wrapper() -> Element {
         }
     };
 
-    let login = match config_result {
+    let config_signal = use_context::<Signal<Option<Config>>>();
+    if let None = config_signal.read().clone() {
+        console::error_1(&format!("Error: Config context is None").into());
+        return rsx! {
+            document::Link { rel: "icon", href: FAVICON }
+            document::Link { rel: "stylesheet", href: TAILWIND_CSS }
+
+            div { class: "min-h-screen flex flex-col bg-[#F8EFE1]",
+                header { class: "sticky top-0 z-50 bg-[#FDFAF6] border-b border-amber-200/60 shadow-sm",
+                    div { class: "max-w-7xl mx-auto px-6 py-3 flex justify-between items-center w-full",
+                        Link { to: Route::Dashboard {}, class: "flex items-center gap-3",
+                            img { src: LOGO, alt: "Cook & Run", class: "h-8 w-auto" }
+                        }
+                    }
+                }
+
+                main { class: "flex-1 flex flex-col items-center justify-center p-6 text-center",
+                    svg {
+                        class: "w-16 h-16 text-red-500 mb-4",
+                        fill: "none",
+                        view_box: "0 0 24 24",
+                        stroke: "currentColor",
+                        stroke_width: "2",
+                        path {
+                            stroke_linecap: "round",
+                            stroke_linejoin: "round",
+                            d: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                        }
+                    }
+
+                    h1 { class: "text-2xl font-bold text-gray-800 mb-2",
+                        "Failed to Load Configuration"
+                    }
+                    p { class: "text-gray-600 max-w-md mb-6",
+                        "We encountered an unexpected error while trying to load the application settings. Please try again later or contact support."
+                    }
+                }
+            }
+        };
+    }
+
+    let mut auth_signal = use_context::<Signal<Option<AuthState>>>();
+    let login = match auth_signal.read().clone() {
         None => rsx!(
             button {
                 class: "{AUTH_BTN} opacity-60 cursor-not-allowed",
@@ -460,82 +422,103 @@ fn Wrapper() -> Element {
                 "Loading..."
             }
         ),
-        Some(Err(_)) => error_btn_rsx,
-        Some(Ok(config)) => match storage_signal.read().get_auth_state() {
-            Err(_) => error_btn_rsx,
-            Ok(AuthState::Loading(_)) => rsx! {
-                button {
-                    class: "{AUTH_BTN} opacity-60 cursor-not-allowed",
-                    disabled: true,
-                    {spinner_svg}
-                    "Logging in…"
-                }
-            },
-            Ok(AuthState::LoggedOut) | Ok(AuthState::Error(_)) => {
-                let btn_class = match storage_signal.read().get_auth_state() {
-                    Ok(AuthState::Error(_)) => {
-                        format!("{AUTH_BTN} border-red-200 text-red-600 bg-red-50 hover:bg-red-100")
-                    }
-                    _ => AUTH_BTN.to_string(),
-                };
-                let label = match storage_signal.read().get_auth_state() {
-                    Ok(AuthState::Error(_)) => "Retry Login",
-                    _ => "Login",
-                };
-                rsx! {
-                    button {
-                        class: "{btn_class}",
-                        onclick: move |_| {
-                            let config = config.clone();
-                            let state = route_state.clone();
-                            spawn(async move {
-                                let (new_auth, auth_url) = AuthState::login(&config, state).await;
-                                if let Err(e) = storage_signal.write().set_auth_state(new_auth) {
-                                    console::error_1(&format!("Error while setting auth state: {}", e).into());
-                                    trigger_error_toast(toasts, "Authentication error", "Failed to log in. Please try again.");
-                                    return;
-                                }
-                                if let Some(win) = window() {
-                                    let _ = win.location().set_href(&auth_url);
-                                }
-                            });
-                        },
-                        {label}
-                    }
-                }
+        Some(loading @ AuthState::Loading(_, _, _)) => rsx! {
+            button {
+                class: "{AUTH_BTN} opacity-60 cursor-not-allowed",
+                disabled: false,
+                onclick: move |_| {
+                    let value = loading.clone();
+                    let route_state = route_state.clone();
+                    spawn(async move {
+                        let (auth, auth_url) = value.login(route_state).await;
+                        auth_signal.write().replace(auth);
+
+                        if let (Some(win), Some(url)) = (window(), auth_url) {
+                            let _ = win.location().set_href(&url);
+                        }
+                    });
+                },
+                {spinner_svg}
+                "Loading..."
             }
-            Ok(AuthState::LoggedIn(_)) => rsx! {
-                button {
-                    class: "{AUTH_BTN}",
-                    onclick: move |_| {
-                        let config = config.clone();
-                        spawn(async move {
-                            let auth = match storage_signal.read().get_auth_state() {
-                                Ok(a) => a,
-                                Err(e) => {
-                                    console::warn_1(&format!("Error while loading auth state: {}", e).into());
-                                    return;
-                                }
-                            };
-                            let (new_auth, auth_url) = auth.logout(&config).await;
-                            if let Err(e) = storage_signal.write().set_auth_state(new_auth) {
-                                console::error_1(&format!("Error while setting auth state: {}", e).into());
-                                trigger_error_toast(toasts, "Authentication error", "Failed to log out. Please try again.");
-                                return;
-                            }
-                            if let Some(win) = window() {
-                                    let _ = win.location().set_href(&auth_url);
-                            }
-                        });
-                    },
-                    img {
-                        src: PROVILE,
-                        alt: "Profile",
-                        class: "h-6 w-6 rounded-full border border-amber-200",
-                    }
-                    "Logout"
+        },
+        Some(logged_in @ AuthState::LoggedIn(_, _, _)) => rsx! {
+            button {
+                class: "{AUTH_BTN}",
+                onclick: move |_| {
+                    let value = logged_in.clone();
+                    spawn(async move {
+                        let (auth, logout_url) = value.logout().await;
+                        auth_signal.write().replace(auth);
+
+                        if let (Some(win), Some(url)) = (window(), logout_url) {
+                            let _ = win.location().set_href(&url);
+                        }
+                    });
+                },
+                img {
+                    src: PROFILE,
+                    alt: "Profile",
+                    class: "h-6 w-6 rounded-full border border-amber-200",
                 }
-            },
+                "Logout"
+            }
+        },
+        Some(logged_out @ AuthState::LoggedOut(_, _)) => rsx! {
+            button {
+                class: "{AUTH_BTN}",
+                onclick: move |_| {
+                    let value = logged_out.clone();
+                    let route_state = route_state.clone();
+                    spawn(async move {
+                        let (auth, auth_url) = value.login(route_state).await;
+                        auth_signal.write().replace(auth);
+
+                        if let (Some(win), Some(url)) = (window(), auth_url) {
+                            let _ = win.location().set_href(&url);
+                        }
+                    });
+                },
+                "Login"
+            }
+        },
+        Some(error @ AuthState::Error(_, _, _)) => rsx! {
+            button {
+                class: "{AUTH_BTN}",
+                onclick: move |_| {
+                    let value = error.clone();
+                    let route_state = route_state.clone();
+                    spawn(async move {
+                        let (auth, auth_url) = value.login(route_state).await;
+                        auth_signal.write().replace(auth);
+
+                        if let (Some(win), Some(url)) = (window(), auth_url) {
+                            let _ = win.location().set_href(&url);
+                        }
+                    });
+                },
+                "Login"
+            }
+        },
+        Some(AuthState::NotAvailable()) => rsx! {
+            button {
+                class: "{AUTH_BTN} opacity-60 cursor-not-allowed",
+                disabled: true,
+                svg {
+                    class: "w-3.5 h-3.5 text-red-400",
+                    view_box: "0 0 24 24",
+                    fill: "none",
+                    xmlns: "http://www.w3.org/2000/svg",
+                    stroke: "currentColor",
+                    stroke_width: "2",
+                    stroke_linecap: "round",
+                    stroke_linejoin: "round",
+                    path { d: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" }
+                    path { d: "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" }
+                    line { x1: "2", y1: "2", x2: "22", y2: "22" }
+                }
+                "Not available"
+            }
         },
     };
 
@@ -543,14 +526,13 @@ fn Wrapper() -> Element {
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: TAILWIND_CSS }
 
-        // Render des Overlay Toast-Containers innerhalb der App-Shell
         ToastContainer {}
+
+        CookieBanner {}
 
         div { class: "min-h-screen flex flex-col bg-[#F8EFE1]",
             header { class: "sticky top-0 z-50 bg-[#FDFAF6] border-b border-amber-200/60 shadow-sm",
                 div { class: "max-w-7xl mx-auto px-6 py-3 flex justify-between items-center w-full",
-
-                    // Logo
                     Link { to: Route::Dashboard {}, class: "flex items-center gap-3",
                         img { src: LOGO, alt: "Cook & Run", class: "h-8 w-auto" }
                     }
@@ -558,15 +540,12 @@ fn Wrapper() -> Element {
                 }
             }
 
-            // ── Page content ──────────────────────────────────────
             main { class: "flex flex-1 w-full", Outlet::<Route> {} }
+
+            Footer {}
         }
     }
 }
-
-// ─────────────────────────────────────────────
-//  App root
-// ─────────────────────────────────────────────
 
 #[component]
 fn App() -> Element {
@@ -576,39 +555,63 @@ fn App() -> Element {
     });
 
     let mut storage_signal = use_signal(|| storage);
-    let mut cloud_loaded = use_signal(|| false);
-
-    // Globaler Toast-State initialisieren & bereitstellen
-    let toasts = use_signal(Vec::<ToastMessage>::new);
-    use_context_provider(|| toasts);
     use_context_provider(|| storage_signal);
 
-    use_effect(move || {
-        spawn(async move {
-            let auth_state = AuthState::new();
-            let storage = storage_signal.read().clone();
+    let toasts = use_signal(Vec::<ToastMessage>::new);
+    use_context_provider(|| toasts);
 
-            match storage.load_cloud(auth_state).await {
-                Ok(s) => {
-                    storage_signal.set(s);
-                    console::log_1(&"Cloud connection successfully created!".into());
-                }
-                Err(e) => {
-                    console::error_1(&format!("Error loading cloud: {}", e).into());
-                    trigger_error_toast(toasts, "Cloud error", "Failed to connect to cloud.");
-                }
+    let config_resource = use_resource(move || async move { Config::fetch().await });
+
+    let mut config_signal = use_signal(|| None as Option<Config>);
+    use_context_provider(|| config_signal);
+
+    let consent_state = use_signal(|| ConsentState::load("1.0"));
+    use_context_provider(|| consent_state);
+
+    let mut auth_signal = use_signal(|| None as Option<AuthState>);
+    use_context_provider(|| auth_signal);
+
+    use_effect(move || {
+        let cfg = config_resource.read_unchecked().clone();
+        match cfg {
+            None => {
+                console::error_1(&format!("Error while loading auth config: None found!").into());
             }
-            cloud_loaded.set(true);
-        });
+            Some(Err(e)) => {
+                console::error_1(&format!("Error while loading auth config: {}", e).into());
+            }
+            Some(Ok(config)) => {
+                config_signal.set(Some(config.clone()));
+                spawn(async move {
+                    let auth_state = AuthState::new(config.auth).await;
+                    auth_signal.set(Some(auth_state));
+                });
+            }
+        }
     });
 
-    if !cloud_loaded() {
-        return rsx! {
-            div { class: "flex items-center justify-center h-screen bg-[#F8EFE1] text-zinc-600 font-medium",
-                "Loading cloud connection..."
+    use_effect(move || {
+        let auth = auth_signal.read().clone();
+        let config = config_signal.read().clone();
+        match (auth, config) {
+            (Some(auth_state), Some(config)) => {
+                spawn(async move {
+                    let storage = storage_signal.write().clone();
+                    if let Err(e) = storage
+                        .load_cloud(auth_state.clone(), config.auth.domain)
+                        .await
+                    {
+                        console::error_1(&format!("Error loading cloud storage: {}", e).into());
+                    }
+                });
             }
-        };
-    }
+            _ => {
+                let mut storage = storage_signal.write().clone();
+                storage.disconnect_cloud();
+                console::error_1(&format!("Auth state or config is None").into());
+            }
+        }
+    });
 
     rsx! {
         Router::<Route> {}

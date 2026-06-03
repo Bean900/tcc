@@ -5,7 +5,6 @@ use uuid::Uuid;
 use web_sys::console;
 
 use crate::{
-    config::AppConfig,
     keycloak::{AuthState, SessionData},
     storage::{
         AddressData, CookAndRunCreate, CookAndRunData, CookAndRunMetaData, CookAndRunMetaUpdate,
@@ -102,27 +101,18 @@ struct CourseListResponse {
 }
 
 impl CloudStorage {
-    pub async fn new(auth_state: AuthState) -> Result<Self, String> {
-        let config = AppConfig::fetch().await?;
+    pub async fn new(auth_state: AuthState, base_url: String) -> Result<Self, String> {
         Ok(CloudStorage {
-            base_url: config.auth_audience,
+            base_url,
             auth_state,
         })
     }
 
     fn get_access_token(&self) -> Result<SessionData, String> {
         match self.auth_state.clone() {
-            AuthState::LoggedIn(session_data) => Ok(session_data),
+            AuthState::LoggedIn(_, _, session_data) => Ok(session_data),
             _ => Err("Could not clone auth state!".to_string()),
         }
-    }
-
-    pub fn get_auth_state(&self) -> AuthState {
-        self.auth_state.clone()
-    }
-
-    pub fn set_auth_state(&mut self, auth_state: AuthState) {
-        self.auth_state = auth_state;
     }
 }
 
