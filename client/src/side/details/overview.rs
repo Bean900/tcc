@@ -228,11 +228,20 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
         }
     });
 
-    let auth_signal = use_context::<Signal<Option<AuthState>>>().read().clone();
+    let auth_signal = use_context::<Signal<Option<AuthState>>>();
 
-    let error_login_signal = use_signal(|| match auth_signal {
-        Some(AuthState::LoggedIn(_, _, _)) => "".to_string(),
-        _ => "You need to be logged in to use this feature!".to_string(),
+    let mut error_login_signal =
+        use_signal(|| "You need to be logged in to use this feature!".to_string());
+
+    use_effect(move || match auth_signal.read().clone() {
+        Some(AuthState::LoggedIn(_, _, _)) => {
+            console::debug_1(&"User is logged in!".into());
+            error_login_signal.replace("".to_string());
+        }
+        auth_state => {
+            console::debug_1(&format!("User not logged in! State: {:?}", auth_state).into());
+            error_login_signal.replace("You need to be logged in to use this feature!".to_string());
+        }
     });
 
     let is_cloud = cook_and_run_meta.is_in_cloud;
@@ -274,7 +283,7 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
     rsx! {
         style { dangerous_inner_html: SAVE_GLOW_CSS }
 
-        section { class: "px-8 py-6 space-y-8",
+        section { class: "w-full px-8 py-6 space-y-8",
 
             Headline1 { headline: "Overview" }
 

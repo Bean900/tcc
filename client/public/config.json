@@ -21,6 +21,8 @@
         "editorial_responsible": "John Doe",
         "privacy_officer_name": "Jane Smith",
         "privacy_officer_email": "privacy@example.com",
+        "legal_form": "GmbH",
+        "authorized_representatives": "John Doe, Jane Smith",
         "supervisory_authority": "Data Protection Authority",
         "hosting_provider": "Example Hosting Provider",
         "server_location": "Germany",

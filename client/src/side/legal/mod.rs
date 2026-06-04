@@ -17,10 +17,9 @@ pub struct LegalPageShellProps {
 #[component]
 pub fn LegalPageShell(props: LegalPageShellProps) -> Element {
     rsx! {
-        div { class: "min-h-screen flex flex-col bg-[#F8EFE1]",
+        div { class: "w-full min-h-screen flex flex-col bg-[#F8EFE1]",
             div { class: "flex-1 w-full max-w-3xl mx-auto px-6 py-10 space-y-2",
 
-                // ── Seitenheader ─────────────────────────────────────────
                 div { class: "mb-6",
                     div { class: "flex items-center gap-2.5 mb-1",
                         div { class: "w-1.5 h-7 rounded-full bg-amber-400/70" }
@@ -31,7 +30,6 @@ pub fn LegalPageShell(props: LegalPageShellProps) -> Element {
                     div { class: "h-px bg-amber-200/60 mt-4" }
                 }
 
-                // ── Seiteninhalt ─────────────────────────────────────────
                 {props.children}
             }
         }

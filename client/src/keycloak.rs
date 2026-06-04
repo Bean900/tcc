@@ -127,6 +127,7 @@ impl ProcessData {
 
 impl AuthState {
     pub async fn new(config: AuthConfig) -> Self {
+        console::debug_1(&"Initializing Keycloak authentication...".into());
         let oidc_discovery = match fetch_discovery(&config).await {
             Ok(oidc_discovery) => oidc_discovery,
             Err(e) => {
@@ -134,16 +135,21 @@ impl AuthState {
                 return AuthState::NotAvailable();
             }
         };
-
+        console::debug_1(&"OIDC discovery fetched successfully".into());
+        console::debug_1(&"Loading session data...".into());
         if let Some(session) = SessionData::load() {
             let auth_state = AuthState::LoggedIn(config, oidc_discovery, session);
+            console::debug_1(&"Session data loaded, checking validity...".into());
             return auth_state.refresh().await;
         }
 
+        console::debug_1(&"No valid session found, checking for ongoing auth process...".into());
         if let Some(process_data) = ProcessData::load() {
+            console::debug_1(&"Process data loaded".into());
             return AuthState::Loading(config, oidc_discovery, process_data);
         }
 
+        console::debug_1(&"No ongoing auth process, user is logged out".into());
         AuthState::LoggedOut(config, oidc_discovery)
     }
 
@@ -264,19 +270,24 @@ impl AuthState {
     pub async fn refresh(self) -> Self {
         let (config, oidc_discovery, session_data) = match self {
             AuthState::LoggedIn(config, oidc_discovery, session_data) => {
+                console::debug_1(&"User is logged in!".into());
                 (config, oidc_discovery, session_data)
             }
             other => {
-                console::warn_1(&format!("Cannot refresh when not logged in: {:?}", other).into());
+                console::warn_1(
+                    &format!("Cannot refresh token when not logged in: {:?}", other).into(),
+                );
                 return other;
             }
         };
 
+        console::debug_1(&"Checking if session is still valid...".into());
         if session_data.is_valid_for(300) {
             console::debug_1(&"Session is still valid, no need to refresh".into());
             return AuthState::LoggedIn(config, oidc_discovery, session_data);
         }
 
+        console::debug_1(&"Session is expired or about to expire, attempting to refresh...".into());
         let refresh_token = match &session_data.refresh_token {
             Some(rt) => rt.clone(),
             None => {
@@ -284,11 +295,6 @@ impl AuthState {
                 let _ = SessionData::clear();
                 return AuthState::LoggedOut(config, oidc_discovery);
             }
-        };
-
-        let discovery = match fetch_discovery(&config).await {
-            Ok(d) => d,
-            Err(e) => return AuthState::Error(config, oidc_discovery, e),
         };
 
         let refresh_request = RefreshRequest {
@@ -299,19 +305,23 @@ impl AuthState {
 
         let client = reqwest::Client::new();
         let response = match client
-            .post(&discovery.token_endpoint)
+            .post(&oidc_discovery.token_endpoint)
             .header("Content-Type", "application/x-www-form-urlencoded")
             .form(&refresh_request)
             .send()
             .await
         {
-            Ok(r) => r,
+            Ok(r) => {
+                console::debug_1(&"Refresh request sent successfully".into());
+                r
+            }
             Err(e) => {
+                console::error_1(&format!("Refresh request failed: {}", e).into());
                 return AuthState::Error(
                     config,
                     oidc_discovery,
                     format!("Refresh request failed: {}", e),
-                )
+                );
             }
         };
 
@@ -327,20 +337,24 @@ impl AuthState {
         let token_response: TokenResponse = match response.json().await {
             Ok(t) => t,
             Err(e) => {
+                console::error_1(&format!("Error parsing refresh response: {}", e).into());
                 return AuthState::Error(
                     config,
                     oidc_discovery,
                     format!("Error parsing refresh response: {}", e),
-                )
+                );
             }
         };
 
         let valid_until = chrono::Local::now().naive_local()
             + chrono::Duration::seconds(token_response.expires_in);
 
-        let user = match get_user_info(&discovery, &token_response.access_token).await {
+        let user = match get_user_info(&oidc_discovery, &token_response.access_token).await {
             Ok(user) => user,
-            Err(e) => return AuthState::Error(config, discovery, e),
+            Err(e) => {
+                console::error_1(&format!("Error fetching user info during refresh: {}", e).into());
+                return AuthState::Error(config, oidc_discovery, e);
+            }
         };
 
         let new_session = SessionData {
@@ -353,6 +367,7 @@ impl AuthState {
 
         if let Err(e) = new_session.save() {
             let _ = ProcessData::clear();
+            console::error_1(&format!("Error saving refreshed session: {}", e).into());
             return AuthState::Error(
                 config,
                 oidc_discovery,

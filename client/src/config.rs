@@ -32,6 +32,8 @@ pub struct LegalConfig {
 
     pub privacy_officer_name: Option<String>,
     pub privacy_officer_email: Option<String>,
+    pub legal_form: Option<String>,
+    pub authorized_representatives: Option<String>,
     pub supervisory_authority: Option<String>,
     pub hosting_provider: String,
     pub server_location: String,

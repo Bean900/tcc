@@ -228,7 +228,7 @@ impl Route {
 #[component]
 fn Home() -> Element {
     rsx! {
-        div { class: "flex flex-col items-center justify-center h-screen px-6",
+        div { class: "w-full flex flex-col items-center justify-center h-screen px-6",
             div { class: "text-center mb-10",
                 p { class: "text-[11px] font-semibold tracking-[0.15em] uppercase text-amber-600 mb-2",
                     "Cook & Run"
@@ -378,7 +378,7 @@ fn Wrapper() -> Element {
             document::Link { rel: "icon", href: FAVICON }
             document::Link { rel: "stylesheet", href: TAILWIND_CSS }
 
-            div { class: "min-h-screen flex flex-col bg-[#F8EFE1]",
+            div { class: "min-h-screen w-full flex flex-col bg-[#F8EFE1]",
                 header { class: "sticky top-0 z-50 bg-[#FDFAF6] border-b border-amber-200/60 shadow-sm",
                     div { class: "max-w-7xl mx-auto px-6 py-3 flex justify-between items-center w-full",
                         Link { to: Route::Dashboard {}, class: "flex items-center gap-3",
@@ -530,7 +530,7 @@ fn Wrapper() -> Element {
 
         CookieBanner {}
 
-        div { class: "min-h-screen flex flex-col bg-[#F8EFE1]",
+        div { class: "min-h-screen w-full flex flex-col bg-[#F8EFE1]",
             header { class: "sticky top-0 z-50 bg-[#FDFAF6] border-b border-amber-200/60 shadow-sm",
                 div { class: "max-w-7xl mx-auto px-6 py-3 flex justify-between items-center w-full",
                     Link { to: Route::Dashboard {}, class: "flex items-center gap-3",
@@ -584,7 +584,7 @@ fn App() -> Element {
                 config_signal.set(Some(config.clone()));
                 spawn(async move {
                     let auth_state = AuthState::new(config.auth).await;
-                    auth_signal.set(Some(auth_state));
+                    auth_signal.write().replace(auth_state);
                 });
             }
         }
