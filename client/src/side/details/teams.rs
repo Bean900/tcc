@@ -1220,7 +1220,14 @@ fn ShareDialog(
             let time = share_config_time
                 .read()
                 .unwrap_or(chrono::NaiveTime::from_hms_opt(23, 59, 59).unwrap());
-            share_config_signal.write().registration_deadline = Some(date.and_time(time));
+            let local_datetime = date.and_time(time);
+
+            let utc_datetime = local_datetime
+                .and_local_timezone(chrono::Local)
+                .single()
+                .map(|local_dt| local_dt.with_timezone(&chrono::Utc).naive_utc());
+
+            share_config_signal.write().registration_deadline = utc_datetime;
         } else {
             share_config_signal.write().registration_deadline = None;
         }

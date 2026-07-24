@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 use web_sys::console;
 
-use crate::{config::AppConfig, storage::StorageManager, AuthState, Route};
+use crate::{AuthState, Route};
 
 // ─────────────────────────────────────────────
 //  CSS: animierte Punkte hinter dem Statustext
@@ -23,35 +23,32 @@ const CALLBACK_CSS: &str = r#"
 #[component]
 pub fn Callback(code: String, state: String) -> Element {
     console::debug_1(&format!("URL Params - code: {:?}, state: {:?}", code, state).into());
-    let config_resource = use_resource(move || async move { AppConfig::fetch().await });
 
-    let config = match &*config_resource.read_unchecked() {
-        None => {
-            return rsx! {
-                CallbackScreen { status: CallbackStatus::Loading }
-            };
+    let mut auth_signal = use_context::<Signal<Option<AuthState>>>();
+    let auth_state = match auth_signal.read().clone() {
+        Some(loading @ AuthState::Loading(_, _, _)) => {
+            console::debug_1(&"AuthState is Loading, proceeding with callback".into());
+            loading
         }
-        Some(Err(e)) => {
-            console::error_1(&format!("Error while loading auth config: {}", e).into());
+        _ => {
+            console::error_1(
+                &"Unexpected auth state in Callback: expected Loading, found None or Ready".into(),
+            );
             return rsx! {
                 CallbackScreen { status: CallbackStatus::Error }
             };
         }
-        Some(Ok(config)) => config.clone(),
     };
-
-    let mut storage_signal = use_context::<Signal<StorageManager>>();
 
     use_effect(move || {
         let code = code.clone();
         let state = state.clone();
-        let config = config.clone();
+        let auth_state = auth_state.clone();
         spawn(async move {
-            let auth = AuthState::new().callback(&config, &code, &state).await;
-            let result = storage_signal.write().set_auth_state(auth);
-            if let Err(e) = result {
-                console::error_1(&format!("Error while setting auth state: {}", e).into());
-            }
+            console::debug_1(&"Starting callback process...".into());
+            let result = auth_state.callback(&code, &state).await;
+            console::debug_1(&format!("Callback result: {:?}", result).into());
+            auth_signal.write().replace(result);
             let route = Route::from_string(&state);
             navigator().push(route);
         });
@@ -68,7 +65,6 @@ pub fn Callback(code: String, state: String) -> Element {
 
 #[derive(PartialEq, Clone)]
 enum CallbackStatus {
-    Loading,
     Authenticating,
     Error,
 }

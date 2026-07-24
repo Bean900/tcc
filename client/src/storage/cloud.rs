@@ -5,8 +5,7 @@ use uuid::Uuid;
 use web_sys::console;
 
 use crate::{
-    auth0::{AuthState, SessionData},
-    config::AppConfig,
+    keycloak::{AuthState, SessionData},
     storage::{
         AddressData, CookAndRunCreate, CookAndRunData, CookAndRunMetaData, CookAndRunMetaUpdate,
         CourseCreate, CourseData, CourseUpdate, MeetingPointData, NoteCreate, Storage, TeamCreate,
@@ -102,27 +101,41 @@ struct CourseListResponse {
 }
 
 impl CloudStorage {
-    pub async fn new(auth_state: AuthState) -> Result<Self, String> {
-        let config = AppConfig::fetch().await?;
-        Ok(CloudStorage {
-            base_url: config.auth0_audience,
+    pub async fn new(auth_state: AuthState, base_url: String) -> Result<Self, String> {
+        let cloud_storage= CloudStorage {
+            base_url,
             auth_state,
-        })
+        };
+        cloud_storage.health_check().await?;
+        Ok(cloud_storage)
     }
 
     fn get_access_token(&self) -> Result<SessionData, String> {
         match self.auth_state.clone() {
-            AuthState::LoggedIn(session_data) => Ok(session_data),
+            AuthState::LoggedIn(_, _, session_data) => Ok(session_data),
             _ => Err("Could not clone auth state!".to_string()),
         }
     }
 
-    pub fn get_auth_state(&self) -> AuthState {
-        self.auth_state.clone()
-    }
+    async fn health_check(&self) -> Result<(), String> {
+        let session_data = match self.get_access_token() {
+            Ok(sd) => sd,
+            Err(_) => return Err("No auth data!".to_string()),
+        };
 
-    pub fn set_auth_state(&mut self, auth_state: AuthState) {
-        self.auth_state = auth_state;
+        let url = format!("{}/health", self.base_url);
+        let client = reqwest::Client::new();
+        let res = client
+            .get(&url)
+            .bearer_auth(session_data.access_token)
+            .send()
+            .await;
+
+        match res {
+            Ok(response) if response.status().is_success() => Ok(()),
+            Ok(response) => Err(format!("Health check failed: {}", response.status())),
+            Err(e) => Err(format!("Health check request error: {}", e)),
+        }
     }
 }
 
@@ -251,7 +264,10 @@ impl Storage for CloudStorage {
         match res {
             Ok(response) if response.status().is_success() => {
                 response.json::<CookAndRunMetaResponse>().await.map_or_else(
-                    |e| Err(e.to_string()),
+                    |e| {
+                        console::warn_1(&format!("Error parsing JSON: {}", e).into());
+                        Err(e.to_string())
+                    },
                     |data| {
                         Ok(data
                             .data
@@ -716,7 +732,7 @@ impl Storage for CloudStorage {
                 .json::<MeetingPointData>()
                 .await
                 .map_or_else(|e| Err(e.to_string()), |data| Ok(Some(data))),
-            Ok(response) if response.status() == StatusCode::NO_CONTENT => Ok(None),
+            Ok(response) if response.status() == StatusCode::NOT_FOUND => Ok(None),
             Ok(response) => Err(format!("Request failed: {}", response.status())),
             Err(e) => Err(format!("Request error: {}", e)),
         }
@@ -748,7 +764,7 @@ impl Storage for CloudStorage {
                 .json::<MeetingPointData>()
                 .await
                 .map_or_else(|e| Err(e.to_string()), |data| Ok(Some(data))),
-            Ok(response) if response.status() == StatusCode::NO_CONTENT => Ok(None),
+            Ok(response) if response.status() == StatusCode::NOT_FOUND => Ok(None),
             Ok(response) => Err(format!("Request failed: {}", response.status())),
             Err(e) => Err(format!("Request error: {}", e)),
         }

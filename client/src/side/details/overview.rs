@@ -180,19 +180,14 @@ pub fn Overview(cook_and_run_id: Uuid) -> Element {
 
 #[component]
 pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
-    let storage_signal = use_context::<Signal<StorageManager>>();
-
     let mut delete_dialog_signal = use_signal(|| false);
     let mut error_name_signal = use_signal(|| "".to_string());
     let mut error_signal = use_signal(|| "".to_string());
     let mut name_signal = use_signal(|| cook_and_run_meta.name.clone());
     let mut occur_signal = use_signal(|| cook_and_run_meta.occur);
 
-    // true  → grüner Glow aktiv (2 s nach erfolgreichem Speichern)
     let mut save_success_signal = use_signal(|| false);
 
-    // true  → ungespeicherte Änderungen vorhanden → Save-Button aktiv
-    // false → gespeichert / noch keine Änderung → Save-Button deaktiviert
     let mut has_unsaved_changes = use_signal(|| false);
 
     let on_name_input = move |evt: FormEvent| {
@@ -233,23 +228,19 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
         }
     });
 
-    let error_login_signal = use_signal(|| match storage_signal.read().get_auth_state() {
-        Ok(AuthState::LoggedIn(_)) => "".to_string(),
-        Ok(AuthState::Loading(_)) => {
-            console::error_1(&format!("Auth state ist loading!").into());
-            "Loading...!".to_string()
+    let auth_signal = use_context::<Signal<Option<AuthState>>>();
+
+    let mut error_login_signal =
+        use_signal(|| "You need to be logged in to use this feature!".to_string());
+
+    use_effect(move || match auth_signal.read().clone() {
+        Some(AuthState::LoggedIn(_, _, _)) => {
+            console::debug_1(&"User is logged in!".into());
+            error_login_signal.replace("".to_string());
         }
-        Ok(AuthState::LoggedOut) => {
-            console::error_1(&format!("Auth state ist not logged out!").into());
-            "Logged out!".to_string()
-        }
-        Ok(AuthState::Error(e)) => {
-            console::error_1(&format!("Auth error: {}", e).into());
-            "Error!".to_string()
-        }
-        Err(e) => {
-            console::error_1(&format!("Error while getting auth state: {}", e).into());
-            "Error whole loading auth state!".to_string()
+        auth_state => {
+            console::debug_1(&format!("User not logged in! State: {:?}", auth_state).into());
+            error_login_signal.replace("You need to be logged in to use this feature!".to_string());
         }
     });
 
@@ -259,14 +250,12 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
     let is_success = *save_success_signal.read();
     let can_save = *has_unsaved_changes.read();
 
-    // Karte: im Erfolgsfall `.save-glow-card` → triggert die @keyframes-Animation
     let card_class = if is_success {
         "bg-white rounded-2xl border overflow-hidden save-glow-card"
     } else {
         "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden"
     };
 
-    // Header greift im Erfolgsfall auf .save-glow-header (CSS oben) zurück
     let header_class = if is_success {
         "px-5 py-3.5 border-b flex items-center gap-2.5 save-glow-header"
     } else {
@@ -285,7 +274,6 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
         "text-sm font-semibold text-zinc-800"
     };
 
-    // Save-Button-Wrapper: deaktiviert solange keine Änderungen vorhanden
     let save_btn_wrapper_class = if can_save {
         ""
     } else {
@@ -293,15 +281,12 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
     };
 
     rsx! {
-        // ── Keyframe-CSS einmalig einbinden ───────────────────────
         style { dangerous_inner_html: SAVE_GLOW_CSS }
 
-        section { class: "px-8 py-6 space-y-8",
+        section { class: "w-full px-8 py-6 space-y-8",
 
-            // ── Page header ───────────────────────────────────────
             Headline1 { headline: "Overview" }
 
-            // ── Settings card ─────────────────────────────────────
             div { class: "{card_class}",
 
                 div { class: "{header_class}",
@@ -313,7 +298,6 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
 
                 div { class: "px-5 py-5 space-y-4",
 
-                    // Name + Date side by side
                     div { class: "grid grid-cols-2 gap-4",
 
                         div {
@@ -340,7 +324,6 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
                                                         .expect("Valid time"),
                                                 ),
                                             );
-                                            // Datum geändert → Änderungen vorhanden
                                             has_unsaved_changes.set(true);
                                         }
                                         Err(e) => {
@@ -357,10 +340,8 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
                     InputError { error: error_signal.read() }
                 }
 
-                // Card footer – action buttons
                 div { class: "px-5 pb-5 pt-1 flex flex-wrap items-center gap-3",
 
-                    // Save-Button: disabled wenn keine ungespeicherten Änderungen
                     div { class: "{save_btn_wrapper_class}",
                         ConfirmButton {
                             action: on_save,
@@ -434,7 +415,6 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
                 }
             }
 
-            // ── Storage info card ─────────────────────────────────
             if is_cloud {
                 StorageInfoCard {
                     title: "Cloud Project",
@@ -460,7 +440,6 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
             }
         }
 
-        // ── Delete dialog ─────────────────────────────────────────
         if *delete_dialog_signal.read() {
             DeleteProjectDialog {
                 delete_project_signal: delete_dialog_signal.clone(),
@@ -469,10 +448,6 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
         }
     }
 }
-
-// ─────────────────────────────────────────────
-//  Storage info card
-// ─────────────────────────────────────────────
 
 #[component]
 fn StorageInfoCard(
@@ -511,10 +486,6 @@ fn StorageInfoCard(
     }
 }
 
-// ─────────────────────────────────────────────
-//  Delete dialog
-// ─────────────────────────────────────────────
-
 #[component]
 fn DeleteProjectDialog(delete_project_signal: Signal<bool>, project_id: Uuid) -> Element {
     let mut delete_loading_signal = use_signal(|| false);
@@ -525,18 +496,15 @@ fn DeleteProjectDialog(delete_project_signal: Signal<bool>, project_id: Uuid) ->
             div { class: "relative bg-white rounded-2xl border border-red-100 \
                           shadow-xl w-96 overflow-hidden",
 
-                // Dialog header
                 div { class: "px-5 py-4 bg-red-50/70 border-b border-red-100 flex items-center gap-2.5",
                     div { class: "w-1.5 h-5 rounded-full bg-red-400/70" }
                     span { class: "text-base font-semibold text-red-700", "Delete Project" }
                 }
 
-                // Close button
                 CloseButton {
                     onclick: move |_| { delete_project_signal.set(false); },
                 }
 
-                // Body
                 div { class: "px-5 py-5 space-y-5",
                     p { class: "text-sm text-zinc-600 leading-relaxed",
                         "Deleting this project will "

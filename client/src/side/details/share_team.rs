@@ -17,7 +17,7 @@ use uuid::Uuid;
 use web_sys::console;
 
 use crate::async_action;
-use crate::auth0::AuthState;
+use crate::keycloak::AuthState;
 use crate::side::details::address::{Address, AddressParam};
 use crate::side::details::{ErrorPage, LoadingPage};
 use crate::side::AsyncAction;
@@ -346,15 +346,12 @@ fn PageHeader(title: &'static str, lang_signal: Signal<Lang>) -> Element {
     }
 }
 
-// ─────────────────────────────────────────────
-//  Shell – Dispatch in die richtige Ansicht
-// ─────────────────────────────────────────────
-
 #[component]
 fn RegisterPageShell(cook_and_run_id: Uuid, share_config: ShareTeamConfig) -> Element {
-    let storage_signal = use_context::<Signal<StorageManager>>();
-    let needs_login = match storage_signal.read().get_auth_state() {
-        Ok(AuthState::LoggedIn(_)) => false,
+    let auth_signal = use_context::<Signal<Option<AuthState>>>().read().clone();
+
+    let needs_login = match auth_signal {
+        Some(AuthState::LoggedIn(_, _, _)) => false,
         _ => share_config.needs_login,
     };
 
@@ -372,7 +369,6 @@ fn RegisterPageShell(cook_and_run_id: Uuid, share_config: ShareTeamConfig) -> El
         PageLayout {
             header: rsx! { PageHeader { title: t_title, lang_signal } },
             content: rsx! {
-                // Einladungstext
                 if !share_config.invite_text.is_empty() {
                     div { class: "mx-4 sm:mx-0 \
                                   rounded-2xl border border-amber-200 bg-amber-50/70 \
@@ -383,7 +379,6 @@ fn RegisterPageShell(cook_and_run_id: Uuid, share_config: ShareTeamConfig) -> El
                     }
                 }
 
-                // Inhalts-Dispatch
                 if needs_login {
                     LoginRequiredView { lang: lang_signal.read().clone() }
                 } else if deadline_passed {
@@ -409,10 +404,6 @@ fn RegisterPageShell(cook_and_run_id: Uuid, share_config: ShareTeamConfig) -> El
     }
 }
 
-// ─────────────────────────────────────────────
-//  Sprach-Toggle-Button
-// ─────────────────────────────────────────────
-
 fn lang_btn(
     label: &'static str,
     active: bool,
@@ -434,13 +425,6 @@ fn lang_btn(
     }
 }
 
-// ─────────────────────────────────────────────
-//  Sperr-Ansichten
-// ─────────────────────────────────────────────
-
-/// Generische Sperr-Kachel  (Login, inaktiv, Max-Teams)
-/// Mobile: randlos, volle Breite (nur border-y)
-/// ≥ sm  : abgerundete Card mit Schatten
 #[component]
 fn BlockedView(icon: &'static str, title: String, body: String) -> Element {
     rsx! {

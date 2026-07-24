@@ -13,9 +13,8 @@ use web_sys::console;
 use std::f64::consts::PI;
 
 use crate::{
-    auth0::AuthState,
-    storage::{cloud::CloudStorage, local::LocalStorage},
-}; // Add this at the top with other imports
+    keycloak::AuthState, storage::{cloud::CloudStorage, local::LocalStorage},
+};
 
 #[derive(Debug, Clone)]
 pub struct StorageManager {
@@ -70,10 +69,26 @@ impl StorageManager {
         })
     }
 
-    pub async fn load_cloud(mut self, auth_state: AuthState) -> Result<Self, String> {
-        let cloud = CloudStorage::new(auth_state).await?;
-        self.cloud = Some(cloud);
-        Ok(self)
+    pub async fn load_cloud(
+        &mut self,
+        auth_state: AuthState,
+        base_url: String,
+    ) -> Result<(), String> {
+        let cloud = CloudStorage::new(auth_state, base_url).await;
+        match cloud {
+            Ok(cloud) => {
+                self.cloud = Some(cloud);
+                Ok(())
+            }
+            Err(e) => {
+                self.cloud = None;
+                Err(format!("Error while loading cloud connection: {}", e))
+            }
+        }
+    }
+
+    pub fn disconnect_cloud(&mut self) {
+        self.cloud = None;
     }
 
     fn get_cloud_mut(&mut self) -> Result<&mut CloudStorage, String> {
@@ -90,16 +105,6 @@ impl StorageManager {
         } else {
             Err("Cloud is not configured".to_string())
         }
-    }
-
-    pub fn get_auth_state(&self) -> Result<AuthState, String> {
-        let cloud = self.get_cloud()?;
-        Ok(cloud.get_auth_state())
-    }
-
-    pub fn set_auth_state(&mut self, auth_state: AuthState) -> Result<(), String> {
-        let cloud = self.get_cloud_mut()?;
-        Ok(cloud.set_auth_state(auth_state))
     }
 
     pub async fn upload_to_cloud(&mut self, cook_and_run_id: Uuid) -> Result<Uuid, String> {
@@ -618,7 +623,15 @@ impl StorageManager {
     pub async fn select_cook_and_run_meta_list(&self) -> Result<Vec<CookAndRunMetaData>, String> {
         let local_data = self.local.select_cook_and_run_meta_list().await?;
 
-        let cloud_data = match self.get_cloud()?.select_cook_and_run_meta_list().await {
+        let cloud: &CloudStorage = match self.get_cloud() {
+            Ok(cloud) => cloud,
+            Err(e) => {
+                console::warn_1(&format!("Error when loading cloud connection: {}", e).into());
+                return Ok(local_data);
+            }
+        };
+
+        let cloud_data = match cloud.select_cook_and_run_meta_list().await {
             Ok(data) => data,
             Err(e) => {
                 console::warn_1(
@@ -628,6 +641,7 @@ impl StorageManager {
                     )
                     .into(),
                 );
+
                 Vec::new()
             }
         };
