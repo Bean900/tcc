@@ -13,8 +13,7 @@ use web_sys::console;
 use std::f64::consts::PI;
 
 use crate::{
-    keycloak::AuthState,
-    storage::{cloud::CloudStorage, local::LocalStorage},
+    keycloak::AuthState, storage::{cloud::CloudStorage, local::LocalStorage},
 };
 
 #[derive(Debug, Clone)]
@@ -71,15 +70,15 @@ impl StorageManager {
     }
 
     pub async fn load_cloud(
-        mut self,
+        &mut self,
         auth_state: AuthState,
         base_url: String,
-    ) -> Result<Self, String> {
+    ) -> Result<(), String> {
         let cloud = CloudStorage::new(auth_state, base_url).await;
         match cloud {
             Ok(cloud) => {
                 self.cloud = Some(cloud);
-                Ok(self)
+                Ok(())
             }
             Err(e) => {
                 self.cloud = None;

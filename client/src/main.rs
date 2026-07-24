@@ -34,7 +34,7 @@ use web_sys::window;
 pub use crate::keycloak::AuthState;
 use crate::side::Menu;
 use crate::state::ConsentState;
-use crate::storage::StorageManager;
+use crate::storage::{ StorageManager};
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const PROFILE: Asset = asset!("/assets/profile.png");
@@ -233,9 +233,7 @@ fn Home() -> Element {
                 p { class: "text-[11px] font-semibold tracking-[0.15em] uppercase text-amber-600 mb-2",
                     "Cook & Run"
                 }
-                h1 { class: "text-4xl font-bold text-zinc-900 mb-3",
-                    "Traveling Cook Calculator"
-                }
+                h1 { class: "text-4xl font-bold text-zinc-900 mb-3", "Traveling Cook Calculator" }
                 p { class: "text-base text-zinc-500 max-w-sm mx-auto leading-relaxed",
                     "Plan your cooking and running events with ease."
                 }
@@ -315,13 +313,19 @@ pub fn ToastContainer() -> Element {
                             view_box: "0 0 24 24",
                             stroke: "currentColor",
                             stroke_width: "2",
-                            path { stroke_linecap: "round", stroke_linejoin: "round", d: "M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" }
+                            path {
+                                stroke_linecap: "round",
+                                stroke_linejoin: "round",
+                                d: "M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+                            }
                         }
                     }
 
                     div { class: "flex-1 pr-2",
                         h3 { class: "text-sm font-semibold text-zinc-900", "{toast.headline}" }
-                        p { class: "text-sm text-zinc-500 mt-1 leading-relaxed whitespace-pre-line", "{toast.message}" }
+                        p { class: "text-sm text-zinc-500 mt-1 leading-relaxed whitespace-pre-line",
+                            "{toast.message}"
+                        }
                     }
 
                     button {
@@ -336,7 +340,11 @@ pub fn ToastContainer() -> Element {
                             view_box: "0 0 24 24",
                             stroke: "currentColor",
                             stroke_width: "2",
-                            path { stroke_linecap: "round", stroke_linejoin: "round", d: "M6 18L18 6M6 6l12 12" }
+                            path {
+                                stroke_linecap: "round",
+                                stroke_linejoin: "round",
+                                d: "M6 18L18 6M6 6l12 12",
+                            }
                         }
                     }
                 }
@@ -362,7 +370,9 @@ fn Wrapper() -> Element {
             fill: "none",
             xmlns: "http://www.w3.org/2000/svg",
             circle {
-                cx: "12", cy: "12", r: "10",
+                cx: "12",
+                cy: "12",
+                r: "10",
                 stroke: "currentColor",
                 stroke_width: "3",
                 stroke_dasharray: "40",
@@ -381,8 +391,14 @@ fn Wrapper() -> Element {
             div { class: "min-h-screen w-full flex flex-col bg-[#F8EFE1]",
                 header { class: "sticky top-0 z-50 bg-[#FDFAF6] border-b border-amber-200/60 shadow-sm",
                     div { class: "max-w-7xl mx-auto px-6 py-3 flex justify-between items-center w-full",
-                        Link { to: Route::Dashboard {}, class: "flex items-center gap-3",
-                            img { src: LOGO, alt: "Cook & Run", class: "h-8 w-auto" }
+                        Link {
+                            to: Route::Dashboard {},
+                            class: "flex items-center gap-3",
+                            img {
+                                src: LOGO,
+                                alt: "Cook & Run",
+                                class: "h-8 w-auto",
+                            }
                         }
                     }
                 }
@@ -397,7 +413,7 @@ fn Wrapper() -> Element {
                         path {
                             stroke_linecap: "round",
                             stroke_linejoin: "round",
-                            d: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                            d: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
                         }
                     }
 
@@ -515,7 +531,12 @@ fn Wrapper() -> Element {
                     stroke_linejoin: "round",
                     path { d: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" }
                     path { d: "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" }
-                    line { x1: "2", y1: "2", x2: "22", y2: "22" }
+                    line {
+                        x1: "2",
+                        y1: "2",
+                        x2: "22",
+                        y2: "22",
+                    }
                 }
                 "Not available"
             }
@@ -533,8 +554,14 @@ fn Wrapper() -> Element {
         div { class: "min-h-screen w-full flex flex-col bg-[#F8EFE1]",
             header { class: "sticky top-0 z-50 bg-[#FDFAF6] border-b border-amber-200/60 shadow-sm",
                 div { class: "max-w-7xl mx-auto px-6 py-3 flex justify-between items-center w-full",
-                    Link { to: Route::Dashboard {}, class: "flex items-center gap-3",
-                        img { src: LOGO, alt: "Cook & Run", class: "h-8 w-auto" }
+                    Link {
+                        to: Route::Dashboard {},
+                        class: "flex items-center gap-3",
+                        img {
+                            src: LOGO,
+                            alt: "Cook & Run",
+                            class: "h-8 w-auto",
+                        }
                     }
                     div { class: "flex items-center gap-3", {login} }
                 }
@@ -591,24 +618,36 @@ fn App() -> Element {
     });
 
     use_effect(move || {
+        // Diese Signale SOLLEN den Effekt auslösen:
         let auth = auth_signal.read().clone();
         let config = config_signal.read().clone();
+
         match (auth, config) {
             (Some(auth_state), Some(config)) => {
                 spawn(async move {
-                    let storage = storage_signal.write().clone();
+                    console::debug_1(&format!("Loading cloud storage with auth state").into());
+                    
+                    // WICHTIG: .peek() statt .read(), um keine Reaktivitäts-Schleife zu bauen!
+                    let mut storage = storage_signal.peek().clone();
+
                     if let Err(e) = storage
-                        .load_cloud(auth_state.clone(), config.auth.domain)
+                        .load_cloud(auth_state.clone(), config.auth.audience)
                         .await
                     {
                         console::error_1(&format!("Error loading cloud storage: {}", e).into());
+                    } else {
+                        // Aktualisiert nur Komponenten, die auf das Signal hören, 
+                        // triggert aber DIESEN Effekt wegen .peek() nicht mehr neu.
+                        storage_signal.set(storage);
                     }
                 });
             }
             _ => {
-                let mut storage = storage_signal.write().clone();
-                storage.disconnect_cloud();
                 console::error_1(&format!("Auth state or config is None").into());
+                
+                let mut storage = storage_signal.peek().clone();
+                storage.disconnect_cloud();
+                storage_signal.set(storage);
             }
         }
     });

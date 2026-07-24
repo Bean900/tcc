@@ -1,10 +1,10 @@
 {
     "auth": {
-        "domain": "http://localhost:8081",
+        "domain": "http://auth.tcc.local/auth",
         "realm": "tcc-realm",
         "client_id": "tcc-client",
         "redirect": "http://localhost:8080",
-        "audience": "http://localhost:3000"
+        "audience": "http://localhost/api"
     },
     "legal": {
         "operator_name": "Example Operator",
