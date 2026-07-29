@@ -1,3 +1,4 @@
+use chrono::{DateTime, Local, NaiveDateTime, Utc};
 use dioxus::prelude::*;
 use uuid::Uuid;
 use web_sys::{console, wasm_bindgen::JsCast, HtmlInputElement};
@@ -5,7 +6,7 @@ use web_sys::{console, wasm_bindgen::JsCast, HtmlInputElement};
 use crate::{
     async_action,
     side::{
-        AsyncAction, CloseButton, ConfirmButton, ErrorSVG, Headline1, Input, InputError,
+        AsyncAction, CloseButton, ConfirmButton, Headline1, Input, InputError,
         SecondaryButton,
     },
     storage::{CookAndRunCreate, CookAndRunData, StorageManager},
@@ -44,6 +45,7 @@ const PILL: &str =
     "inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium shrink-0 transition-all duration-150";
 const PILL_AMBER: &str = "bg-amber-100/80 text-amber-800 border border-amber-200/50";
 const PILL_ZINC: &str = "bg-zinc-100 text-zinc-500 border border-zinc-200/50";
+const PILL_GREEN: &str = "bg-emerald-100/80 text-emerald-800 border border-emerald-200/50";
 
 // Creation card with responsive min-height matching DashboardCard
 const CTA_DASHED: &str =
@@ -51,6 +53,104 @@ const CTA_DASHED: &str =
 
 const FOCUS_RING: &str =
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-1 rounded-xl";
+
+// ─────────────────────────────────────────────
+//  Date/time helpers
+// ─────────────────────────────────────────────
+//  Timestamps coming from storage are naive UTC values. These helpers turn
+//  them into the viewer's local time before they ever reach the UI.
+//
+//  Note: on the wasm32 target this relies on chrono's "wasmbind" feature
+//  (reads the browser's timezone via js-sys). Make sure that feature is
+//  enabled in Cargo.toml, otherwise `Local` falls back to UTC.
+
+/// Converts a naive UTC timestamp into the user's local time.
+fn to_local(naive_utc: NaiveDateTime) -> DateTime<Local> {
+    DateTime::<Utc>::from_naive_utc_and_offset(naive_utc, Utc).with_timezone(&Local)
+}
+
+/// Converts and formats a naive UTC timestamp for display.
+fn format_local(naive_utc: NaiveDateTime) -> String {
+    to_local(naive_utc).format("%d.%m.%Y").to_string()
+}
+
+/// Human-friendly "time ago" label (e.g. "5m ago", "3d ago"). Falls back to
+/// an absolute date once the gap gets large enough that relative phrasing
+/// stops being useful.
+fn relative_time(local_dt: DateTime<Local>) -> String {
+    let diff = Local::now().signed_duration_since(local_dt);
+
+    if diff.num_seconds() < 60 {
+        "just now".to_string()
+    } else if diff.num_minutes() < 60 {
+        format!("{}m ago", diff.num_minutes())
+    } else if diff.num_hours() < 24 {
+        format!("{}h ago", diff.num_hours())
+    } else if diff.num_days() < 7 {
+        format!("{}d ago", diff.num_days())
+    } else if diff.num_weeks() < 5 {
+        format!("{}w ago", diff.num_weeks())
+    } else {
+        local_dt.format("%d.%m.%Y").to_string()
+    }
+}
+
+/// Edited-date display: a short relative label for the card, plus the exact
+/// local timestamp kept around for a hover tooltip.
+#[derive(Debug, Clone, PartialEq)]
+struct EditedInfo {
+    relative: String,
+    absolute: String,
+}
+
+impl EditedInfo {
+    fn from_edited(edited_utc: NaiveDateTime) -> Self {
+        let local = to_local(edited_utc);
+        Self {
+            relative: relative_time(local),
+            absolute: local.format("%d.%m.%Y · %H:%M").to_string(),
+        }
+    }
+}
+
+/// Where the project's event date (`occur`) sits relative to "now",
+/// evaluated in the viewer's local calendar day.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum OccurStatus {
+    Past,
+    Today,
+    Upcoming,
+}
+
+impl OccurStatus {
+    fn from_occur(occur_utc: NaiveDateTime) -> Self {
+        let occur_date = to_local(occur_utc).date_naive();
+        let today = Local::now().date_naive();
+        if occur_date < today {
+            OccurStatus::Past
+        } else if occur_date == today {
+            OccurStatus::Today
+        } else {
+            OccurStatus::Upcoming
+        }
+    }
+
+    fn label(&self) -> &'static str {
+        match self {
+            OccurStatus::Past => "Past",
+            OccurStatus::Today => "Today",
+            OccurStatus::Upcoming => "Upcoming",
+        }
+    }
+
+    fn pill_class(&self) -> &'static str {
+        match self {
+            OccurStatus::Past => PILL_ZINC,
+            OccurStatus::Today => PILL_GREEN,
+            OccurStatus::Upcoming => PILL_AMBER,
+        }
+    }
+}
 
 // ─────────────────────────────────────────────
 //  Sorting options
@@ -97,7 +197,10 @@ pub fn Dashboard() -> Element {
         Some(Ok(list)) => {
             let total = list.len();
             if query.is_empty() {
-                format!("{total} {}", if total == 1 { "project" } else { "projects" })
+                format!(
+                    "{total} {}",
+                    if total == 1 { "project" } else { "projects" }
+                )
             } else {
                 let matched = list
                     .iter()
@@ -116,7 +219,7 @@ pub fn Dashboard() -> Element {
         div { class: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6 sm:space-y-8",
 
             // ── Page Header Section ──────────────────────────────────
-            div { class: "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-amber-100/80 pb-4",
+            div { class: "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-amber-100/80 pb-2",
                 div { class: "flex items-baseline gap-3",
                     Headline1 { headline: "Projects" }
                     if !header_count.is_empty() {
@@ -274,12 +377,11 @@ pub fn Dashboard() -> Element {
                                         items
                                             .into_iter()
                                             .map(|cook_and_run| {
-                                                let created_fmt = cook_and_run
-                                                    .created
-                                                    .format("%d.%m.%Y · %H:%M")
-                                                    .to_string();
+                                                let occur_fmt = format_local(cook_and_run.occur);
+                                                let occur_status = OccurStatus::from_occur(cook_and_run.occur);
+                                                let created_fmt = format_local(cook_and_run.created);
                                                 let edited_fmt = if cook_and_run.edited != cook_and_run.created {
-                                                    Some(cook_and_run.edited.format("%d.%m.%Y · %H:%M").to_string())
+                                                    Some(EditedInfo::from_edited(cook_and_run.edited))
                                                 } else {
                                                     None
                                                 };
@@ -288,6 +390,8 @@ pub fn Dashboard() -> Element {
                                                         key: "{cook_and_run.id}",
                                                         id: cook_and_run.id,
                                                         name: cook_and_run.name.clone(),
+                                                        occur: occur_fmt,
+                                                        occur_status,
                                                         created: created_fmt,
                                                         edited: edited_fmt,
                                                         uploaded: cook_and_run.is_in_cloud,
@@ -343,8 +447,10 @@ pub fn Dashboard() -> Element {
 struct DashboardCardProps {
     id: Uuid,
     name: String,
+    occur: String,
+    occur_status: OccurStatus,
     created: String,
-    edited: Option<String>,
+    edited: Option<EditedInfo>,
     uploaded: bool,
 }
 
@@ -386,8 +492,25 @@ fn DashboardCard(props: DashboardCardProps) -> Element {
                 }
             }
 
-            // Card body (flex-1 ensures height consistency across grid items)
-            div { class: "px-4 py-3.5 space-y-2 flex-1 flex flex-col justify-end",
+            // Card body (justify-start richtet den Inhalt oben aus)
+            div { class: "px-4 py-3.5 space-y-2 flex-1 flex flex-col justify-start",
+
+                // Event date (occur) — when the Cook & Run actually takes place
+                div { class: "flex items-center justify-between gap-2",
+                    div { class: "{META_ROW}",
+                        svg {
+                            class: "{ICON_SM}",
+                            fill: "currentColor",
+                            view_box: "0 0 20 20",
+                            xmlns: "http://www.w3.org/2000/svg",
+                            path { d: "M10 2a8 8 0 100 16 8 8 0 000-16zm1 4a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" }
+                        }
+                        span { "Event {props.occur}" }
+                    }
+                    div { class: "{PILL} {props.occur_status.pill_class()}",
+                        span { "{props.occur_status.label()}" }
+                    }
+                }
 
                 // Created
                 div { class: "{META_ROW}",
@@ -404,7 +527,7 @@ fn DashboardCard(props: DashboardCardProps) -> Element {
                 // Edited
                 match &props.edited {
                     Some(edited) => rsx! {
-                        div { class: "{META_ROW_MUTED}",
+                        div { class: "{META_ROW_MUTED}", title: "{edited.absolute}",
                             svg {
                                 class: "{ICON_SM_MUTED}",
                                 fill: "currentColor",
@@ -412,7 +535,7 @@ fn DashboardCard(props: DashboardCardProps) -> Element {
                                 xmlns: "http://www.w3.org/2000/svg",
                                 path { d: "M17.414 2.586a2 2 0 010 2.828l-8.586 8.586a2 2 0 01-.879.515l-4 1a1 1 0 01-1.213-1.213l1-4a2 2 0 01.515-.879l8.586-8.586a2 2 0 012.828 0zM15 5l-1-1L6 12l-.5 2 .5.5 2-.5L15 5z" }
                             }
-                            span { "Edited {edited}" }
+                            span { "Edited {edited.relative}" }
                         }
                     },
                     None => rsx! {},
@@ -434,7 +557,7 @@ fn LoadingCard() -> Element {
                 div { class: "h-4 w-28 bg-amber-200/60 rounded-full animate-pulse" }
                 div { class: "h-5 w-14 bg-amber-100 rounded-full animate-pulse" }
             }
-            div { class: "px-4 py-3.5 space-y-2.5 flex-1 flex flex-col justify-end",
+            div { class: "px-4 py-3.5 space-y-2.5 flex-1 flex flex-col justify-start",
                 div { class: "flex items-center gap-1.5",
                     div { class: "w-3.5 h-3.5 rounded-full bg-amber-200/50 animate-pulse shrink-0" }
                     div { class: "h-3.5 w-32 bg-zinc-200/70 rounded-full animate-pulse" }

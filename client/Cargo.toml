@@ -7,7 +7,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chrono = {version ="0.4.41", features =["serde"]}
+chrono = {version ="0.4.41", features =["serde", "wasmbind"]}
 dioxus = { version = "0.7", features = ["router","web"] }
 dioxus-web = "0.7"
 dioxus-router = "0.7" 
