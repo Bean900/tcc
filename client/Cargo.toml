@@ -7,14 +7,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chrono = {version ="0.4.41", features =["serde", "wasmbind"]}
+chrono = {version ="0.4.45", features =["serde", "wasmbind"]}
 dioxus = { version = "0.7", features = ["router","web"] }
 dioxus-web = "0.7"
 dioxus-router = "0.7" 
-serde = "1.0.219"
-serde_json = "1.0.140"
-uuid = { version ="1.16.0", features =["v4","serde","js"]}
-web-sys = {version = "0.3.77", features =["Storage","console", "HtmlElement",
+serde = "1.0.229"
+serde_json = "1.0.151"
+uuid = { version ="1.24.0", features =["v4","serde","js"]}
+web-sys = {version = "0.3.103", features =["Storage","console", "HtmlElement",
     "HtmlCanvasElement",
     "Element",
     "Document",
@@ -25,9 +25,9 @@ reqwest = { version ="0.13", default-features = false, features = ["json","form"
 base64 = "0.22.1"
 sha2 = "0.10.9"
 qrcode = "0.14.1"
-pulldown-cmark = "0.13.1"
+pulldown-cmark = "0.13.4"
 async-std = "1.13.2"
-js-sys = "0.3.99"
+js-sys = "0.3.103"
 
 [build-dependencies]
 dotenvy = "0.15"
