@@ -1,4 +1,5 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime, Utc};
+use js_sys::Date;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -28,9 +29,9 @@ pub struct CookAndRunMetaResponse {
 pub struct CookAndRunMetaDataResponse {
     pub id: Uuid,
     pub name: String,
-    pub created: NaiveDateTime,
-    pub edited: NaiveDateTime,
-    pub occur: NaiveDateTime,
+    pub created: DateTime<Utc>,
+    pub edited: DateTime<Utc>,
+    pub occur: DateTime<Utc>,
 }
 
 impl CookAndRunMetaDataResponse {
@@ -38,9 +39,9 @@ impl CookAndRunMetaDataResponse {
         CookAndRunMetaData {
             id: self.id,
             name: self.name.clone(),
-            created: self.created,
-            edited: self.edited,
-            occur: self.occur,
+            created: self.created.naive_utc(),
+            edited: self.edited.naive_utc(),
+            occur: self.occur.naive_utc(),
             is_in_cloud: true,
         }
     }
