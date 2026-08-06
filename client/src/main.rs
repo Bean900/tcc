@@ -2,6 +2,7 @@ mod address_connector;
 mod calculator;
 pub mod config;
 pub mod keycloak;
+pub mod ui;
 mod side;
 mod storage;
 

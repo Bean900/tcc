@@ -84,7 +84,7 @@ const INPUT_ERROR: &str = "w-full px-3 py-2 border border-red-300 rounded-xl bg-
 pub type AsyncAction = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = ()>>>>;
 
 #[macro_export]
-macro_rules! async_action {
+macro_rules! async_actions {
     ($logic:expr) => {
         std::sync::Arc::new(move || {
             let fut = async move { $logic };
@@ -215,9 +215,7 @@ fn CustomButton(props: CustomButtonProps) -> Element {
     rsx! {
         if *is_loading.read() {
             // Amber spinner – matches ConfirmButton color
-            div {
-                role: "status",
-                class: "flex justify-center items-center h-9",
+            div { role: "status", class: "flex justify-center items-center h-9",
                 svg {
                     class: "w-6 h-6 text-amber-100 animate-spin fill-[#D67229]",
                     view_box: "0 0 100 101",
@@ -236,8 +234,7 @@ fn CustomButton(props: CustomButtonProps) -> Element {
         } else {
             button {
                 class: if props.error_signal.is_some()
-                    && !props.error_signal.expect("Expect signal").read().is_empty()
-                    { DISABLED_BUTTON } else { enable_button },
+    && !props.error_signal.expect("Expect signal").read().is_empty() { DISABLED_BUTTON } else { enable_button },
                 disabled: props.error_signal.is_some()
                     && !props.error_signal.expect("Expect signal").read().is_empty(),
                 onclick: on_click_function,
@@ -258,7 +255,9 @@ fn CloseButton(onclick: EventHandler<MouseEvent>) -> Element {
             class: "absolute top-3 right-3 p-1 rounded-lg \
                     text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 \
                     transition-colors duration-150 cursor-pointer",
-            onclick: move |event| { onclick.call(event); },
+            onclick: move |event| {
+                onclick.call(event);
+            },
             svg {
                 class: "w-5 h-5",
                 stroke: "currentColor",
@@ -322,9 +321,7 @@ pub(crate) fn DeleteButton(props: DeleteButtonProps) -> Element {
     rsx! {
         if *is_loading.read() {
             // Red spinner – signals destructive action in progress
-            div {
-                role: "status",
-                class: "flex justify-center items-center h-9",
+            div { role: "status", class: "flex justify-center items-center h-9",
                 svg {
                     class: "w-6 h-6 text-red-100 animate-spin fill-red-500",
                     view_box: "0 0 100 101",
@@ -341,9 +338,7 @@ pub(crate) fn DeleteButton(props: DeleteButtonProps) -> Element {
                 }
             }
         } else {
-            button {
-                class: ENABLED_BUTTON_RED_HOLLOW,
-                onclick: on_click_function,
+            button { class: ENABLED_BUTTON_RED_HOLLOW, onclick: on_click_function,
                 svg {
                     xmlns: "http://www.w3.org/2000/svg",
                     fill: "none",
@@ -380,7 +375,9 @@ pub(crate) fn Input(
             r#type: "text",
             placeholder: if place_holer.is_some() { place_holer.expect("Expected placeholder") } else { "" },
             value,
-            oninput: move |e| { oninput.call(e); },
+            oninput: move |e| {
+                oninput.call(e);
+            },
         }
     }
 }
@@ -398,7 +395,9 @@ pub(crate) fn InputMultirow(
             placeholder: if place_holer.is_some() { place_holer.expect("Expected placeholder") } else { "" },
             rows: "3",
             value,
-            oninput: move |e| { oninput.call(e); },
+            oninput: move |e| {
+                oninput.call(e);
+            },
         }
     }
 }
@@ -416,7 +415,9 @@ pub(crate) fn InputNumber(
             r#type: "number",
             placeholder: if place_holer.is_some() { place_holer.expect("Expected placeholder") } else { "" },
             value,
-            oninput: move |e| { oninput.call(e); },
+            oninput: move |e| {
+                oninput.call(e);
+            },
         }
     }
 }
@@ -434,7 +435,9 @@ pub(crate) fn InputPhoneNumber(
             r#type: "tel",
             placeholder: if place_holer.is_some() { place_holer.expect("Expected placeholder") } else { "" },
             value,
-            oninput: move |e| { oninput.call(e); },
+            oninput: move |e| {
+                oninput.call(e);
+            },
         }
     }
 }
@@ -452,7 +455,9 @@ pub(crate) fn InputTime(
             r#type: "time",
             placeholder: if place_holer.is_some() { place_holer.expect("Expected placeholder") } else { "" },
             value,
-            oninput: move |e| { oninput.call(e); },
+            oninput: move |e| {
+                oninput.call(e);
+            },
         }
     }
 }
@@ -470,7 +475,9 @@ pub(crate) fn InputDate(
             r#type: "date",
             placeholder: if place_holer.is_some() { place_holer.expect("Expected placeholder") } else { "" },
             value,
-            oninput: move |e| { oninput.call(e); },
+            oninput: move |e| {
+                oninput.call(e);
+            },
         }
     }
 }
@@ -653,9 +660,31 @@ pub(crate) fn ErrorSVG() -> Element {
             view_box: "0 0 24 24",
             stroke_width: "2",
             stroke: "currentColor",
-            circle { cx: "12", cy: "12", r: "10", stroke: "currentColor", stroke_width: "2" }
-            line { x1: "12", y1: "8", x2: "12", y2: "12", stroke: "currentColor", stroke_width: "2", stroke_linecap: "round" }
-            line { x1: "12", y1: "16", x2: "12", y2: "16", stroke: "currentColor", stroke_width: "2", stroke_linecap: "round" }
+            circle {
+                cx: "12",
+                cy: "12",
+                r: "10",
+                stroke: "currentColor",
+                stroke_width: "2",
+            }
+            line {
+                x1: "12",
+                y1: "8",
+                x2: "12",
+                y2: "12",
+                stroke: "currentColor",
+                stroke_width: "2",
+                stroke_linecap: "round",
+            }
+            line {
+                x1: "12",
+                y1: "16",
+                x2: "12",
+                y2: "16",
+                stroke: "currentColor",
+                stroke_width: "2",
+                stroke_linecap: "round",
+            }
         }
     )
 }
