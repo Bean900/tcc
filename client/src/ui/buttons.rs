@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 use uuid::Uuid;
 
 // Token für einheitliches Focus-State Design einbinden
-use crate::ui::tokens::FOCUS_RING; //[cite: 2, 3]
+use crate::ui::tokens::FOCUS_RING;
 
 // ─────────────────────────────────────────────
 //  Button Styles & Variants
@@ -12,30 +12,35 @@ use crate::ui::tokens::FOCUS_RING; //[cite: 2, 3]
 
 #[derive(Clone, PartialEq)]
 pub enum ButtonColor {
+    Primary,
     Secondary,
     Confirm,
     Warn,
     RedHollow,
 }
 
+const ENABLED_BUTTON_PRIMARY: &str = "bg-amber-500 text-white rounded-xl px-4 py-2.5 \
+     text-sm font-semibold hover:bg-amber-600 active:scale-[0.98] \
+     transition-all duration-150 cursor-pointer shadow-xs hover:shadow";
+
 const DISABLED_BUTTON: &str = "bg-amber-100 text-amber-400 rounded-xl px-4 py-2 \
-     text-sm font-medium cursor-not-allowed"; //[cite: 1]
+     text-sm font-medium cursor-not-allowed";
 
 const ENABLED_BUTTON_SECONDARY: &str = "bg-zinc-100 text-zinc-700 rounded-xl px-4 py-2 \
      text-sm font-medium hover:bg-zinc-200 \
-     transition-colors duration-150 cursor-pointer"; //[cite: 1]
+     transition-colors duration-150 cursor-pointer";
 
 const ENABLED_BUTTON_CONFIRM: &str = "bg-[#D67229] text-white rounded-xl px-4 py-2 \
      text-sm font-medium hover:bg-[#C66741] \
-     transition-colors duration-150 cursor-pointer"; //[cite: 1]
+     transition-colors duration-150 cursor-pointer";
 
 const ENABLED_BUTTON_WARN: &str = "bg-red-500 text-white rounded-xl px-4 py-2 \
      text-sm font-medium hover:bg-red-600 \
-     transition-colors duration-150 cursor-pointer"; //[cite: 1]
+     transition-colors duration-150 cursor-pointer";
 
 const ENABLED_BUTTON_RED_HOLLOW: &str = "border border-red-400 text-red-600 rounded-xl px-4 py-2 \
      text-sm font-medium hover:bg-red-50 \
-     transition-colors duration-150 cursor-pointer"; //[cite: 1]
+     transition-colors duration-150 cursor-pointer";
 
 // ─────────────────────────────────────────────
 //  Button Props & Components
@@ -45,14 +50,32 @@ const ENABLED_BUTTON_RED_HOLLOW: &str = "border border-red-400 text-red-600 roun
 pub struct ButtonProps {
     pub text: String,
     #[props(default)]
+    pub icon: Option<Element>,
+    #[props(default)]
     pub action: Option<AsyncAction>,
     #[props(default)]
+    pub onclick: Option<EventHandler<MouseEvent>>,
+    #[props(default)]
     pub error_signal: Option<Signal<String>>,
-} //[cite: 1]
+}
 
 impl PartialEq for ButtonProps {
     fn eq(&self, other: &Self) -> bool {
         self.text == other.text
+    }
+}
+
+#[component]
+pub fn PrimaryButton(props: ButtonProps) -> Element {
+    rsx! {
+        CustomButton {
+            color: ButtonColor::Primary,
+            text: props.text.clone(),
+            icon: props.icon.clone(),
+            error_signal: props.error_signal.clone(),
+            action: props.action.clone(),
+            onclick: props.onclick.clone(),
+        }
     }
 }
 
@@ -62,11 +85,13 @@ pub fn SecondaryButton(props: ButtonProps) -> Element {
         CustomButton {
             color: ButtonColor::Secondary,
             text: props.text.clone(),
+            icon: props.icon.clone(),
             error_signal: props.error_signal.clone(),
             action: props.action.clone(),
+            onclick: props.onclick.clone(),
         }
     }
-} //[cite: 1]
+}
 
 #[component]
 pub fn ConfirmButton(props: ButtonProps) -> Element {
@@ -74,11 +99,13 @@ pub fn ConfirmButton(props: ButtonProps) -> Element {
         CustomButton {
             color: ButtonColor::Confirm,
             text: props.text.clone(),
+            icon: props.icon.clone(),
             error_signal: props.error_signal.clone(),
             action: props.action.clone(),
+            onclick: props.onclick.clone(),
         }
     }
-} //[cite: 1]
+}
 
 #[component]
 pub fn WarnButton(props: ButtonProps) -> Element {
@@ -86,11 +113,13 @@ pub fn WarnButton(props: ButtonProps) -> Element {
         CustomButton {
             color: ButtonColor::Warn,
             text: props.text.clone(),
+            icon: props.icon.clone(),
             error_signal: props.error_signal.clone(),
             action: props.action.clone(),
+            onclick: props.onclick.clone(),
         }
     }
-} //[cite: 1]
+}
 
 #[component]
 pub fn RedHollowButton(props: ButtonProps) -> Element {
@@ -98,21 +127,27 @@ pub fn RedHollowButton(props: ButtonProps) -> Element {
         CustomButton {
             color: ButtonColor::RedHollow,
             text: props.text.clone(),
+            icon: props.icon.clone(),
             error_signal: props.error_signal.clone(),
             action: props.action.clone(),
+            onclick: props.onclick.clone(),
         }
     }
-} //[cite: 1]
+}
 
 #[derive(Props, Clone)]
 pub struct CustomButtonProps {
     pub color: ButtonColor,
     pub text: String,
     #[props(default)]
+    pub icon: Option<Element>,
+    #[props(default)]
     pub action: Option<AsyncAction>,
     #[props(default)]
+    pub onclick: Option<EventHandler<MouseEvent>>,
+    #[props(default)]
     pub error_signal: Option<Signal<String>>,
-} //[cite: 1]
+}
 
 impl PartialEq for CustomButtonProps {
     fn eq(&self, other: &Self) -> bool {
@@ -122,13 +157,16 @@ impl PartialEq for CustomButtonProps {
 
 #[component]
 fn CustomButton(props: CustomButtonProps) -> Element {
-    let mut is_loading = use_signal(|| false); //[cite: 1]
-    let on_click_function = move |_| {
-        if is_loading() || props.action.is_none() {
+    let mut is_loading = use_signal(|| false);
+    let on_click_function = move |event: MouseEvent| {
+        if is_loading() {
             return;
         }
         if props.error_signal.map_or(false, |s| !s.read().is_empty()) {
             return;
+        }
+        if let Some(onclick) = &props.onclick {
+            onclick.call(event);
         }
         if let Some(action_fn) = &props.action {
             is_loading.set(true);
@@ -138,17 +176,18 @@ fn CustomButton(props: CustomButtonProps) -> Element {
                 is_loading.set(false);
             });
         }
-    }; //[cite: 1]
+    };
 
     let enable_button = match props.color {
+        ButtonColor::Primary => ENABLED_BUTTON_PRIMARY,
         ButtonColor::Secondary => ENABLED_BUTTON_SECONDARY,
         ButtonColor::Confirm => ENABLED_BUTTON_CONFIRM,
         ButtonColor::Warn => ENABLED_BUTTON_WARN,
         ButtonColor::RedHollow => ENABLED_BUTTON_RED_HOLLOW,
-    }; //[cite: 1]
+    };
 
     let is_disabled = props.error_signal.is_some()
-        && !props.error_signal.expect("Expect signal").read().is_empty(); //[cite: 1]
+        && !props.error_signal.expect("Expect signal").read().is_empty();
 
     rsx! {
         if *is_loading.read() {
@@ -171,14 +210,85 @@ fn CustomButton(props: CustomButtonProps) -> Element {
         } else {
             button {
                 r#type: "button",
-                class: if is_disabled { DISABLED_BUTTON.to_string() } else { format!("{enable_button} {FOCUS_RING}") },
+                class: if is_disabled { DISABLED_BUTTON.to_string() } else { format!(
+                    "{enable_button} {FOCUS_RING} inline-flex items-center justify-center gap-2",
+                ) },
                 disabled: is_disabled,
                 onclick: on_click_function,
+                if let Some(icon) = &props.icon {
+                    {icon.clone()}
+                }
                 "{props.text}"
             }
         }
     }
-} //[cite: 1]
+}
+
+// ─────────────────────────────────────────────
+//  Toolbar & Controls Buttons
+// ─────────────────────────────────────────────
+
+#[derive(Props, Clone)]
+pub struct ToolbarButtonProps {
+    pub text: String,
+    pub is_active: bool,
+    pub onclick: EventHandler<MouseEvent>,
+}
+
+impl PartialEq for ToolbarButtonProps {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text && self.is_active == other.is_active
+    }
+}
+
+#[component]
+pub fn ToolbarButton(props: ToolbarButtonProps) -> Element {
+    let active_style = "px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-amber-900 shadow-xs border border-amber-200/50 cursor-pointer transition-all duration-150";
+    let inactive_style = "px-3 py-1.5 text-xs font-medium rounded-lg text-zinc-600 hover:text-amber-800 cursor-pointer transition-all duration-150";
+
+    rsx! {
+        button {
+            r#type: "button",
+            class: if props.is_active { format!("{active_style} {FOCUS_RING}") } else { format!("{inactive_style} {FOCUS_RING}") },
+            onclick: move |e| props.onclick.call(e),
+            "{props.text}"
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+//  Card Grid Action Buttons
+// ─────────────────────────────────────────────
+
+#[derive(Props, Clone)]
+pub struct DashedActionButtonProps {
+    pub text: String,
+    #[props(default)]
+    pub icon_text: Option<String>,
+    pub onclick: EventHandler<MouseEvent>,
+}
+
+impl PartialEq for DashedActionButtonProps {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text && self.icon_text == other.icon_text
+    }
+}
+
+#[component]
+pub fn DashedActionButton(props: DashedActionButtonProps) -> Element {
+    let icon = props.icon_text.unwrap_or_else(|| "+".to_string());
+    rsx! {
+        button {
+            r#type: "button",
+            class: "flex flex-col items-center justify-center gap-2 min-h-[148px] h-full w-full p-4 rounded-2xl border-2 border-dashed border-amber-300/80 bg-amber-50/20 text-amber-600 hover:text-amber-700 hover:border-amber-400 hover:bg-amber-50/60 transition-all duration-200 cursor-pointer group {FOCUS_RING}",
+            onclick: move |e| props.onclick.call(e),
+            div { class: "w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xl group-hover:scale-110 transition-transform",
+                "{icon}"
+            }
+            span { class: "text-sm font-semibold", "{props.text}" }
+        }
+    }
+}
 
 // ─────────────────────────────────────────────
 //  Close Button
@@ -189,8 +299,8 @@ pub fn CloseButton(onclick: EventHandler<MouseEvent>) -> Element {
     rsx! {
         button {
             r#type: "button",
-            class: "absolute top-3 right-3 p-1.5 rounded-xl text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors duration-150 cursor-pointer {FOCUS_RING}", //[cite: 2, 3]
-            aria_label: "Close", //[cite: 2]
+            class: "absolute top-3 right-3 p-1.5 rounded-xl text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors duration-150 cursor-pointer {FOCUS_RING}",
+            aria_label: "Close",
             onclick: move |event| {
                 onclick.call(event);
             },
@@ -206,7 +316,7 @@ pub fn CloseButton(onclick: EventHandler<MouseEvent>) -> Element {
             }
         }
     }
-} //[cite: 1, 2]
+}
 
 // ─────────────────────────────────────────────
 //  Delete Button
@@ -219,7 +329,7 @@ pub struct DeleteButtonProps {
     pub action: Option<AsyncAction>,
     #[props(default)]
     pub error_signal: Option<Signal<String>>,
-} //[cite: 1]
+}
 
 impl DeleteButtonProps {
     pub fn new(action: AsyncAction, error_signal: Option<Signal<String>>) -> Element {
@@ -237,7 +347,7 @@ impl PartialEq for DeleteButtonProps {
 
 #[component]
 pub fn DeleteButton(props: DeleteButtonProps) -> Element {
-    let mut is_loading = use_signal(|| false); //[cite: 1]
+    let mut is_loading = use_signal(|| false);
     let on_click_function = move |_| {
         if is_loading() || props.action.is_none() {
             return;
@@ -253,7 +363,7 @@ pub fn DeleteButton(props: DeleteButtonProps) -> Element {
                 is_loading.set(false);
             });
         }
-    }; //[cite: 1]
+    };
 
     rsx! {
         if *is_loading.read() {
@@ -276,7 +386,7 @@ pub fn DeleteButton(props: DeleteButtonProps) -> Element {
         } else {
             button {
                 r#type: "button",
-                class: "{ENABLED_BUTTON_RED_HOLLOW} {FOCUS_RING}", //[cite: 2, 3]
+                class: "{ENABLED_BUTTON_RED_HOLLOW} {FOCUS_RING}",
                 onclick: on_click_function,
                 svg {
                     xmlns: "http://www.w3.org/2000/svg",
@@ -294,7 +404,7 @@ pub fn DeleteButton(props: DeleteButtonProps) -> Element {
             }
         }
     }
-} //[cite: 1]
+}
 
 // ─────────────────────────────────────────────
 //  Async helper types

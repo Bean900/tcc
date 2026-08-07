@@ -1,12 +1,17 @@
 use chrono::{DateTime, Local, NaiveDateTime, Utc};
 use dioxus::prelude::*;
 use uuid::Uuid;
-use web_sys::{console};
+use web_sys::console;
 
 use crate::{
-    Route, ToastMessage, async_action, side::{
-        AsyncAction, ConfirmButton, Headline1, SecondaryButton,
-    }, storage::{CookAndRunCreate, StorageManager}, trigger_error_toast, ui::{ cards::{BaseCard, CardHeader}, dialogs::Modal, forms::{Input, InputError}},
+    async_action, side::{
+        AsyncAction, ConfirmButton, Headline1,
+    }, storage::{CookAndRunCreate, StorageManager}, trigger_error_toast, ui::{
+        buttons::{PrimaryButton, SecondaryButton},
+        cards::{BaseCard, CardHeader, SearchFilterCard},
+        dialogs::Modal,
+        forms::{Input, InputError},
+    }, Route, ToastMessage,
 };
 
 // ─────────────────────────────────────────────
@@ -15,11 +20,6 @@ use crate::{
 
 const LBL: &str =
     "block text-[11px] font-semibold tracking-wider uppercase text-amber-800/80 mb-1.5";
-const NATIVE_INPUT: &str =
-    "w-full h-10 px-3.5 py-2 rounded-xl border border-amber-200/90 bg-amber-50/30 text-sm text-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 focus:bg-white transition-all duration-150";
-
-const FOCUS_RING: &str =
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-1 rounded-xl";
 
 fn to_local(naive_utc: NaiveDateTime) -> DateTime<Local> {
     DateTime::<Utc>::from_naive_utc_and_offset(naive_utc, Utc).with_timezone(&Local)
@@ -96,10 +96,11 @@ impl OccurStatus {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum SortOption {
+pub enum SortOption {
     EditedDesc,
     NameAsc,
     CreatedDesc,
+    OccureDesc,
 }
 
 // ─────────────────────────────────────────────
@@ -111,11 +112,10 @@ pub fn Dashboard() -> Element {
     let storage = use_context::<Signal<StorageManager>>();
     let toasts = use_context::<Signal<Vec<ToastMessage>>>();
 
-    // ── Component State Signals (Must be top-level) ───────
+    // ── Component State Signals ───────
     let mut create_project_signal = use_signal(|| false);
     let mut search_signal = use_signal(String::new);
-    let search_error_signal = use_signal(String::new);
-    let mut sort_signal = use_signal(|| SortOption::EditedDesc);
+    let mut sort_signal = use_signal(|| SortOption::OccureDesc);
 
     // Modal State Signals
     let mut project_name_signal = use_signal(String::new);
@@ -155,6 +155,13 @@ pub fn Dashboard() -> Element {
 
     let has_content = matches!(&*list_ref, Some(Ok(list)) if !list.is_empty());
 
+    let sort_options = vec![
+        (SortOption::OccureDesc, "Occurrence Date".to_string()),
+        (SortOption::EditedDesc, "Recently Edited".to_string()),
+        (SortOption::CreatedDesc, "Recently Created".to_string()),
+        (SortOption::NameAsc, "Name (A–Z)".to_string()),
+    ];
+
     rsx! {
         div { class: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6 sm:space-y-8",
 
@@ -168,43 +175,25 @@ pub fn Dashboard() -> Element {
                         }
                     }
                 }
-                button {
-                    r#type: "button",
-                    class: "inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm shadow-xs hover:shadow transition-all duration-150 active:scale-[0.98] {FOCUS_RING}",
+                PrimaryButton {
+                    text: "New Project".to_string(),
+                    icon: rsx! {
+                        span { class: "text-lg leading-none font-bold", "+" }
+                    },
                     onclick: move |_| create_project_signal.set(true),
-                    span { class: "text-lg leading-none font-bold", "+" }
-                    span { "New Project" }
                 }
             }
 
-            // ── Controls Toolbar ───────────────────────────
+            // ── Controls Toolbar (Neu & Kompakt als Card) ───
             if has_content {
-                div { class: "bg-white/80 backdrop-blur-xs p-3 sm:p-4 rounded-2xl border border-amber-100 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4",
-                    div { class: "relative w-full sm:max-w-xs md:max-w-sm",
-                        Input {
-                            place_holer: "Search projects…".to_string(),
-                            value: search_signal.read().to_string(),
-                            is_error: !search_error_signal.read().is_empty(),
-                            oninput: move |e: FormEvent| {
-                                let input_value = e.value().clone();
-                                search_signal.set(input_value);
-                            },
-                        }
-                    }
-                    div { class: "flex items-center gap-1.5 bg-amber-50/60 p-1 rounded-xl border border-amber-100/80 shrink-0 self-start sm:self-auto",
-                        button {
-                            r#type: "button",
-                            class: if *sort_signal.read() == SortOption::EditedDesc { "px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-amber-900 shadow-xs border border-amber-200/50" } else { "px-3 py-1.5 text-xs font-medium rounded-lg text-zinc-600 hover:text-amber-800" },
-                            onclick: move |_| sort_signal.set(SortOption::EditedDesc),
-                            "Recently Edited"
-                        }
-                        button {
-                            r#type: "button",
-                            class: if *sort_signal.read() == SortOption::NameAsc { "px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-amber-900 shadow-xs border border-amber-200/50" } else { "px-3 py-1.5 text-xs font-medium rounded-lg text-zinc-600 hover:text-amber-800" },
-                            onclick: move |_| sort_signal.set(SortOption::NameAsc),
-                            "Name A–Z"
-                        }
-                    }
+                SearchFilterCard {
+                    search_value: search_signal.read().clone(),
+                    search_placeholder: Some("Search projects…".to_string()),
+                    on_search_change: move |val| search_signal.set(val),
+                    sort_value: *sort_signal.read(),
+                    sort_options,
+                    on_sort_change: move |val| sort_signal.set(val),
+                    use_card_wrapper: true,
                 }
             }
 
@@ -226,24 +215,16 @@ pub fn Dashboard() -> Element {
                                 })
                         }
                         SortOption::CreatedDesc => filtered.sort_by(|a, b| b.id.cmp(&a.id)),
+                        SortOption::OccureDesc => filtered.sort_by(|a, b| b.occur.cmp(&a.occur)),
                     }
                     rsx! {
                         div { class: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6",
-                            // Create Card Action Button
-                            div {
-                                class: "flex flex-col items-center justify-center gap-2 min-h-[148px] h-full p-4 rounded-2xl border-2 border-dashed border-amber-300/80 bg-amber-50/20 text-amber-600 hover:text-amber-700 hover:border-amber-400 hover:bg-amber-50/60 transition-all duration-200 cursor-pointer group {FOCUS_RING}",
-                                onclick: move |_| create_project_signal.set(true),
-                                div { class: "w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xl group-hover:scale-110 transition-transform",
-                                    "+"
-                                }
-                                span { class: "text-sm font-semibold", "Create New Project" }
-                            }
-
                             for item in filtered {
                                 {
                                     let edited = EditedInfo::from_edited(item.edited);
                                     let occur_status = OccurStatus::from_occur(item.occur);
                                     let item_id = item.id;
+                                    let is_in_cloud = item.is_in_cloud;
                                     rsx! {
                                         Link {
                                             key: "{item_id}",
@@ -254,8 +235,41 @@ pub fn Dashboard() -> Element {
                                                 CardHeader {
                                                     title: item.name.clone(),
                                                     action: rsx! {
-                                                        span { class: "inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium shrink-0 {occur_status.pill_class()}",
-                                                            "{occur_status.label()}"
+                                                        div { class: "flex items-center gap-1.5 shrink-0",
+                                                            if is_in_cloud {
+                                                                span {
+                                                                    class: "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-sky-100/80 text-sky-800 border border-sky-200/60",
+                                                                    title: "Stored in Cloud",
+                                                                    svg {
+                                                                        class: "w-3.5 h-3.5 stroke-current",
+                                                                        fill: "none",
+                                                                        view_box: "0 0 24 24",
+                                                                        stroke_width: "2",
+                                                                        stroke_linecap: "round",
+                                                                        stroke_linejoin: "round",
+                                                                        path { d: "M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" }
+                                                                    }
+                                                                    "Cloud"
+                                                                }
+                                                            } else {
+                                                                span {
+                                                                    class: "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-100 text-zinc-600 border border-zinc-200/60",
+                                                                    title: "Stored locally",
+                                                                    svg {
+                                                                        class: "w-3.5 h-3.5 stroke-current",
+                                                                        fill: "none",
+                                                                        view_box: "0 0 24 24",
+                                                                        stroke_width: "2",
+                                                                        stroke_linecap: "round",
+                                                                        stroke_linejoin: "round",
+                                                                        path { d: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" }
+                                                                    }
+                                                                    "Local"
+                                                                }
+                                                            }
+                                                            span { class: "inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium shrink-0 {occur_status.pill_class()}",
+                                                                "{occur_status.label()}"
+                                                            }
                                                         }
                                                     },
                                                 }
