@@ -6,56 +6,14 @@ use uuid::Uuid;
 use web_sys::console;
 
 use crate::{
-    async_action,
-    side::{
-        details::{address::Address, ErrorPage, LoadingPage},
-        AsyncAction, ConfirmButton, EndSVG, Headline1, Input, InputError, InputTime, StartSVG,
+    async_action, side::{
+        AsyncAction, details::{ErrorPage, LoadingPage, address::Address}
+    }, storage::{AddressData, MeetingPointData, StorageManager}, ui::{
+        buttons::ConfirmButton, cards::{BaseCard, CardHeader}, forms::{Input, InputError, InputTime}, icons::{EndSVG, StartSVG}, tokens::SAVE_GLOW_CSS, typography::{FieldLabel, Headline1},
     },
-    storage::{AddressData, MeetingPointData, StorageManager},
 };
 
 use super::address::AddressParam;
-
-// ─────────────────────────────────────────────
-//  CSS: Keyframe-Animation für den grünen Glow
-// ─────────────────────────────────────────────
-
-const SAVE_GLOW_CSS: &str = r#"
-@keyframes save-glow {
-    0%   {
-        border-color: #d1fae5;
-        box-shadow: 0 0 0 0px rgba(34, 197, 94, 0),
-                    0 1px 3px 0 rgba(0, 0, 0, 0.06);
-    }
-    20%  {
-        border-color: #22c55e;
-        box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.22),
-                    0 1px 3px 0 rgba(0, 0, 0, 0.06);
-    }
-    55%  {
-        border-color: #16a34a;
-        box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.10),
-                    0 1px 3px 0 rgba(0, 0, 0, 0.06);
-    }
-    100% {
-        border-color: #bbf7d0;
-        box-shadow: 0 0 0 0px rgba(34, 197, 94, 0),
-                    0 1px 3px 0 rgba(0, 0, 0, 0.06);
-    }
-}
-.save-glow-card {
-    animation: save-glow 2s ease-in-out forwards;
-}
-.save-glow-card .save-glow-header {
-    background-color: rgba(240, 253, 244, 0.70) !important;
-    border-bottom-color: #bbf7d0 !important;
-    transition: background-color 0.4s ease, border-color 0.4s ease;
-}
-.save-glow-card .save-glow-accent {
-    background-color: rgba(34, 197, 94, 0.75) !important;
-    transition: background-color 0.4s ease;
-}
-"#;
 
 // ─────────────────────────────────────────────
 //  Root
@@ -78,18 +36,23 @@ pub fn StartEnd(cook_and_run_id: Uuid) -> Element {
         });
 
     match &*start_end.read_unchecked() {
-        None => rsx!(LoadingPage {}),
-        Some(Err(e)) => rsx!(ErrorPage {
-            error_text:
-                "Could not load project. You may need to log in or the servers may be offline."
+        None => rsx!(
+            LoadingPage {}
+        ),
+        Some(Err(e)) => rsx!(
+            ErrorPage {
+                error_text: "Could not load project. You may need to log in or the servers may be offline."
                     .to_string(),
-            error_details: e.clone(),
-        }),
-        Some(Ok(point_data)) => rsx!(StartEndContent {
-            cook_and_run_id,
-            start_point: point_data.0.clone(),
-            end_point: point_data.1.clone(),
-        }),
+                error_details: e.clone(),
+            }
+        ),
+        Some(Ok(point_data)) => rsx!(
+            StartEndContent {
+                cook_and_run_id,
+                start_point: point_data.0.clone(),
+                end_point: point_data.1.clone(),
+            }
+        ),
     }
 }
 
@@ -207,13 +170,16 @@ pub fn StartEndContent(
         // ── Keyframe-CSS einbinden ────────────────────────────────
         style { dangerous_inner_html: SAVE_GLOW_CSS }
 
-        section { class: "px-8 py-6 space-y-8",
+        section { class: "max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8",
 
-            // ── Page header ───────────────────────────────────────
-            Headline1 { headline: "Start & End Point".to_string() }
+            // ── Page Header ───────────────────────────────────────
+            Headline1 {
+                headline: "Start & End Point".to_string(),
+                subtitle: Some("Define where and when your cooking event begins and ends.".to_string()),
+            }
 
-            // ── Two-column card grid ──────────────────────────────
-            div { class: "grid grid-cols-1 md:grid-cols-2 gap-6",
+            // ── Two-Column Card Grid ──────────────────────────────
+            div { class: "grid grid-cols-1 lg:grid-cols-2 gap-6 items-start",
 
                 // Start Point
                 PointCard {
@@ -225,23 +191,20 @@ pub fn StartEndContent(
                     time_signal: start_time_signal,
                     address_param: start_adress_param,
                     is_success,
-                    on_name_input: move |event: Event<FormData>| {
+                    on_name_input: move |event: FormEvent| {
                         has_unsaved_changes.set(true);
                         let name = check_name(&event.value(), start_name_error_signal.clone());
                         start_name_signal.set(name);
                     },
-                    on_time_input: move |event: Event<FormData>| {
+                    on_time_input: move |event: FormEvent| {
                         if let Some(t) = check_time(&event.value()) {
                             has_unsaved_changes.set(true);
                             start_time_signal.set(t);
                         }
                     },
-                    on_toggle: move |_| {
-                        has_unsaved_changes.set(true);
-                        let checkbox_state = !*start_has_point_signal.read();
-                        start_has_point_signal.set(checkbox_state);
+                    svg_icon: rsx! {
+                        StartSVG {}
                     },
-                    svg_icon: rsx!(StartSVG {}),
                 }
 
                 // End Point
@@ -254,37 +217,37 @@ pub fn StartEndContent(
                     time_signal: end_time_signal,
                     address_param: end_adress_param,
                     is_success,
-                    on_name_input: move |event: Event<FormData>| {
+                    on_name_input: move |event: FormEvent| {
                         has_unsaved_changes.set(true);
                         let name = check_name(&event.value(), end_name_error_signal.clone());
                         end_name_signal.set(name);
                     },
-                    on_time_input: move |event: Event<FormData>| {
+                    on_time_input: move |event: FormEvent| {
                         if let Some(t) = check_time(&event.value()) {
                             has_unsaved_changes.set(true);
                             end_time_signal.set(t);
                         }
                     },
-                    on_toggle: move |_| {
-                        has_unsaved_changes.set(true);
-                        let checkbox_state = !*end_has_point_signal.read();
-                        end_has_point_signal.set(checkbox_state);
+                    svg_icon: rsx! {
+                        EndSVG {}
                     },
-                    svg_icon: rsx!(EndSVG {}),
                 }
             }
 
-            // ── Save error banner ─────────────────────────────────
+            // ── Save Error Banner ─────────────────────────────────
             if !save_response_error_signal.read().is_empty() {
-                div { class: "rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700",
+                div { class: "p-4 rounded-xl border border-red-200 bg-red-50 text-sm font-medium text-red-700",
                     "{save_response_error_signal.read()}"
                 }
             }
 
-            // ── Save button (disabled solange keine Änderungen) ───
-            div { class: "flex justify-end pt-1",
+            // ── Save Button ───────────────────────────────────────
+            div { class: "flex justify-end pt-2",
                 div { class: "{save_btn_wrapper_class}",
-                    ConfirmButton { action: on_save, text: "Save".to_string() }
+                    ConfirmButton {
+                        text: if is_success { "Saved!".to_string() } else { "Save Changes".to_string() },
+                        action: on_save,
+                    }
                 }
             }
         }
@@ -292,107 +255,95 @@ pub fn StartEndContent(
 }
 
 // ─────────────────────────────────────────────
-//  Reusable point card
+//  Reusable Point Card
 // ─────────────────────────────────────────────
 
 #[component]
 fn PointCard(
     title: &'static str,
-    has_point_signal: Signal<bool>,
+    mut has_point_signal: Signal<bool>,
     toggle_label: &'static str,
     name_signal: Signal<String>,
     name_error_signal: Signal<String>,
     time_signal: Signal<NaiveTime>,
     address_param: AddressParam,
-    on_name_input: EventHandler<Event<FormData>>,
-    on_time_input: EventHandler<Event<FormData>>,
-    on_toggle: EventHandler<MouseData>,
+    on_name_input: EventHandler<FormEvent>,
+    on_time_input: EventHandler<FormEvent>,
     svg_icon: Element,
     is_success: bool,
 ) -> Element {
-    let disabled_cls = if *has_point_signal.read() {
+    let is_enabled = *has_point_signal.read();
+
+    let disabled_cls = if is_enabled {
         ""
     } else {
-        "opacity-40 pointer-events-none"
+        "opacity-40 pointer-events-none select-none"
     };
 
-    // Karte: im Erfolgsfall grüner Glow via @keyframes
     let card_class = if is_success {
-        "bg-white rounded-2xl border overflow-hidden save-glow-card"
+        "save-glow-card"
     } else {
-        "bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden"
+        ""
     };
 
     let header_class = if is_success {
-        "px-5 py-3.5 border-b flex items-center gap-2.5 save-glow-header"
+        "save-glow-header"
     } else {
-        "px-5 py-3.5 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5"
+        ""
     };
-
-    let accent_class = if is_success {
-        "w-1.5 h-5 rounded-full save-glow-accent"
-    } else {
-        "w-1.5 h-5 rounded-full bg-amber-400/70"
-    };
-
-    const LBL: &str =
-        "block text-[11px] font-semibold tracking-[0.12em] uppercase text-amber-700/70 mb-1.5";
 
     rsx! {
-        div { class: "{card_class}",
-
-            // Card header
-            div { class: "{header_class}",
-                div { class: "{accent_class}" }
-                div { class: "flex items-center gap-2",
-                    {svg_icon}
-                    span { class: "text-sm font-semibold text-zinc-800", "{title}" }
-                }
+        BaseCard { class: card_class.to_string(),
+            CardHeader {
+                title: title.to_string(),
+                class: header_class.to_string(),
+                action: rsx! {
+                    div { class: "flex items-center gap-1.5 shrink-0 text-amber-700", {svg_icon} }
+                },
             }
 
-            // Card body
-            div { class: "px-5 py-5 space-y-4",
+            div { class: "p-6 space-y-5",
 
-                // Enable toggle
-                label { class: "flex items-center gap-2.5 cursor-pointer group w-fit",
+                // Checkbox Toggle
+                label { class: "inline-flex items-center gap-2.5 cursor-pointer group select-none",
                     input {
                         r#type: "checkbox",
-                        checked: has_point_signal,
-                        class: "accent-[#D67229] w-4 h-4 rounded cursor-pointer",
-                        onclick: move |_| {
+                        checked: is_enabled,
+                        class: "w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-amber-300 accent-amber-600 cursor-pointer",
+                        oninput: move |_| {
                             let toggle = *has_point_signal.read();
                             has_point_signal.set(!toggle);
                         },
                     }
-                    span { class: "text-[13px] text-zinc-600 group-hover:text-zinc-800 transition-colors",
+                    span { class: "text-xs font-semibold text-zinc-700 group-hover:text-amber-900 transition-colors",
                         "{toggle_label}"
                     }
                 }
 
-                // Name + Time – dimmed when disabled
-                div { class: "space-y-3 {disabled_cls} transition-opacity duration-150",
+                // Name & Time Eingabefelder
+                div { class: "space-y-4 {disabled_cls} transition-opacity duration-150",
                     div {
-                        label { class: "{LBL}", "Name" }
+                        FieldLabel { text: "Name".to_string() }
                         Input {
-                            value: name_signal,
-                            place_holer: "{title}",
+                            value: name_signal.read().clone(),
+                            place_holer: Some(title.to_string()),
                             is_error: !name_error_signal.read().is_empty(),
                             oninput: move |e| on_name_input.call(e),
                         }
-                        InputError { error: name_error_signal.read() }
+                        InputError { error: name_error_signal.read().clone() }
                     }
+
                     div {
-                        label { class: "{LBL}", "Time" }
+                        FieldLabel { text: "Time".to_string() }
                         InputTime {
-                            value: time_signal,
-                            is_error: false,
+                            value: time_signal.read().format("%H:%M").to_string(),
                             oninput: move |e| on_time_input.call(e),
                         }
                     }
                 }
 
-                // Address – dimmed when disabled
-                div { class: "{disabled_cls} transition-opacity duration-150",
+                // Adresse
+                div { class: "{disabled_cls} transition-opacity duration-150 pt-2 border-t border-amber-100/60",
                     Address { param: address_param }
                 }
             }

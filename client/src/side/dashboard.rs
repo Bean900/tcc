@@ -4,22 +4,24 @@ use uuid::Uuid;
 use web_sys::console;
 
 use crate::{
-    async_action, side::{
-        AsyncAction, ConfirmButton, Headline1,
-    }, storage::{CookAndRunCreate, StorageManager}, trigger_error_toast, ui::{
+    async_action,
+    side::{AsyncAction, ConfirmButton},
+    storage::{CookAndRunCreate, StorageManager},
+    trigger_error_toast,
+    ui::{
         buttons::{PrimaryButton, SecondaryButton},
         cards::{BaseCard, CardHeader, SearchFilterCard},
         dialogs::Modal,
         forms::{Input, InputError},
-    }, Route, ToastMessage,
+        icons::{CloudIcon, DeviceIcon, PlusIcon},
+        typography::{CaptionText, FieldLabel, Headline1, Text},
+    },
+    Route, ToastMessage,
 };
 
 // ─────────────────────────────────────────────
-//  Shared Tokens & Helpers
+//  Shared Helpers
 // ─────────────────────────────────────────────
-
-const LBL: &str =
-    "block text-[11px] font-semibold tracking-wider uppercase text-amber-800/80 mb-1.5";
 
 fn to_local(naive_utc: NaiveDateTime) -> DateTime<Local> {
     DateTime::<Utc>::from_naive_utc_and_offset(naive_utc, Utc).with_timezone(&Local)
@@ -163,28 +165,31 @@ pub fn Dashboard() -> Element {
     ];
 
     rsx! {
-        div { class: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6 sm:space-y-8",
+        // Breitere Maximalbreite für große Bildschirme (max-w-[1800px])
+        div { class: "max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6 sm:space-y-8",
 
             // ── Header Bar ──────────────────────────────────
             div { class: "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-amber-100/80 pb-2",
                 div { class: "flex items-baseline gap-3",
-                    Headline1 { headline: "Projects" }
+                    Headline1 { headline: "Projects".to_string() }
                     if !header_count.is_empty() {
-                        span { class: "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100/80 text-amber-800 border border-amber-200/60",
-                            "{header_count}"
+                        CaptionText {
+                            text: header_count,
+                            class: "inline-flex items-center px-2.5 py-0.5 rounded-full font-semibold bg-amber-100/80 !text-amber-800 border border-amber-200/60"
+                                .to_string(),
                         }
                     }
                 }
                 PrimaryButton {
                     text: "New Project".to_string(),
                     icon: rsx! {
-                        span { class: "text-lg leading-none font-bold", "+" }
+                        PlusIcon { class: "w-5 h-5 text-white".to_string() }
                     },
                     onclick: move |_| create_project_signal.set(true),
                 }
             }
 
-            // ── Controls Toolbar (Neu & Kompakt als Card) ───
+            // ── Controls Toolbar ───────────────────────────
             if has_content {
                 SearchFilterCard {
                     search_value: search_signal.read().clone(),
@@ -218,7 +223,8 @@ pub fn Dashboard() -> Element {
                         SortOption::OccureDesc => filtered.sort_by(|a, b| b.occur.cmp(&a.occur)),
                     }
                     rsx! {
-                        div { class: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6",
+                        // Dynamisches Skalieren von 1 Spalte (Mobil) bis zu 5 Spalten (2xl / Ultrawide)
+                        div { class: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6",
                             for item in filtered {
                                 {
                                     let edited = EditedInfo::from_edited(item.edited);
@@ -240,30 +246,14 @@ pub fn Dashboard() -> Element {
                                                                 span {
                                                                     class: "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-sky-100/80 text-sky-800 border border-sky-200/60",
                                                                     title: "Stored in Cloud",
-                                                                    svg {
-                                                                        class: "w-3.5 h-3.5 stroke-current",
-                                                                        fill: "none",
-                                                                        view_box: "0 0 24 24",
-                                                                        stroke_width: "2",
-                                                                        stroke_linecap: "round",
-                                                                        stroke_linejoin: "round",
-                                                                        path { d: "M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" }
-                                                                    }
+                                                                    CloudIcon { class: "w-3.5 h-3.5 stroke-current".to_string() }
                                                                     "Cloud"
                                                                 }
                                                             } else {
                                                                 span {
                                                                     class: "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-100 text-zinc-600 border border-zinc-200/60",
                                                                     title: "Stored locally",
-                                                                    svg {
-                                                                        class: "w-3.5 h-3.5 stroke-current",
-                                                                        fill: "none",
-                                                                        view_box: "0 0 24 24",
-                                                                        stroke_width: "2",
-                                                                        stroke_linecap: "round",
-                                                                        stroke_linejoin: "round",
-                                                                        path { d: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" }
-                                                                    }
+                                                                    DeviceIcon { class: "w-3.5 h-3.5 stroke-current".to_string() }
                                                                     "Local"
                                                                 }
                                                             }
@@ -274,13 +264,15 @@ pub fn Dashboard() -> Element {
                                                     },
                                                 }
                                                 div { class: "p-4 space-y-2.5",
-                                                    div { class: "flex items-center gap-1.5 text-xs font-medium text-zinc-500",
-                                                        span { "Event: {item.occur.format(\"%d.%m.%Y\")}" }
+                                                    CaptionText {
+                                                        text: format!("Event: {}", item.occur.format("%d.%m.%Y")),
+                                                        class: "block text-zinc-500 font-medium".to_string(),
                                                     }
-                                                    div {
-                                                        class: "flex items-center gap-1.5 text-xs text-zinc-400",
-                                                        title: "{edited.absolute}",
-                                                        span { "Edited {edited.relative}" }
+                                                    div { title: "{edited.absolute}",
+                                                        CaptionText {
+                                                            text: format!("Edited {}", edited.relative),
+                                                            class: "block text-zinc-400".to_string(),
+                                                        }
                                                     }
                                                 }
                                             }
@@ -292,13 +284,17 @@ pub fn Dashboard() -> Element {
                     }
                 }
                 Some(Err(_)) => rsx! {
-                    div { class: "p-8 text-center text-red-600 bg-red-50 rounded-2xl border border-red-200",
-                        "Fehler beim Laden der Projekte."
+                    div { class: "p-8 text-center bg-red-50 rounded-2xl border border-red-200",
+                        Text {
+                            text: "Fehler beim Laden der Projekte.".to_string(),
+                            class: "text-red-600 font-medium".to_string(),
+                        }
                     }
                 },
                 None => rsx! {
-                    div { class: "grid grid-cols-1 md:grid-cols-3 gap-6 animate-pulse",
-                        for _ in 0..3 {
+                    // Auch beim Skeleton-Grid dieselben Breakpoints nutzen
+                    div { class: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6 animate-pulse",
+                        for _ in 0..5 {
                             div { class: "h-36 bg-amber-100/40 rounded-2xl" }
                         }
                     }
@@ -312,7 +308,7 @@ pub fn Dashboard() -> Element {
                     on_close: move || create_project_signal.set(false),
                     div { class: "space-y-4",
                         div {
-                            label { class: "{LBL}", "Project Name" }
+                            FieldLabel { text: "Project Name".to_string() }
                             Input {
                                 place_holer: "e.g. Summer Cooking 2026".to_string(),
                                 value: project_name_signal.read().to_string(),

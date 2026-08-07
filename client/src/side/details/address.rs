@@ -1,25 +1,20 @@
-use crate::{
-    address_connector::get_address,
-    async_action,
-    side::{AddressSVG, AsyncAction, Headline3, InfoSVG, SecondaryButton},
-};
 use dioxus::prelude::*;
 use web_sys::console;
 
 use crate::{
-    side::{Input, InputError},
+    address_connector::get_address,
+    async_action,
+    side::{AddressSVG, AsyncAction, InfoSVG},
     storage::AddressData,
+    ui::{
+        buttons::SecondaryButton,
+        forms::{Input, InputError},
+        typography::{FieldLabel, Headline3},
+    },
 };
 
 // ─────────────────────────────────────────────
-//  Shared label token
-// ─────────────────────────────────────────────
-
-const LBL: &str =
-    "block text-[11px] font-semibold tracking-[0.12em] uppercase text-amber-700/70 mb-1.5";
-
-// ─────────────────────────────────────────────
-//  AddressParam (logic unchanged)
+//  AddressParam (logic & struct unchanged)
 // ─────────────────────────────────────────────
 
 #[derive(PartialEq, Copy)]
@@ -156,7 +151,7 @@ impl Default for AddressParam {
 }
 
 // ─────────────────────────────────────────────
-//  Address root component
+//  Address Root Component
 // ─────────────────────────────────────────────
 
 #[component]
@@ -166,56 +161,62 @@ pub(crate) fn Address(param: AddressParam) -> Element {
     let manual_param = param.clone();
 
     rsx!(
-        // Section label with icon
-        div { class: "flex items-center gap-1.5 mb-3",
-            AddressSVG {}
-            Headline3 { headline: "Address" }
-        }
+        div { class: "space-y-3",
+            // Section Header
+            div { class: "flex items-center gap-2 text-amber-800",
+                AddressSVG {}
+                Headline3 { headline: "Address & Location".to_string() }
+            }
 
-        // Tab bar
-        TabBar { tab_signal }
+            // Tab Bar
+            TabBar { tab_signal }
 
-        if *tab_signal.read() {
-            AutoAddress { param: auto_param }
-        } else {
-            ManualAddress { param: manual_param }
+            if *tab_signal.read() {
+                AutoAddress { param: auto_param }
+            } else {
+                ManualAddress { param: manual_param }
+            }
         }
     )
 }
 
 // ─────────────────────────────────────────────
-//  Tab bar
+//  Tab Bar
 // ─────────────────────────────────────────────
 
 #[component]
 fn TabBar(tab_signal: Signal<bool>) -> Element {
     let active_cls =
-        "px-4 py-2 text-sm font-semibold text-[#C66741] border-b-2 border-[#C66741] -mb-px";
+        "px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-amber-500 text-white shadow-xs transition-all cursor-pointer";
     let inactive_cls =
-        "px-4 py-2 text-sm font-medium text-zinc-500 hover:text-[#C66741] transition-colors";
+        "px-3.5 py-1.5 text-xs font-medium rounded-lg text-zinc-600 hover:bg-amber-100/50 hover:text-amber-900 transition-all cursor-pointer";
 
     rsx!(
-        div { class: "flex border-b border-amber-100 mb-4",
+        div { class: "flex items-center gap-1.5 p-1 bg-amber-50/60 rounded-xl border border-amber-100/80 mb-3 w-fit",
             button {
                 r#type: "button",
                 id: "tab-search",
                 class: if *tab_signal.read() { active_cls } else { inactive_cls },
-                onclick: move |_| { tab_signal.set(true); },
-                "Automatic"
+                onclick: move |_| {
+                    tab_signal.set(true);
+                },
+                "Automatic Search"
             }
             button {
                 r#type: "button",
                 id: "tab-coords",
                 class: if !*tab_signal.read() { active_cls } else { inactive_cls },
-                onclick: move |_| { tab_signal.set(false); },
-                "Manual"
+                onclick: move |_| {
+                    tab_signal.set(false);
+                },
+                "Manual Coordinates"
             }
         }
     )
 }
 
 // ─────────────────────────────────────────────
-//  Auto address (Nominatim search)
+//  Auto Address (Nominatim search)
 // ─────────────────────────────────────────────
 
 #[component]
@@ -263,16 +264,16 @@ fn AutoAddress(mut param: AddressParam) -> Element {
     });
 
     rsx!(
-        div { id: "address-search", class: "space-y-1",
+        div { id: "address-search", class: "space-y-3",
 
-            // Label + privacy tooltip
-            div { class: "flex items-center justify-between mb-1.5",
-                label { class: "{LBL}", "Search Address" }
-                span { class: "relative group cursor-pointer",
+            // Label + Privacy Tooltip
+            div { class: "flex items-center justify-between",
+                FieldLabel { text: "Search Address".to_string() }
+                div { class: "relative group cursor-pointer text-amber-700/70 hover:text-amber-900 transition-colors",
                     InfoSVG {}
-                    span { class: "absolute bottom-full right-0 mb-1.5 hidden group-hover:block \
+                    div { class: "absolute bottom-full right-0 mb-2 hidden group-hover:block \
                                    bg-zinc-800 text-white text-xs rounded-xl \
-                                   px-3 py-2 w-64 z-10 shadow-lg leading-relaxed",
+                                   px-3 py-2 w-64 z-20 shadow-lg leading-relaxed pointer-events-none",
                         "The entered address will be forwarded to Nominatim (OpenStreetMap) for location determination."
                     }
                 }
@@ -280,29 +281,27 @@ fn AutoAddress(mut param: AddressParam) -> Element {
 
             Input {
                 place_holer: Some("Street, City, ZIP code".to_string()),
-                value: address_search_signal.clone(),
+                value: address_search_signal.read().clone(),
                 is_error: !address_search_error_signal.read().is_empty(),
-                oninput: move |e: Event<FormData>| {
+                oninput: move |e: FormEvent| {
                     let address = e.value();
                     address_search_signal.set(address);
                     let _ = check_addr_input(address_search_signal, address_search_error_signal);
                 },
             }
 
-            InputError { error: address_search_error_signal.read() }
+            InputError { error: address_search_error_signal.read().clone() }
 
-            SecondaryButton { text: "Search".to_string(), action: search_action }
+            SecondaryButton { text: "Search Address".to_string(), action: search_action }
 
-            // Result / status row
-            div { class: "mt-3 flex items-start gap-2 text-sm min-h-[1.5rem]",
+            // Result / Status Row
+            div { class: "pt-1 flex items-start gap-2 text-xs min-h-[1.5rem]",
 
                 if !address_search_response_error_signal.read().is_empty() {
-                    // Error
-                    InputError { error: address_search_response_error_signal.read() }
+                    InputError { error: address_search_response_error_signal.read().clone() }
                 } else if !param.address.read().is_empty() {
-                    // Success – show found address
                     svg {
-                        class: "w-4 h-4 shrink-0 mt-0.5 text-amber-500",
+                        class: "w-4 h-4 shrink-0 mt-0.5 text-emerald-500",
                         xmlns: "http://www.w3.org/2000/svg",
                         fill: "none",
                         view_box: "0 0 24 24",
@@ -314,12 +313,10 @@ fn AutoAddress(mut param: AddressParam) -> Element {
                             d: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
                         }
                     }
-                    span { class: "text-zinc-600 leading-snug", "{param.address}" }
+                    span { class: "text-zinc-700 font-medium leading-snug", "{param.address}" }
                 } else if !param.address_error.read().is_empty() {
-                    // Validation error on the stored address
-                    InputError { error: param.address_error.read() }
+                    InputError { error: param.address_error.read().clone() }
                 } else {
-                    // Empty state
                     svg {
                         class: "w-4 h-4 shrink-0 mt-0.5 text-zinc-300",
                         xmlns: "http://www.w3.org/2000/svg",
@@ -333,7 +330,7 @@ fn AutoAddress(mut param: AddressParam) -> Element {
                             d: "M12 4.5v15m7.5-7.5h-15",
                         }
                     }
-                    span { class: "text-zinc-400", "No address set" }
+                    span { class: "text-zinc-400 font-medium", "No address set" }
                 }
             }
         }
@@ -341,61 +338,61 @@ fn AutoAddress(mut param: AddressParam) -> Element {
 }
 
 // ─────────────────────────────────────────────
-//  Manual address (coordinate entry)
+//  Manual Address (coordinate entry)
 // ─────────────────────────────────────────────
 
 #[component]
 fn ManualAddress(mut param: AddressParam) -> Element {
     rsx!(
-        div { id: "coordinates", class: "space-y-1",
+        div { id: "coordinates", class: "space-y-3",
 
             div {
-                label { class: "{LBL}", "Latitude" }
+                FieldLabel { text: "Latitude".to_string() }
                 Input {
                     place_holer: Some("e.g. 50.1127197".to_string()),
-                    value: param.latitude.read(),
+                    value: param.latitude.read().clone(),
                     is_error: !param.latitude_error.read().is_empty(),
-                    oninput: move |e: Event<FormData>| {
+                    oninput: move |e: FormEvent| {
                         param.latitude.set(e.value());
                         let _ = check_cord_input(param.latitude, param.latitude_error);
                     },
                 }
-                InputError { error: param.latitude_error.read() }
+                InputError { error: param.latitude_error.read().clone() }
             }
 
             div {
-                label { class: "{LBL}", "Longitude" }
+                FieldLabel { text: "Longitude".to_string() }
                 Input {
                     place_holer: Some("e.g. 8.682092".to_string()),
-                    value: param.longitude.read(),
+                    value: param.longitude.read().clone(),
                     is_error: !param.longitude_error.read().is_empty(),
-                    oninput: move |e: Event<FormData>| {
+                    oninput: move |e: FormEvent| {
                         param.longitude.set(e.value());
                         let _ = check_cord_input(param.longitude, param.longitude_error);
                     },
                 }
-                InputError { error: param.longitude_error.read() }
+                InputError { error: param.longitude_error.read().clone() }
             }
 
             div {
-                label { class: "{LBL}", "Address" }
+                FieldLabel { text: "Address Label".to_string() }
                 Input {
                     place_holer: Some("e.g. Main Street 1, 12345 City".to_string()),
-                    value: param.address.read(),
+                    value: param.address.read().clone(),
                     is_error: !param.address_error.read().is_empty(),
-                    oninput: move |e: Event<FormData>| {
+                    oninput: move |e: FormEvent| {
                         param.address.set(e.value());
                         let _ = check_addr_input(param.address, param.address_error);
                     },
                 }
-                InputError { error: param.address_error.read() }
+                InputError { error: param.address_error.read().clone() }
             }
         }
     )
 }
 
 // ─────────────────────────────────────────────
-//  Validation helpers (logic unchanged)
+//  Validation Helpers (logic unchanged)
 // ─────────────────────────────────────────────
 
 fn check_addr_input(input_signal: Signal<String>, mut error_signal: Signal<String>) -> bool {

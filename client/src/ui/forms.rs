@@ -121,3 +121,74 @@ pub fn InputError(error: String) -> Element {
         }
     }
 }
+
+/// Mehrzeiliges Textfeld (z. B. für Adressen, Allergien, Notizen)
+#[component]
+pub fn TextArea(
+    #[props(default)] placeholder: Option<String>,
+    value: String,
+    is_error: bool,
+    oninput: EventHandler<FormEvent>,
+    #[props(default)] rows: Option<usize>,
+) -> Element {
+    let error_class = if is_error {
+        "border-red-400 bg-red-50/30 focus:ring-red-400/50 focus:border-red-400 text-red-900"
+    } else {
+        ""
+    };
+    let r = rows.unwrap_or(3);
+
+    rsx! {
+        textarea {
+            rows: "{r}",
+            class: "{NATIVE_INPUT} h-auto py-2.5 resize-y {error_class}",
+            placeholder: placeholder.unwrap_or_default(),
+            value: "{value}",
+            oninput: move |e| oninput.call(e),
+        }
+    }
+}
+
+/// Nummerneingabefeld (z. B. für Personenzahl)
+#[component]
+pub fn InputNumber(
+    #[props(default)] placeholder: Option<String>,
+    value: String,
+    is_error: bool,
+    oninput: EventHandler<FormEvent>,
+) -> Element {
+    let error_class = if is_error {
+        "border-red-400 bg-red-50/30 focus:ring-red-400/50 focus:border-red-400 text-red-900"
+    } else {
+        ""
+    };
+
+    rsx! {
+        input {
+            r#type: "number",
+            min: "1",
+            class: "{NATIVE_INPUT} {error_class}",
+            placeholder: placeholder.unwrap_or_default(),
+            value: "{value}",
+            oninput: move |e| oninput.call(e),
+        }
+    }
+}
+
+
+#[component]
+pub fn InputTime(
+    value: String,
+    oninput: EventHandler<FormEvent>,
+    #[props(default)] class: Option<String>,
+) -> Element {
+    let custom_class = class.unwrap_or_default();
+    rsx! {
+        input {
+            r#type: "time",
+            class: "{NATIVE_INPUT} {custom_class}",
+            value: "{value}",
+            oninput: move |e| oninput.call(e),
+        }
+    }
+}

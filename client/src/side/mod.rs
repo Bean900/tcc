@@ -559,49 +559,8 @@ pub(crate) fn Text(text: String) -> Element {
 //  SVG icons
 // ─────────────────────────────────────────────
 
-#[component]
-pub(crate) fn StartSVG() -> Element {
-    rsx!(
-        svg {
-            class: "w-5 h-5",
-            xmlns: "http://www.w3.org/2000/svg",
-            fill: "none",
-            view_box: "0 0 24 24",
-            stroke_width: "2",
-            stroke: "#D67229",
-            path {
-                stroke_linecap: "round",
-                stroke_linejoin: "round",
-                d: "M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14l-5-4.87 6.91-1.01L12 2z",
-            }
-        }
-    )
-}
 
-#[component]
-pub(crate) fn EndSVG() -> Element {
-    rsx!(
-        svg {
-            class: "w-5 h-5",
-            xmlns: "http://www.w3.org/2000/svg",
-            fill: "none",
-            view_box: "0 0 24 24",
-            stroke_width: "2",
-            stroke: "#D67229",
-            path {
-                stroke_linecap: "round",
-                stroke_linejoin: "round",
-                d: "M4 2v20m0-18h10l-2 4 2 4H4",
-            }
-            circle {
-                cx: "4",
-                cy: "20",
-                r: "1",
-                fill: "#D67229",
-            }
-        }
-    )
-}
+
 
 #[component]
 pub(crate) fn DownloadSVG() -> Element {

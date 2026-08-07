@@ -1068,6 +1068,15 @@ impl Hash for AddressData {
     }
 }
 
+impl ToString for AddressData {
+    fn to_string(&self) -> String {
+        format!(
+            "{}",
+            self.address
+        )
+    }
+}
+
 impl AddressData {
     fn deg_to_rad(deg: f64) -> f64 {
         deg * PI / 180.0

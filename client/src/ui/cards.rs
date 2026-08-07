@@ -165,3 +165,26 @@ let inner_content = rsx! {
         }
     }
 }
+
+#[derive(Props, Clone, PartialEq)]
+pub struct InfoCardProps {
+    pub title: String,
+    pub lines: Vec<String>,
+    #[props(default)]
+    pub class: String,
+}
+
+/// Standardisierte Informationskarte für Hinweis- und Statustexte
+#[component]
+pub fn InfoCard(props: InfoCardProps) -> Element {
+    rsx! {
+        BaseCard { class: props.class,
+            CardHeader { title: props.title }
+            div { class: "p-5 space-y-3 text-sm text-zinc-600 leading-relaxed",
+                for line in props.lines {
+                    p { "{line}" }
+                }
+            }
+        }
+    }
+}

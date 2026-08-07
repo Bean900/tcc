@@ -4,10 +4,8 @@ use pulldown_cmark::{html, Parser};
 
 use crate::{
     side::{
-        details::run_schedule::{Course, MeetingPoint, Schedule, Team},
-        AddressSVG, PersonSVG, PhoneSVG, StartSVG, WarningSVG,
-    },
-    storage::{Language, PlanConfigData},
+        AddressSVG, PersonSVG, PhoneSVG, WarningSVG, details::run_schedule::{Course, MeetingPoint, Schedule, Team},
+    }, storage::{Language, PlanConfigData}, ui::icons::StartSVG,
 };
 
 enum TextModule {
@@ -102,9 +100,7 @@ pub fn RunSchedule(plan_config: PlanConfigData, schedule: Schedule) -> Element {
     };
 
     rsx!(
-        document::Script {
-            src: "https://unpkg.com/html-to-image@1.11.11/dist/html-to-image.js"
-        }
+        document::Script { src: "https://unpkg.com/html-to-image@1.11.11/dist/html-to-image.js" }
         div {
             id: "section-to-print",
             class: "flex justify-center w-full h-full bg-[#F8EFE1]",
@@ -124,20 +120,30 @@ pub fn RunSchedule(plan_config: PlanConfigData, schedule: Schedule) -> Element {
                     }
                 }
                 div { class: "text-center",
-                    h1 { class: "font-chewy text-8xl text-[#543D2B] tracking-wide",
-                        dangerous_inner_html:titel_html
+                    h1 {
+                        class: "font-chewy text-8xl text-[#543D2B] tracking-wide",
+                        dangerous_inner_html: titel_html,
                     }
                 }
 
-                p { class: "font-gluten text-[#543D2B] mt-2", dangerous_inner_html:description_html }
+                p {
+                    class: "font-gluten text-[#543D2B] mt-2",
+                    dangerous_inner_html: description_html,
+                }
 
                 // MyInfo
                 div { class: "grid grid-cols1 md:grid-cols-2 md:gap-x-4",
                     div {
-                        MyInfo {    language: plan_config.language.clone(),team: schedule.host }
+                        MyInfo {
+                            language: plan_config.language.clone(),
+                            team: schedule.host,
+                        }
                     }
                     div {
-                        MyHosting {   language: plan_config.language.clone(), guest_list: schedule.guest_list }
+                        MyHosting {
+                            language: plan_config.language.clone(),
+                            guest_list: schedule.guest_list,
+                        }
                     }
                 }
 
@@ -247,9 +253,9 @@ fn TimeLine(
 
 #[component]
 fn Placeholder() -> Element {
-    rsx!(div {
-        class: "flex-1 text-center items-center"
-    })
+    rsx!(
+        div { class: "flex-1 text-center items-center" }
+    )
 }
 
 #[component]
@@ -304,7 +310,7 @@ fn TimeLineElement(
                         span { "{address}" }
                     }
                 }
-
+            
             }
         )
     };
@@ -334,7 +340,9 @@ fn MyHosting(language: Language, guest_list: Vec<Team>) -> Element {
     rsx!(
         div { class: "flex items-center my-4",
             div { class: "flex-grow h-1 bg-[#C66741]" }
-            span { class: "mx-4 text-xl font-gluten text-[#543D2B]", "{TextModule::Guests.get_text(&language)}" }
+            span { class: "mx-4 text-xl font-gluten text-[#543D2B]",
+                "{TextModule::Guests.get_text(&language)}"
+            }
             div { class: "flex-grow h-1 bg-[#C66741]" }
         }
 
@@ -377,7 +385,9 @@ fn MyInfo(language: Language, team: Team) -> Element {
     rsx!(
         div { class: "flex items-center my-4",
             div { class: "flex-grow h-1 bg-[#C66741]" }
-            span { class: "mx-4 text-xl font-gluten text-[#543D2B]", "{TextModule::You.get_text(&language)}" }
+            span { class: "mx-4 text-xl font-gluten text-[#543D2B]",
+                "{TextModule::You.get_text(&language)}"
+            }
             div { class: "flex-grow h-1 bg-[#C66741]" }
         }
 
