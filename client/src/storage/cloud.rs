@@ -38,9 +38,9 @@ impl CookAndRunMetaDataResponse {
         CookAndRunMetaData {
             id: self.id,
             name: self.name.clone(),
-            created: self.created.naive_utc(),
-            edited: self.edited.naive_utc(),
-            occur: self.occur.naive_utc(),
+            created: self.created,
+            edited: self.edited,
+            occur: self.occur,
             is_in_cloud: true,
         }
     }

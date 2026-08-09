@@ -982,7 +982,7 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                         console::error_1(& format!("Error creating note: {e}") .into());
                         creating_error_signal.set("Error creating note!".to_string()); } else { let
                         new_note = NoteData { id : Uuid::new_v4(), headline, content, created :
-                        Utc::now().naive_utc(), }; sorted_note_list_signal.write().insert(0, new_note);
+                        Utc::now(), }; sorted_note_list_signal.write().insert(0, new_note);
                         create_note_headline_signal.set(String::new()); create_note_content_signal
                         .set(String::new()); create_note_headline_error_signal.set(String::new());
                         create_note_content_error_signal.set(String::new()); create_note_error_signal
@@ -1009,9 +1009,9 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
 
 #[component]
 fn Note(note_data: NoteData) -> Element {
-    let created = DateTime::<Utc>::from_naive_utc_and_offset(note_data.created, Utc)
+    let created = note_data.created
         .with_timezone(&Local)
-        .format("%Y-%m-%d %H:%M")
+        .format("%d.%m.%Y, %H:%M Uhr")
         .to_string();
 
     rsx! {

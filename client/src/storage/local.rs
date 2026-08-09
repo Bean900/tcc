@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use super::{CookAndRunData, CookAndRunMetaData};
@@ -79,9 +79,9 @@ impl CookAndRunCreate {
         CookAndRunData {
             id: cook_and_run_id,
             name: self.name.clone(),
-            created: Utc::now().naive_utc(),
-            edited: Utc::now().naive_utc(),
-            occur: Utc::now().naive_utc(),
+            created: Utc::now(),
+            edited: Utc::now(),
+            occur: Utc::now(),
             is_in_cloud: false,
             team_list: vec![],
             course_list: vec![],
@@ -396,7 +396,7 @@ impl Storage for LocalStorage {
                 team_id, cook_and_run_id
             ));
         }
-        cook_and_run.edited = Utc::now().naive_utc();
+        cook_and_run.edited = Utc::now();
         cook_and_run.team_list.push(team.to_local(team_id));
         self.update_cook_and_run_data(&cook_and_run)
     }
@@ -425,7 +425,7 @@ impl Storage for LocalStorage {
                 team_id, cook_and_run_id
             ));
         }
-        cook_and_run.edited = Utc::now().naive_utc();
+        cook_and_run.edited = Utc::now();
         self.update_cook_and_run_data(&cook_and_run)
     }
 
@@ -448,7 +448,7 @@ impl Storage for LocalStorage {
             ));
         }
 
-        cook_and_run.edited = Utc::now().naive_utc();
+        cook_and_run.edited = Utc::now();
         self.update_cook_and_run_data(&cook_and_run)
     }
 
@@ -482,7 +482,7 @@ impl Storage for LocalStorage {
         }
 
         team.note_list.push(note_data.to_note(note_id));
-        cook_and_run.edited = Utc::now().naive_utc();
+        cook_and_run.edited = Utc::now();
         self.update_cook_and_run_data(&cook_and_run)
     }
 
@@ -517,7 +517,7 @@ impl Storage for LocalStorage {
             ));
         }
 
-        cook_and_run.edited = Utc::now().naive_utc();
+        cook_and_run.edited = Utc::now();
         self.update_cook_and_run_data(&cook_and_run)
     }
 
@@ -531,7 +531,7 @@ impl Storage for LocalStorage {
             .ok_or_else(|| format!("Cook and run project with ID {} not found", cook_and_run_id))?;
 
         cook_and_run.start_point = start_point.clone();
-        cook_and_run.edited = Utc::now().naive_utc();
+        cook_and_run.edited = Utc::now();
         self.update_cook_and_run_data(&cook_and_run)
     }
 
@@ -545,7 +545,7 @@ impl Storage for LocalStorage {
             .ok_or_else(|| format!("Cook and run project with ID {} not found", cook_and_run_id))?;
 
         cook_and_run.end_point = end_point.clone();
-        cook_and_run.edited = Utc::now().naive_utc();
+        cook_and_run.edited = Utc::now();
         self.update_cook_and_run_data(&cook_and_run)
     }
 
@@ -695,6 +695,6 @@ fn update_meta(
     }
     cook_and_run.name = cook_and_run_meta.name.clone();
     cook_and_run.occur = cook_and_run_meta.occur.clone();
-    cook_and_run.edited = Utc::now().naive_utc();
+    cook_and_run.edited = Utc::now();
     Ok(())
 }

@@ -1,6 +1,7 @@
 use async_std::task::sleep;
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, Utc};
 use dioxus::prelude::*;
+use js_sys::Date;
 use std::time::Duration;
 use uuid::Uuid;
 use web_sys::wasm_bindgen::{JsCast, JsValue};
@@ -35,7 +36,7 @@ async fn delete_cook_and_run_project(id: Uuid) -> Result<(), String> {
 async fn update_meta_of_cook_and_run(
     id: Uuid,
     new_name: String,
-    occur: NaiveDateTime,
+    occur: DateTime<Utc>,
 ) -> Result<(), String> {
     let mut storage = use_context::<Signal<StorageManager>>();
     let mut storage = storage.write();
@@ -165,7 +166,7 @@ pub fn OverviewContent(cook_and_run_meta: CookAndRunMetaData) -> Element {
     let on_date_input = move |evt: FormEvent| {
         if let Ok(date) = NaiveDate::parse_from_str(&evt.value(), "%Y-%m-%d") {
             let time = occur_signal.read().time();
-            let new_occur = NaiveDateTime::new(date, time);
+            let new_occur = date.and_time(time).and_utc();
             occur_signal.set(new_occur);
 
             let is_changed = name_signal.read().clone() != original_name_for_date

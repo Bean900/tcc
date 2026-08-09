@@ -4,8 +4,7 @@ pub mod mapper;
 
 use std::{collections::HashMap, hash::Hash};
 
-use chrono::{DateTime, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
-use js_sys::Date;
+use chrono::{DateTime, Duration, Local, NaiveDate, NaiveTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -1123,7 +1122,7 @@ impl NoteCreate {
             id: note_id,
             headline: self.headline.clone(),
             content: self.content.clone(),
-            created: Utc::now().naive_utc(),
+            created: Utc::now(),
         }
     }
 }
@@ -1133,7 +1132,7 @@ pub struct NoteData {
     pub id: Uuid,
     pub headline: String,
     pub content: String,
-    pub created: NaiveDateTime,
+    pub created: DateTime<Utc>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1239,9 +1238,9 @@ impl Language {
 pub struct CookAndRunData {
     pub id: Uuid,
     pub name: String,
-    pub created: NaiveDateTime,
-    pub edited: NaiveDateTime,
-    pub occur: NaiveDateTime,
+    pub created: DateTime<Utc>,
+    pub edited: DateTime<Utc>,
+    pub occur: DateTime<Utc>,
     pub is_in_cloud: bool,
     pub team_list: Vec<TeamData>,
     pub course_list: Vec<CourseData>,
@@ -1260,9 +1259,9 @@ impl CookAndRunData {
         CookAndRunData {
             id,
             name,
-            created: Utc::now().naive_utc(),
-            edited: Utc::now().naive_utc(),
-            occur: Utc::now().naive_utc(),
+            created: Utc::now(),
+            edited: Utc::now(),
+            occur: Utc::now(),
             is_in_cloud: false,
             team_list: vec![],
             course_list: vec![],
@@ -1303,9 +1302,9 @@ impl CookAndRunData {
 pub struct CookAndRunMetaData {
     pub id: Uuid,
     pub name: String,
-    pub created: NaiveDateTime,
-    pub edited: NaiveDateTime,
-    pub occur: NaiveDateTime,
+    pub created: DateTime<Utc>,
+    pub edited: DateTime<Utc>,
+    pub occur: DateTime<Utc>,
     #[serde(default)]
     pub is_in_cloud: bool,
 }
@@ -1313,16 +1312,16 @@ pub struct CookAndRunMetaData {
 #[derive(Debug, Clone, Serialize)]
 pub struct CookAndRunMetaUpdate {
     pub name: String,
-    pub occur: NaiveDateTime,
+    pub occur: DateTime<Utc>,
 }
 
 impl CookAndRunMetaData {
-    pub fn new(id: Uuid, name: String, occur: NaiveDateTime) -> Self {
+    pub fn new(id: Uuid, name: String, occur: DateTime<Utc>) -> Self {
         CookAndRunMetaData {
             id,
             name,
-            created: Utc::now().naive_utc(),
-            edited: Utc::now().naive_utc(),
+            created: Utc::now(),
+            edited: Utc::now(),
             occur,
             is_in_cloud: false,
         }

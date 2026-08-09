@@ -23,11 +23,8 @@ use crate::{
 //  Shared Helpers
 // ─────────────────────────────────────────────
 
-fn to_local(naive_utc: NaiveDateTime) -> DateTime<Local> {
-    DateTime::<Utc>::from_naive_utc_and_offset(naive_utc, Utc).with_timezone(&Local)
-}
-
-fn relative_time(local_dt: DateTime<Local>) -> String {
+fn relative_time(utc_dt: DateTime<Utc>) -> String {
+    let local_dt = utc_dt.with_timezone(&Local);
     let diff = Local::now().signed_duration_since(local_dt);
     if diff.num_seconds() < 60 {
         "just now".to_string()
@@ -51,11 +48,10 @@ struct EditedInfo {
 }
 
 impl EditedInfo {
-    fn from_edited(edited_utc: NaiveDateTime) -> Self {
-        let local = to_local(edited_utc);
+    fn from_edited(edited_utc: DateTime<Utc>) -> Self {
         Self {
-            relative: relative_time(local),
-            absolute: local.format("%d.%m.%Y · %H:%M").to_string(),
+            relative: relative_time(edited_utc),
+            absolute: edited_utc.with_timezone(&Local).format("%d.%m.%Y · %H:%M").to_string(),
         }
     }
 }
@@ -68,9 +64,9 @@ enum OccurStatus {
 }
 
 impl OccurStatus {
-    fn from_occur(occur_utc: NaiveDateTime) -> Self {
-        let occur_date = to_local(occur_utc).date_naive();
-        let today = Local::now().date_naive();
+    fn from_occur(occur_utc: DateTime<Utc>) -> Self {
+        let occur_date = occur_utc.date_naive();
+        let today = Utc::now().date_naive();
         if occur_date < today {
             OccurStatus::Past
         } else if occur_date == today {
