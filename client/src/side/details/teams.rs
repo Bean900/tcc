@@ -3,16 +3,16 @@ use std::time::Duration;
 
 use crate::side::details::address::{Address, AddressParam};
 use crate::side::details::{ErrorPage, LoadingPage};
-use crate::side::AsyncAction;
-use crate::side::{AddressSVG, DeleteButtonProps, Headline1, Headline2, InputPhoneNumber};
+use crate::side::{AddressSVG};
 use crate::storage::{
     AddressData, NoteCreate, NoteData, ShareTeamConfig, StorageManager, TeamCreate, TeamData,
     TeamUpdate,
 };
+use crate::ui::forms::InputPhoneNumber;
 use crate::{async_action, storage};
 use base64::engine::general_purpose;
 use base64::Engine;
-use chrono::{Local, TimeZone, Utc};
+use chrono::{DateTime, Local, Utc};
 use dioxus::prelude::*;
 use qrcode::render::svg;
 use qrcode::QrCode;
@@ -20,10 +20,16 @@ use uuid::Uuid;
 use web_sys::console;
 use web_sys::wasm_bindgen::JsCast;
 
-use crate::side::{CloseButton, ConfirmButton, Input, InputError, InputMultirow, InputNumber};
+use crate::ui::{
+    buttons::{AsyncAction, CloseButton, ConfirmButton, DeleteButtonProps, PrimaryButton},
+    cards::SearchFilterCard,
+    forms::{Input, InputError, InputNumber, TextArea},
+    icons::PlusIcon,
+    typography::Headline1,
+};
 
 // ─────────────────────────────────────────────
-//  Shared design tokens
+//  Shared design tokens & Sort Options
 // ─────────────────────────────────────────────
 
 const LBL: &str =
@@ -33,10 +39,6 @@ const NATIVE_INPUT: &str = "w-full px-3 py-2 rounded-xl border border-amber-200 
      text-sm text-zinc-800 placeholder-zinc-400 \
      focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 \
      transition-colors duration-150";
-
-// ─────────────────────────────────────────────
-//  CSS: Keyframe-Animation für den grünen Glow
-// ─────────────────────────────────────────────
 
 const SAVE_GLOW_CSS: &str = r#"
 @keyframes save-glow {
@@ -61,7 +63,13 @@ const SAVE_GLOW_CSS: &str = r#"
 }
 "#;
 
-// Tab class helper – avoids duplicating the ternary in every button
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TeamSortOption {
+    NameAsc,
+    NameDesc,
+    MembersDesc,
+}
+
 fn tab_cls(active: bool) -> &'static str {
     if active {
         "px-4 py-2 text-sm font-semibold text-[#C66741] border-b-2 border-[#C66741] -mb-px"
@@ -71,25 +79,20 @@ fn tab_cls(active: bool) -> &'static str {
 }
 
 // ─────────────────────────────────────────────
-//  Helpers (unchanged logic)
+//  Helpers
 // ─────────────────────────────────────────────
 
 fn map_string(value: String) -> Option<String> {
-    let value = value.trim();
-    if value.is_empty() {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
         None
     } else {
-        Some(value.to_string())
+        Some(trimmed.to_string())
     }
 }
 
 fn map_u8(value: String) -> Option<u8> {
-    let value = value.trim();
-    if value.is_empty() {
-        None
-    } else {
-        value.parse::<u8>().map_or_else(|_| None, |v| Some(v))
-    }
+    value.trim().parse::<u8>().ok()
 }
 
 async fn add_team(
@@ -135,7 +138,7 @@ async fn update_team(
         diets: map_string(diets),
         phone: map_string(phone),
         members: map_u8(members),
-        needs_check: needs_check,
+        needs_check,
     };
     let mut storage_signal = use_context::<Signal<StorageManager>>();
     let mut storage = storage_signal.write();
@@ -172,7 +175,7 @@ async fn delete_team(id: Uuid, team_id: Uuid) -> Result<(), String> {
 pub fn Teams(cook_and_run_id: Uuid) -> Element {
     let storage = use_context::<Signal<StorageManager>>();
     let team_list: Resource<Result<(Vec<TeamData>, bool), String>> = use_resource(move || {
-        let storage = storage.clone();
+        let storage = storage;
         async move {
             let storage = storage.read().clone();
             let team_list = storage
@@ -183,7 +186,8 @@ pub fn Teams(cook_and_run_id: Uuid) -> Element {
         }
     });
 
-    match &*team_list.read_unchecked() {
+    let list_ref = team_list.read();
+    match &*list_ref {
         None => rsx!(
             LoadingPage {}
         ),
@@ -194,11 +198,11 @@ pub fn Teams(cook_and_run_id: Uuid) -> Element {
                 error_details: e.clone(),
             }
         ),
-        Some(Ok(team_list)) => rsx!(
+        Some(Ok((teams, is_cloud))) => rsx!(
             TeamsContent {
                 cook_and_run_id,
-                team_list: team_list.0.clone(),
-                is_online: team_list.1,
+                team_list: teams.clone(),
+                is_online: *is_cloud,
             }
         ),
     }
@@ -235,15 +239,13 @@ pub(crate) fn TeamsContent(
     let number_of_teams = team_list.len();
     let mut team_dialog_signal: Signal<PopUpWindow> = use_signal(|| PopUpWindow::None);
 
-    // Hover state for share button and add-team tile – kept as inline style
-    // so Tailwind's JIT doesn't need to know about these at compile time.
-    let mut share_hovered = use_signal(|| false);
-    let mut add_team_hovered = use_signal(|| false);
+    let mut search_signal = use_signal(String::new);
+    let mut sort_signal = use_signal(|| TeamSortOption::NameAsc);
 
     let storage = use_context::<Signal<StorageManager>>();
     let share_config: Resource<Result<ShareConfigState, String>> =
         use_resource(move || async move {
-            if is_online == false {
+            if !is_online {
                 return Ok(ShareConfigState::Offline);
             }
             let storage = storage.read().clone();
@@ -256,7 +258,6 @@ pub(crate) fn TeamsContent(
             }
         });
 
-    // Share icon SVG (reused in multiple match arms)
     let share_icon_svg = rsx! {
         svg {
             class: "w-5 h-5",
@@ -282,59 +283,46 @@ pub(crate) fn TeamsContent(
         }
     };
 
-    // Inline styles for share button hover (same pattern as original)
-    let share_btn_style = format!(
-        "display:flex;align-items:center;justify-content:center;\
-         width:36px;height:36px;border-radius:10px;\
-         border:none;cursor:pointer;\
-         background-color:{};color:white;\
-         transition:background-color 0.15s ease,box-shadow 0.15s ease;{}",
-        if share_hovered() {
-            "#C66741"
-        } else {
-            "#D67229"
-        },
-        if share_hovered() {
-            "box-shadow:0 4px 14px rgba(198,103,65,0.45);"
-        } else {
-            "box-shadow:0 2px 8px rgba(214,114,41,0.3);"
+    let share_btn_class = "flex items-center justify-center w-9 h-9 rounded-[10px] border-none cursor-pointer bg-[#D67229] hover:bg-[#C66741] text-white shadow-[0_2px_8px_rgba(214,114,41,0.3)] hover:shadow-[0_4px_14px_rgba(198,103,65,0.45)] transition-all duration-150";
+    let add_team_class = "border-2 border-dashed border-[#D67229]/35 hover:border-[#D67229] rounded-2xl p-5 flex flex-col items-center justify-center gap-2.5 cursor-pointer text-[#D67229]/50 hover:text-[#C66741] bg-[#FDF6EC]/30 hover:bg-[#FDF6EC]/80 transition-all duration-150 min-h-[120px]";
+
+    let sort_options = vec![
+        (TeamSortOption::NameAsc, "Name (A–Z)".to_string()),
+        (TeamSortOption::NameDesc, "Name (Z–A)".to_string()),
+        (TeamSortOption::MembersDesc, "Mitglieder".to_string()),
+    ];
+
+    let query = search_signal.read().trim().to_lowercase();
+    let mut filtered_teams: Vec<_> = team_list
+        .iter()
+        .filter(|t| {
+            query.is_empty()
+                || t.name.to_lowercase().contains(&query)
+                || t.address.address.to_lowercase().contains(&query)
+                || t.mail.as_deref().unwrap_or("").to_lowercase().contains(&query)
+        })
+        .cloned()
+        .collect();
+
+    match *sort_signal.read() {
+        TeamSortOption::NameAsc => {
+            filtered_teams.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
         }
-    );
+        TeamSortOption::NameDesc => {
+            filtered_teams.sort_by(|a, b| b.name.to_lowercase().cmp(&a.name.to_lowercase()))
+        }
+        TeamSortOption::MembersDesc => {
+            filtered_teams.sort_by(|a, b| b.members.unwrap_or(0).cmp(&a.members.unwrap_or(0)))
+        }
+    }
 
-    // Inline styles for add-team tile hover
-    let add_team_style = format!(
-        "border:2px dashed {};border-radius:16px;padding:20px;\
-         display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;\
-         cursor:pointer;color:{};\
-         background-color:{};\
-         transition:all 0.15s ease;",
-        if add_team_hovered() {
-            "#D67229"
-        } else {
-            "rgba(214,114,41,0.35)"
-        },
-        if add_team_hovered() {
-            "#C66741"
-        } else {
-            "rgba(214,114,41,0.5)"
-        },
-        if add_team_hovered() {
-            "rgba(253,246,236,0.8)"
-        } else {
-            "rgba(253,246,236,0.3)"
-        },
-    );
-
-    let config = match share_config.read_unchecked().clone() {
-        // Loading skeleton
+    let config = match &*share_config.read() {
         None => rsx! {
             div { class: "w-9 h-9 rounded-xl bg-amber-100/60 animate-pulse" }
         },
-        // Error
         Some(Err(e)) => rsx! {
             div {
-                class: "flex items-center justify-center w-9 h-9 rounded-xl \
-                        bg-red-50 border border-red-200 text-red-400",
+                class: "flex items-center justify-center w-9 h-9 rounded-xl bg-red-50 border border-red-200 text-red-400",
                 title: "Error loading share config: {e}",
                 svg {
                     class: "w-4 h-4",
@@ -357,11 +345,9 @@ pub(crate) fn TeamsContent(
                 }
             }
         },
-        // Offline – cloud only
         Some(Ok(ShareConfigState::Offline)) => rsx! {
             div {
-                class: "flex items-center justify-center w-9 h-9 rounded-xl \
-                        bg-zinc-100 border border-zinc-200 text-zinc-300 cursor-not-allowed",
+                class: "flex items-center justify-center w-9 h-9 rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-300 cursor-not-allowed",
                 title: "Sharing is only available when the project is stored in the cloud.",
                 button {
                     class: "flex items-center justify-center w-full h-full",
@@ -370,24 +356,21 @@ pub(crate) fn TeamsContent(
                 }
             }
         },
-        // Active – share config loaded
-        Some(Ok(ShareConfigState::Loaded(config))) => rsx! {
-            button {
-                style: "{share_btn_style}",
-                onmouseenter: move |_| share_hovered.set(true),
-                onmouseleave: move |_| share_hovered.set(false),
-                onclick: move |_| {
-                    team_dialog_signal.set(PopUpWindow::Share(Some(config.clone())));
-                },
-                {share_icon_svg}
+        Some(Ok(ShareConfigState::Loaded(config))) => {
+            let config = config.clone();
+            rsx! {
+                button {
+                    class: "{share_btn_class}",
+                    onclick: move |_| {
+                        team_dialog_signal.set(PopUpWindow::Share(Some(config.clone())));
+                    },
+                    {share_icon_svg}
+                }
             }
-        },
-        // Active – no share config yet
+        }
         Some(Ok(ShareConfigState::None)) => rsx! {
             button {
-                style: "{share_btn_style}",
-                onmouseenter: move |_| share_hovered.set(true),
-                onmouseleave: move |_| share_hovered.set(false),
+                class: "{share_btn_class}",
                 onclick: move |_| {
                     team_dialog_signal.set(PopUpWindow::Share(None));
                 },
@@ -397,68 +380,68 @@ pub(crate) fn TeamsContent(
     };
 
     rsx! {
-        section { class: "px-8 py-6 space-y-8 w-full",
-
-            // ── Page header ───────────────────────────────────────
-            div { class: "pb-5 flex items-end justify-between",
-                div {
-                    Headline1 { headline: "Teams" }
+        section { class: "max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6",
+            // ── Header Bar (Mobil optimiert mit direktem Add Team Button) ──
+            div { class: "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-amber-100/80 pb-3",
+                Headline1 {
+                    headline: "Teams".to_string(),
+                    subtitle: "Manage your teams and configuration, so that everyone can create their own teams."
+                        .to_string(),
                 }
-                {config}
+                div { class: "flex items-center gap-3 shrink-0 self-start sm:self-auto",
+                    PrimaryButton {
+                        text: "New Team".to_string(),
+                        icon: rsx! {
+                            PlusIcon { class: "w-4 h-4 text-white".to_string() }
+                        },
+                        onclick: move |_| team_dialog_signal.set(PopUpWindow::AddTeam),
+                    }
+                    {config}
+                }
             }
 
-            // ── Team grid ─────────────────────────────────────────
-            div { class: "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 \
-                          max-h-[calc(100vh-16rem)] overflow-y-auto pr-1",
+            if !team_list.is_empty() {
+                SearchFilterCard {
+                    search_value: search_signal.read().clone(),
+                    search_placeholder: Some("Search teams…".to_string()),
+                    on_search_change: move |val| search_signal.set(val),
+                    sort_value: *sort_signal.read(),
+                    sort_options,
+                    on_sort_change: move |val| sort_signal.set(val),
+                    use_card_wrapper: true,
+                }
+            }
 
+            div { class: "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-h-[calc(100vh-18rem)] overflow-y-auto pr-1",
                 {
-                    team_list
+                    filtered_teams
                         .iter()
                         .map(|team| {
                             let team_data = team.clone();
-                            let needs_check = team.needs_check;
-                            let card_cls = if needs_check {
-                                "relative bg-white rounded-2xl border border-amber-400 \
-                                         shadow-sm hover:shadow-md transition-all duration-150 \
-                                         cursor-pointer overflow-hidden"
+                            let card_cls = if team.needs_check {
+                                "relative bg-white rounded-2xl border border-amber-400 shadow-xs hover:shadow-md transition-all duration-150 cursor-pointer overflow-hidden"
                             } else {
-                                "relative bg-white rounded-2xl border border-amber-100 \
-                                         shadow-sm hover:shadow-md transition-all duration-150 \
-                                         cursor-pointer overflow-hidden"
+                                "relative bg-white rounded-2xl border border-amber-100/80 shadow-xs hover:shadow-md transition-all duration-150 cursor-pointer overflow-hidden"
                             };
                             rsx! {
                                 a {
+                                    key: "{team.id}",
                                     onclick: move |_| {
                                         team_dialog_signal.set(PopUpWindow::EditTeam(team_data.clone()));
                                     },
                                     class: "{card_cls}",
-                                    {TeamCard(team.clone())}
+                                    TeamCard {
+                                        name: team.name.clone(),
+                                        address: team.address.address.clone(),
+                                        needs_check: team.needs_check,
+                                    }
                                 }
                             }
                         })
                 }
-
-                // ── Add team tile ─────────────────────────────────
-                a {
-                    style: "{add_team_style}",
-                    onmouseenter: move |_| add_team_hovered.set(true),
-                    onmouseleave: move |_| add_team_hovered.set(false),
-                    onclick: move |_| {
-                        team_dialog_signal.set(PopUpWindow::AddTeam);
-                    },
-                    div { style: "width:28px;height:28px;border-radius:50%;border:2px solid currentColor;\
-                                display:flex;align-items:center;justify-content:center;\
-                                font-size:18px;font-weight:700;line-height:1;",
-                        "+"
-                    }
-                    span { style: "font-size:13px;font-weight:600;letter-spacing:0.04em;",
-                        "Add team"
-                    }
-                }
             }
         }
 
-        // ── Dialogs ───────────────────────────────────────────────
         match &*team_dialog_signal.read() {
             PopUpWindow::None => rsx! {},
             PopUpWindow::AddTeam => rsx! {
@@ -467,15 +450,13 @@ pub(crate) fn TeamsContent(
                     team_dialog_signal: team_dialog_signal.clone(),
                 }
             },
-            PopUpWindow::EditTeam(team_data) => {
-                rsx! {
-                    EditTeamDialog {
-                        team_dialog_signal: team_dialog_signal.clone(),
-                        project_id: cook_and_run_id,
-                        team_data: team_data.clone(),
-                    }
+            PopUpWindow::EditTeam(team_data) => rsx! {
+                EditTeamDialog {
+                    team_dialog_signal: team_dialog_signal.clone(),
+                    project_id: cook_and_run_id,
+                    team_data: team_data.clone(),
                 }
-            }
+            },
             PopUpWindow::Share(share_config) => rsx! {
                 ShareDialog {
                     team_dialog_signal: team_dialog_signal.clone(),
@@ -492,37 +473,42 @@ pub(crate) fn TeamsContent(
 //  Team card (grid tile)
 // ─────────────────────────────────────────────
 
+#[derive(Props, Clone, PartialEq)]
+struct TeamCardProps {
+    name: String,
+    address: String,
+    needs_check: bool,
+}
+
 #[component]
-fn TeamCard(props: TeamData) -> Element {
+fn TeamCard(props: TeamCardProps) -> Element {
     let needs_check = props.needs_check;
-    let style_0 = if props.needs_check {
+    let style_0 = if needs_check {
         "bg-amber-100/80 border-amber-300"
     } else {
         "bg-amber-50/70 border-amber-100"
     };
-    let style_1 = if props.needs_check {
+    let style_1 = if needs_check {
         "bg-amber-500"
     } else {
         "bg-amber-400/70"
     };
+
     rsx! {
         div {
-            // Amber header stripe
             div { class: "px-4 py-2.5 border-b flex items-center gap-2 {style_0}",
                 div { class: "w-1.5 h-4 rounded-full shrink-0 {style_1}" }
                 span { class: "text-sm font-semibold text-zinc-800 truncate", "{props.name}" }
                 if needs_check {
-                    span { class: "ml-auto text-[10px] font-bold px-1.5 py-0.5 \
-                                   rounded-full bg-amber-500 text-white tracking-wide shrink-0",
+                    span { class: "ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white tracking-wide shrink-0",
                         "REVIEW"
                     }
                 }
             }
-            // Card body
             div { class: "px-4 py-3",
                 div { class: "flex items-center gap-1.5",
                     AddressSVG {}
-                    p { class: "text-xs text-zinc-500 truncate", "{props.address.address}" }
+                    p { class: "text-xs text-zinc-500 truncate", "{props.address}" }
                 }
             }
         }
@@ -535,38 +521,35 @@ fn TeamCard(props: TeamData) -> Element {
 
 #[component]
 fn AddTeamDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Element {
-    let team_name_signal = use_signal(|| "".to_string());
-    let team_name_error_signal = use_signal(|| "".to_string());
-    let team_email_signal = use_signal(|| "".to_string());
-    let team_email_error_signal = use_signal(|| "".to_string());
-    let team_tel_signal = use_signal(|| "".to_string());
-    let team_tel_error_signal = use_signal(|| "".to_string());
-    let members_signal = use_signal(|| "".to_string());
-    let members_error_signal = use_signal(|| "".to_string());
-    let diets_signal = use_signal(|| "".to_string());
+    let team_name_signal = use_signal(String::new);
+    let team_name_error_signal = use_signal(String::new);
+    let team_email_signal = use_signal(String::new);
+    let team_email_error_signal = use_signal(String::new);
+    let team_tel_signal = use_signal(String::new);
+    let team_tel_error_signal = use_signal(String::new);
+    let members_signal = use_signal(String::new);
+    let members_error_signal = use_signal(String::new);
+    let diets_signal = use_signal(String::new);
     let address_param = AddressParam::default();
 
     rsx! {
-        div { class: "backdrop-blur-sm fixed inset-0 flex h-screen w-screen \
-                      justify-center items-center bg-black/20 z-50",
-            div { class: "relative bg-white rounded-2xl border border-amber-100 \
-                          shadow-xl w-224 overflow-y-auto max-h-[90vh]",
-
-                // Dialog header
-                div { class: "px-6 py-4 bg-amber-50/70 border-b border-amber-100 \
-                              flex items-center gap-2.5",
-                    div { class: "w-1.5 h-5 rounded-full bg-amber-400/70" }
-                    span { class: "text-base font-semibold text-zinc-800", "Add Team" }
+        div { class: "backdrop-blur-sm fixed inset-0 flex h-screen w-screen justify-center items-center bg-black/20 z-50 p-4",
+            div { class: "relative bg-white rounded-2xl border border-amber-100 shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden",
+                // Stabile Header-Leiste
+                div { class: "px-6 py-4 bg-amber-50/70 border-b border-amber-100 flex items-center justify-between gap-2.5 shrink-0 relative",
+                    div { class: "flex items-center gap-2.5",
+                        div { class: "w-1.5 h-5 rounded-full bg-amber-400/70" }
+                        span { class: "text-base font-semibold text-zinc-800", "Add Team" }
+                    }
+                    CloseButton {
+                        onclick: move |_| {
+                            team_dialog_signal.set(PopUpWindow::None);
+                        },
+                    }
                 }
 
-                // Close button
-                CloseButton {
-                    onclick: move |_| {
-                        team_dialog_signal.set(PopUpWindow::None);
-                    },
-                }
-
-                div { class: "px-6 py-5",
+                // Scrollbarer Inhaltsbereich
+                div { class: "px-6 py-5 overflow-y-auto flex-1",
                     TeamDialog {
                         team_dialog_signal,
                         project_id,
@@ -590,12 +573,13 @@ fn AddTeamDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> E
                                 { if ! check_all(team_name_signal, team_name_error_signal, team_email_signal,
                                 team_email_error_signal, team_tel_signal, team_tel_error_signal,
                                 members_error_signal, members_signal, address_param.clone(),) { return; } let
-                                result = add_team(project_id, team_name_signal.read().to_string(), diets_signal
-                                .read().clone(), team_email_signal.read().clone(), team_tel_signal.read()
-                                .clone(), members_signal.read().clone(), address_param.get_address_data()
-                                .expect("Expext no errors when getting address_data!"),). await; if let Err(e) =
-                                result { console::error_1(& format!("Error creating team: {}", e) .into()); }
-                                else { team_dialog_signal.set(PopUpWindow::None); } }
+                                address_data = address_param.get_address_data()
+                                .expect("Expect no errors when getting address_data!"); let result =
+                                add_team(project_id, team_name_signal.read().clone(), diets_signal.read()
+                                .clone(), team_email_signal.read().clone(), team_tel_signal.read().clone(),
+                                members_signal.read().clone(), address_data,). await; if let Err(e) = result {
+                                console::error_1(& format!("Error creating team: {e}") .into()); } else {
+                                team_dialog_signal.set(PopUpWindow::None); } }
                             ),
                         }
                     }
@@ -615,28 +599,25 @@ fn EditTeamDialog(
     project_id: Uuid,
     team_data: TeamData,
 ) -> Element {
-    let team_name_signal = use_signal(|| team_data.name);
-    let team_name_error_signal = use_signal(|| "".to_string());
-    let team_email_signal = use_signal(|| team_data.mail.map_or_else(|| "".to_string(), |v| v));
-    let team_email_error_signal = use_signal(|| "".to_string());
-    let team_tel_signal = use_signal(|| team_data.phone.map_or_else(|| "".to_string(), |v| v));
-    let team_tel_error_signal = use_signal(|| "".to_string());
+    let team_name_signal = use_signal(|| team_data.name.clone());
+    let team_name_error_signal = use_signal(String::new);
+    let team_email_signal = use_signal(|| team_data.mail.clone().unwrap_or_default());
+    let team_email_error_signal = use_signal(String::new);
+    let team_tel_signal = use_signal(|| team_data.phone.clone().unwrap_or_default());
+    let team_tel_error_signal = use_signal(String::new);
     let members_signal = use_signal(|| {
         team_data
             .members
-            .map_or_else(|| "".to_string(), |v| v.to_string())
+            .map_or_else(String::new, |v| v.to_string())
     });
-    let members_error_signal = use_signal(|| "".to_string());
-    let diets_signal = use_signal(|| team_data.diets.map_or_else(|| "".to_string(), |v| v));
+    let members_error_signal = use_signal(String::new);
+    let diets_signal = use_signal(|| team_data.diets.clone().unwrap_or_default());
     let mut needs_check_signal = use_signal(|| team_data.needs_check);
-    let error_signal = use_signal(|| "".to_string());
+    let error_signal = use_signal(String::new);
     let mut is_edit_team_signal = use_signal(|| true);
     let address_param = AddressParam::new(&team_data.address);
 
-    // true  → grüner Glow für 2 s, dann Dialog schließen
     let mut save_success_signal = use_signal(|| false);
-
-    // true  → Felder wurden verändert → Update-Button aktiv
     let mut has_unsaved_changes = use_signal(|| false);
 
     use_effect(move || {
@@ -649,15 +630,14 @@ fn EditTeamDialog(
             team_tel_error_signal,
             members_error_signal,
             members_signal,
-            address_param,
+            address_param.clone(),
         );
     });
 
     let delete_button = DeleteButtonProps::new(
         async_action!({
-            let result = delete_team(project_id, team_data.id).await;
-            if let Err(e) = result {
-                console::error_1(&format!("Error deleting team: {}", e).into());
+            if let Err(e) = delete_team(project_id, team_data.id).await {
+                console::error_1(&format!("Error deleting team: {e}").into());
             } else {
                 team_dialog_signal.set(PopUpWindow::None);
             }
@@ -673,16 +653,15 @@ fn EditTeamDialog(
         "opacity-40 pointer-events-none cursor-not-allowed"
     };
 
-    // Dialog-Rahmen: im Erfolgsfall grüner Glow
     let dialog_class = if is_success {
-        "relative bg-white rounded-2xl border shadow-xl w-224 overflow-y-auto max-h-[90vh] save-glow-dialog"
+        "relative bg-white rounded-2xl border shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden save-glow-dialog"
     } else {
-        "relative bg-white rounded-2xl border border-amber-100 shadow-xl w-224 overflow-y-auto max-h-[90vh]"
+        "relative bg-white rounded-2xl border border-amber-100 shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden"
     };
     let header_class = if is_success {
-        "px-6 py-4 border-b flex items-center gap-2.5 save-glow-header"
+        "px-6 py-4 border-b flex items-center justify-between gap-2.5 shrink-0 relative save-glow-header"
     } else {
-        "px-6 py-4 bg-amber-50/70 border-b border-amber-100 flex items-center gap-2.5"
+        "px-6 py-4 bg-amber-50/70 border-b border-amber-100 flex items-center justify-between gap-2.5 shrink-0 relative"
     };
     let accent_class = if is_success {
         "w-1.5 h-5 rounded-full save-glow-accent"
@@ -698,26 +677,23 @@ fn EditTeamDialog(
     rsx! {
         style { dangerous_inner_html: SAVE_GLOW_CSS }
 
-        div { class: "backdrop-blur-sm fixed inset-0 flex h-screen w-screen \
-                      justify-center items-center bg-black/20 z-50",
+        div { class: "backdrop-blur-sm fixed inset-0 flex h-screen w-screen justify-center items-center bg-black/20 z-50 p-4",
             div { class: "{dialog_class}",
-
-                // Dialog header
+                // Stabile Header-Leiste
                 div { class: "{header_class}",
-                    div { class: "{accent_class}" }
-                    span { class: "{title_class}", "Edit Team" }
+                    div { class: "flex items-center gap-2.5",
+                        div { class: "{accent_class}" }
+                        span { class: "{title_class}", "Edit Team" }
+                    }
+                    CloseButton {
+                        onclick: move |_| {
+                            team_dialog_signal.set(PopUpWindow::None);
+                        },
+                    }
                 }
 
-                // Close button
-                CloseButton {
-                    onclick: move |_| {
-                        team_dialog_signal.set(PopUpWindow::None);
-                    },
-                }
-
-                div { class: "px-6 py-5",
-
-                    // Tab bar + needs-check + delete
+                // Scrollbarer Inhaltsbereich
+                div { class: "px-6 py-5 overflow-y-auto flex-1",
                     div { class: "flex items-center justify-between border-b border-amber-100 mb-5",
                         div { class: "flex",
                             button {
@@ -745,7 +721,6 @@ fn EditTeamDialog(
                                     class: "accent-[#D67229] w-4 h-4 rounded cursor-pointer",
                                     onclick: move |_| {
                                         let new_value = !*needs_check_signal.read();
-                                        team_data.needs_check = new_value;
                                         needs_check_signal.set(new_value);
                                         has_unsaved_changes.set(true);
                                     },
@@ -771,7 +746,7 @@ fn EditTeamDialog(
                             members_signal,
                             members_error_signal,
                             diets_signal,
-                            address_param,
+                            address_param: address_param.clone(),
                             on_change: move |_| {
                                 has_unsaved_changes.set(true);
                             },
@@ -786,18 +761,18 @@ fn EditTeamDialog(
                                         { if ! check_all(team_name_signal, team_name_error_signal, team_email_signal,
                                         team_email_error_signal, team_tel_signal, team_tel_error_signal,
                                         members_error_signal, members_signal, address_param.clone(),) { return; } let
-                                        result = update_team(project_id, team_data.id, team_name_signal.read()
-                                        .to_string(), diets_signal.read().clone(), team_email_signal.read().clone(),
-                                        team_tel_signal.read().clone(), members_signal.read().clone(), address_param
-                                        .get_address_data().expect("Expext no errors when getting address_data!"),
-                                        needs_check_signal.read().clone(),). await; if result.is_err() {
-                                        console::error_1(& format!("Error updating team: {}", result.err()
-                                        .expect("Expected error"),) .into(),); } else { save_success_signal.set(true);
-                                        spawn(async move { sleep(Duration::from_millis(2000)). await; team_dialog_signal
-                                        .set(PopUpWindow::None); }); } }
+                                        address_data = address_param.get_address_data()
+                                        .expect("Expect no errors when getting address_data!"); let result =
+                                        update_team(project_id, team_data.id, team_name_signal.read().clone(),
+                                        diets_signal.read().clone(), team_email_signal.read().clone(), team_tel_signal
+                                        .read().clone(), members_signal.read().clone(), address_data, *
+                                        needs_check_signal.read(),). await; if let Err(e) = result { console::error_1(&
+                                        format!("Error updating team: {e}") .into()); } else { save_success_signal
+                                        .set(true); spawn(async move { sleep(Duration::from_millis(2000)). await;
+                                        team_dialog_signal.set(PopUpWindow::None); }); } }
                                     ),
                                 }
-                            } // end update_btn_wrapper_class div
+                            }
                         }
                     } else {
                         TeamNotes {
@@ -830,15 +805,11 @@ fn TeamDialog(
     members_error_signal: Signal<String>,
     diets_signal: Signal<String>,
     address_param: AddressParam,
-    // Callback: wird bei jeder Feldänderung aufgerufen (z.B. für has_unsaved_changes)
     on_change: EventHandler<()>,
 ) -> Element {
     rsx! {
         div { class: "flex flex-col md:flex-row gap-6",
-
-            // Left: fields
             div { class: "flex-1 space-y-3 md:border-r border-amber-100 md:pr-5",
-
                 div {
                     label { class: "{LBL}", "Team Name" }
                     Input {
@@ -847,7 +818,7 @@ fn TeamDialog(
                         value: team_name_signal.clone(),
                         oninput: move |e: Event<FormData>| {
                             let team_name = e.value();
-                            team_name_signal.set(team_name.clone());
+                            team_name_signal.set(team_name);
                             check_team_name(team_name_signal, team_name_error_signal);
                             on_change.call(());
                         },
@@ -863,7 +834,7 @@ fn TeamDialog(
                         value: team_email_signal.clone(),
                         oninput: move |e: Event<FormData>| {
                             let team_email = e.value();
-                            team_email_signal.set(team_email.clone());
+                            team_email_signal.set(team_email);
                             check_team_email(team_email_signal, team_email_error_signal);
                             on_change.call(());
                         },
@@ -874,12 +845,12 @@ fn TeamDialog(
                 div {
                     label { class: "{LBL}", "Phone Number" }
                     InputPhoneNumber {
-                        place_holer: Some("e.g. +49 1234 56789".to_string()),
+                        placeholder: Some("e.g. +49 1234 56789".to_string()),
                         is_error: !team_tel_error_signal.read().is_empty(),
                         value: team_tel_signal.clone(),
                         oninput: move |e: Event<FormData>| {
                             let team_tel = e.value();
-                            team_tel_signal.set(team_tel.clone());
+                            team_tel_signal.set(team_tel);
                             check_team_tel(team_tel_signal, team_tel_error_signal);
                             on_change.call(());
                         },
@@ -890,12 +861,12 @@ fn TeamDialog(
                 div {
                     label { class: "{LBL}", "Number of Members" }
                     InputNumber {
-                        place_holer: Some("e.g. 2".to_string()),
+                        placeholder: Some("e.g. 2".to_string()),
                         value: members_signal.clone(),
                         is_error: !members_error_signal.read().is_empty(),
                         oninput: move |e: Event<FormData>| {
                             let members = e.value();
-                            members_signal.set(members.clone());
+                            members_signal.set(members);
                             check_members(members_signal, members_error_signal);
                             on_change.call(());
                         },
@@ -911,8 +882,7 @@ fn TeamDialog(
                             is_error: false,
                             value: diets_signal.clone(),
                             oninput: move |e: Event<FormData>| {
-                                let diets = e.value();
-                                diets_signal.set(diets.clone());
+                                diets_signal.set(e.value());
                                 on_change.call(());
                             },
                         }
@@ -920,7 +890,6 @@ fn TeamDialog(
                 }
             }
 
-            // Right: address
             div { class: "flex-1",
                 label { class: "{LBL}", "Address" }
                 Address { param: address_param }
@@ -935,23 +904,20 @@ fn TeamDialog(
 
 #[component]
 fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> Element {
-    let mut create_note_headline_signal = use_signal(|| "".to_string());
-    let mut create_note_headline_error_signal = use_signal(|| "".to_string());
-    let mut create_note_content_signal = use_signal(|| "".to_string());
-    let mut create_note_content_error_signal = use_signal(|| "".to_string());
-    let mut create_note_error_signal = use_signal(|| "".to_string());
-    let mut creating_error_signal = use_signal(|| "".to_string());
+    let mut create_note_headline_signal = use_signal(String::new);
+    let mut create_note_headline_error_signal = use_signal(String::new);
+    let mut create_note_content_signal = use_signal(String::new);
+    let mut create_note_content_error_signal = use_signal(String::new);
+    let mut create_note_error_signal = use_signal(String::new);
+    let mut creating_error_signal = use_signal(String::new);
 
-    let mut sorted_note_list = note_data_list.clone();
+    let mut sorted_note_list = note_data_list;
     sorted_note_list.sort_by(|a, b| b.created.cmp(&a.created));
     let mut sorted_note_list_signal = use_signal(|| sorted_note_list);
 
     rsx! {
         div { class: "flex flex-col md:flex-row gap-6",
-
-            // Left: create note
             div { class: "flex-1 md:border-r border-amber-100 md:pr-5 space-y-3",
-
                 label { class: "{LBL}", "New Note" }
 
                 div {
@@ -966,11 +932,11 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                             if headline.is_empty() {
                                 create_note_headline_error_signal
                                     .set("Headline cannot be empty!".to_string());
-                            } else if create_note_content_error_signal.read().is_empty() {
-                                create_note_headline_error_signal.set("".to_string());
-                                create_note_error_signal.set("".to_string());
                             } else {
-                                create_note_headline_error_signal.set("".to_string());
+                                create_note_headline_error_signal.set(String::new());
+                                if create_note_content_error_signal.read().is_empty() {
+                                    create_note_error_signal.set(String::new());
+                                }
                             }
                         },
                     }
@@ -979,22 +945,22 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
 
                 div {
                     label { class: "{LBL}", "Content" }
-                    InputMultirow {
-                        place_holer: Some("e.g. Participation fee is partially paid!".to_string()),
-                        value: create_note_content_signal.clone(),
+                    TextArea {
+                        placeholder: Some("e.g. Participation fee is partially paid!".to_string()),
+                        value: create_note_content_signal.read().clone(),
                         is_error: !create_note_content_error_signal.read().is_empty(),
                         oninput: move |e: Event<FormData>| {
                             let content = e.value();
                             create_note_content_signal.set(content.clone());
                             if content.is_empty() {
                                 create_note_content_error_signal
-                                    .set("content cannot be empty!".to_string());
+                                    .set("Content cannot be empty!".to_string());
                                 create_note_error_signal.set("-".to_string());
-                            } else if create_note_headline_error_signal.read().is_empty() {
-                                create_note_content_error_signal.set("".to_string());
-                                create_note_error_signal.set("".to_string());
                             } else {
-                                create_note_content_error_signal.set("".to_string());
+                                create_note_content_error_signal.set(String::new());
+                                if create_note_headline_error_signal.read().is_empty() {
+                                    create_note_error_signal.set(String::new());
+                                }
                             }
                         },
                     }
@@ -1005,40 +971,35 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                     text: "Post Note".to_string(),
                     error_signal: create_note_error_signal,
                     action: async_action!(
-                        { if create_note_headline_signal.read().is_empty() && create_note_content_signal
-                        .read().is_empty() { create_note_headline_error_signal
-                        .set("Headline cannot be empty!".to_string()); create_note_content_error_signal
-                        .set("content cannot be empty!".to_string()); create_note_error_signal.set("-"
-                        .to_string()); return; } else if create_note_headline_signal.read().is_empty() {
-                        create_note_headline_error_signal.set("Headline cannot be empty!".to_string());
-                        create_note_error_signal.set("-".to_string()); return; } else if
-                        create_note_content_signal.read().is_empty() { create_note_content_error_signal
-                        .set("content cannot be empty!".to_string()); create_note_error_signal.set("-"
-                        .to_string()); return; } let result = add_team_note(project_id, team_id,
-                        create_note_headline_signal.read().trim().to_string(), create_note_content_signal
-                        .read().trim().to_string(),). await; if result.is_err() { console::error_1(&
-                        format!("Error creating note: {}", result.err().expect("Expected error"),)
-                        .into(),); creating_error_signal.set("Error creating note!".to_string()); } else
-                        { sorted_note_list_signal.set({ let mut note_list = vec![NoteData { id :
-                        Uuid::new_v4(), headline : create_note_headline_signal.read().trim().to_string(),
-                        content : create_note_content_signal.read().trim().to_string(), created :
-                        Utc::now().naive_utc(), }]; note_list.extend(sorted_note_list_signal.read()
-                        .clone()); note_list }); create_note_headline_signal.set("".to_string());
-                        create_note_content_signal.set("".to_string()); create_note_headline_error_signal
-                        .set("".to_string()); create_note_content_error_signal.set("".to_string());
-                        create_note_error_signal.set("".to_string()); creating_error_signal.set(""
-                        .to_string()); } }
+                        { let headline = create_note_headline_signal.read().trim().to_string(); let
+                        content = create_note_content_signal.read().trim().to_string(); let mut has_error
+                        = false; if headline.is_empty() { create_note_headline_error_signal
+                        .set("Headline cannot be empty!".to_string()); has_error = true; } if content
+                        .is_empty() { create_note_content_error_signal.set("Content cannot be empty!"
+                        .to_string()); has_error = true; } if has_error { create_note_error_signal
+                        .set("-".to_string()); return; } let result = add_team_note(project_id, team_id,
+                        headline.clone(), content.clone()). await; if let Err(e) = result {
+                        console::error_1(& format!("Error creating note: {e}") .into());
+                        creating_error_signal.set("Error creating note!".to_string()); } else { let
+                        new_note = NoteData { id : Uuid::new_v4(), headline, content, created :
+                        Utc::now().naive_utc(), }; sorted_note_list_signal.write().insert(0, new_note);
+                        create_note_headline_signal.set(String::new()); create_note_content_signal
+                        .set(String::new()); create_note_headline_error_signal.set(String::new());
+                        create_note_content_error_signal.set(String::new()); create_note_error_signal
+                        .set(String::new()); creating_error_signal.set(String::new()); } }
                     ),
                 }
                 InputError { error: creating_error_signal.read() }
             }
 
-            // Right: note list
             div { class: "flex-1",
                 label { class: "{LBL}", "Notes" }
                 div { class: "space-y-2 overflow-y-auto max-h-80 mt-1",
-                    for note_data in sorted_note_list_signal.iter() {
-                        Note { note_data: note_data.clone() }
+                    for note_data in sorted_note_list_signal.read().iter() {
+                        Note {
+                            key: "{note_data.id}",
+                            note_data: note_data.clone(),
+                        }
                     }
                 }
             }
@@ -1048,14 +1009,12 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
 
 #[component]
 fn Note(note_data: NoteData) -> Element {
-    let created = Local
-        .from_local_datetime(&note_data.created)
-        .single()
-        .unwrap()
+    let created = DateTime::<Utc>::from_naive_utc_and_offset(note_data.created, Utc)
+        .with_timezone(&Local)
         .format("%Y-%m-%d %H:%M")
         .to_string();
 
-    rsx!(
+    rsx! {
         div { class: "bg-amber-50/50 rounded-xl border border-amber-100 px-4 py-3",
             div { class: "flex justify-between items-baseline gap-2 mb-1",
                 span { class: "text-sm font-semibold text-zinc-800 truncate", "{note_data.headline}" }
@@ -1063,7 +1022,7 @@ fn Note(note_data: NoteData) -> Element {
             }
             p { class: "text-xs text-zinc-600 leading-relaxed", "{note_data.content}" }
         }
-    )
+    }
 }
 
 // ─────────────────────────────────────────────
@@ -1077,10 +1036,8 @@ fn ShareDialog(
     share_config_option: Option<ShareTeamConfig>,
     number_of_teams: usize,
 ) -> Element {
-    let share_config = match share_config_option.clone() {
-        Some(config) => config,
-        None => ShareTeamConfig::default(),
-    };
+    let share_config = share_config_option.clone().unwrap_or_default();
+    let is_share_config_some = share_config_option.is_some();
 
     let mut share_config_signal = use_signal(|| share_config.clone());
 
@@ -1088,54 +1045,38 @@ fn ShareDialog(
         share_config_signal
             .read()
             .registration_deadline
-            .map(|dt| dt.date())
+            .map(|dt| dt.with_timezone(&Local).date_naive())
     });
     let mut share_config_time = use_signal(|| {
         share_config_signal
             .read()
             .registration_deadline
-            .map(|dt| dt.time())
+            .map(|dt| dt.with_timezone(&Local).time())
     });
 
     let share_url: Signal<String> = use_signal(|| {
-        let window = web_sys::window().expect("no global `window` exists");
-        let location = window.location();
-        let base_url = location.origin().unwrap_or_else(|_| "unknown".to_string());
-        format!("{}/cook-and-run/{}/share", base_url, project_id)
+        let base_url = web_sys::window()
+            .and_then(|w| w.location().origin().ok())
+            .unwrap_or_else(|| "unknown".to_string());
+        format!("{base_url}/cook-and-run/{project_id}/share")
     });
 
     let deadline_passed = share_config_signal
         .read()
         .registration_deadline
-        .map_or(false, |deadline| deadline < Utc::now().naive_utc());
+        .map_or(false, |deadline| deadline < Utc::now());
 
-    let is_share_config_some = share_config_option.is_some();
-    let mut current_config_signal = use_signal(|| (is_share_config_some && !deadline_passed));
+    let mut current_config_signal = use_signal(|| is_share_config_some && !deadline_passed);
 
-    let max_teams_text = share_config_signal
-        .read()
-        .max_teams
-        .map(|max_teams| {
-            if max_teams == 0 {
-                "∞".to_string()
-            } else {
-                max_teams.to_string()
-            }
-        })
-        .unwrap_or_else(|| "∞".to_string());
+    let max_teams_text = match share_config_signal.read().max_teams {
+        Some(0) | None => "∞".to_string(),
+        Some(max) => max.to_string(),
+    };
 
-    let max_teams_reached = number_of_teams
-        >= share_config_signal
-            .read()
-            .max_teams
-            .map(|max_teams| {
-                if max_teams == 0 {
-                    usize::MAX
-                } else {
-                    max_teams as usize
-                }
-            })
-            .unwrap_or_else(|| usize::MAX);
+    let max_teams_reached = match share_config_signal.read().max_teams {
+        Some(0) | None => false,
+        Some(max) => number_of_teams >= max as usize,
+    };
 
     let is_active_signal = use_signal(|| !max_teams_reached);
 
@@ -1151,29 +1092,31 @@ fn ShareDialog(
             .light_color(svg::Color("#ffffff"))
             .build();
         let encoded = general_purpose::STANDARD.encode(svg_xml);
-        format!("data:image/svg+xml;base64,{}", encoded)
+        format!("data:image/svg+xml;base64,{encoded}")
     });
 
     let mut storage_signal = use_context::<Signal<StorageManager>>();
     let save_update_share_config: AsyncAction = async_action!({
-        if let Some(date) = share_config_date.read().clone() {
+        if let Some(date) = *share_config_date.read() {
             let time = share_config_time
                 .read()
-                .unwrap_or(chrono::NaiveTime::from_hms_opt(23, 59, 59).unwrap());
+                .unwrap_or_else(|| chrono::NaiveTime::from_hms_opt(23, 59, 59).unwrap_or_default());
             let local_datetime = date.and_time(time);
 
             let utc_datetime = local_datetime
                 .and_local_timezone(chrono::Local)
                 .single()
-                .map(|local_dt| local_dt.with_timezone(&chrono::Utc).naive_utc());
+                .map(|local_dt| local_dt.with_timezone(&chrono::Utc));
 
             share_config_signal.write().registration_deadline = utc_datetime;
         } else {
             share_config_signal.write().registration_deadline = None;
         }
+
         let config = share_config_signal.read().clone();
         let create_config = config.to_create();
-        let mut storage = storage_signal.write().clone();
+        let mut storage = storage_signal.write();
+
         let result = if !is_share_config_some {
             storage
                 .create_cook_and_run_share_config(project_id, &create_config)
@@ -1183,36 +1126,41 @@ fn ShareDialog(
                 .update_cook_and_run_share_config(project_id, &create_config)
                 .await
         };
+
         if let Err(e) = result {
-            console::error_1(&format!("Error saving share config: {}", e).into());
+            console::error_1(&format!("Error saving share config: {e}").into());
         } else {
             team_dialog_signal.set(PopUpWindow::Share(Some(config)));
         }
     });
 
+    let mut toggle_required_field = move |field: storage::RequiredField| {
+        let mut config = share_config_signal.write();
+        if let Some(pos) = config.required_fields.iter().position(|f| *f == field) {
+            config.required_fields.remove(pos);
+        } else {
+            config.required_fields.push(field);
+        }
+    };
+
     rsx! {
-        div { class: "backdrop-blur-sm fixed inset-0 flex h-screen w-screen \
-                      justify-center items-center bg-black/20 z-50",
-            div { class: "relative bg-white rounded-2xl border border-amber-100 \
-                          shadow-xl w-224 overflow-y-auto max-h-[90vh]",
-
-                // Dialog header
-                div { class: "px-6 py-4 bg-amber-50/70 border-b border-amber-100 \
-                              flex items-center gap-2.5",
-                    div { class: "w-1.5 h-5 rounded-full bg-amber-400/70" }
-                    span { class: "text-base font-semibold text-zinc-800", "Share Configuration" }
+        div { class: "backdrop-blur-sm fixed inset-0 flex h-screen w-screen justify-center items-center bg-black/20 z-50 p-4",
+            div { class: "relative bg-white rounded-2xl border border-amber-100 shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden",
+                // Stabile Header-Leiste
+                div { class: "px-6 py-4 bg-amber-50/70 border-b border-amber-100 flex items-center justify-between gap-2.5 shrink-0 relative",
+                    div { class: "flex items-center gap-2.5",
+                        div { class: "w-1.5 h-5 rounded-full bg-amber-400/70" }
+                        span { class: "text-base font-semibold text-zinc-800", "Share Configuration" }
+                    }
+                    CloseButton {
+                        onclick: move |_| {
+                            team_dialog_signal.set(PopUpWindow::None);
+                        },
+                    }
                 }
 
-                // Close button
-                CloseButton {
-                    onclick: move |_| {
-                        team_dialog_signal.set(PopUpWindow::None);
-                    },
-                }
-
-                div { class: "px-6 py-5",
-
-                    // Tab bar
+                // Scrollbarer Inhaltsbereich
+                div { class: "px-6 py-5 overflow-y-auto flex-1",
                     div { class: "flex border-b border-amber-100 mb-5",
                         button {
                             r#type: "button",
@@ -1234,10 +1182,7 @@ fn ShareDialog(
                     }
 
                     if *current_config_signal.read() {
-                        // ── Info tab ──────────────────────────────
                         div { class: "space-y-4",
-
-                            // Stat cards
                             div { class: "grid grid-cols-2 gap-4 mb-4",
                                 div { class: if max_teams_reached { "p-4 rounded-xl border border-red-200 bg-red-50" } else { "p-4 rounded-xl border border-amber-100 bg-amber-50/50" },
                                     p { class: "text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-400 mb-1",
@@ -1265,12 +1210,8 @@ fn ShareDialog(
                                 }
                             }
 
-                            // QR + link (dimmed when inactive)
                             div { class: if *is_active_signal.read() { "flex flex-col space-y-4" } else { "flex flex-col space-y-4 opacity-50 pointer-events-none" },
-
-                                // QR code
-                                div { class: "flex flex-col items-center p-4 rounded-xl \
-                                              border border-amber-100 bg-amber-50/30",
+                                div { class: "flex flex-col items-center p-4 rounded-xl border border-amber-100 bg-amber-50/30",
                                     label { class: "{LBL} mb-3", "QR Code" }
                                     div { class: "bg-white p-3 rounded-xl border border-amber-100",
                                         img {
@@ -1280,21 +1221,24 @@ fn ShareDialog(
                                         }
                                     }
                                     button {
-                                        class: "mt-3 px-4 py-2 text-sm font-medium rounded-xl \
-                                                bg-[#D67229] hover:bg-[#C66741] text-white \
-                                                transition-colors duration-150",
+                                        class: "mt-3 px-4 py-2 text-sm font-medium rounded-xl bg-[#D67229] hover:bg-[#C66741] text-white transition-colors duration-150",
                                         disabled: !*is_active_signal.read(),
                                         onclick: move |_| {
                                             let qr_data = qr_data_uri.read().clone();
                                             if !qr_data.is_empty() {
                                                 if let Some(window) = web_sys::window() {
                                                     let document = window.document().unwrap();
-                                                    let link = document.create_element("a").unwrap();
-                                                    link.set_attribute("href", &qr_data).unwrap();
-                                                    link.set_attribute("download", "qr-code.svg").unwrap();
-                                                    document.body().unwrap().append_child(&link).unwrap();
-                                                    link.dyn_ref::<web_sys::HtmlElement>().unwrap().click();
-                                                    document.body().unwrap().remove_child(&link).unwrap();
+                                                    if let Ok(link) = document.create_element("a") {
+                                                        let _ = link.set_attribute("href", &qr_data);
+                                                        let _ = link.set_attribute("download", "qr-code.svg");
+                                                        if let Some(body) = document.body() {
+                                                            let _ = body.append_child(&link);
+                                                            if let Some(elem) = link.dyn_ref::<web_sys::HtmlElement>() {
+                                                                elem.click();
+                                                            }
+                                                            let _ = body.remove_child(&link);
+                                                        }
+                                                    }
                                                 }
                                             }
                                         },
@@ -1302,7 +1246,6 @@ fn ShareDialog(
                                     }
                                 }
 
-                                // Share link
                                 div { class: "flex flex-col",
                                     label { class: "{LBL}", "Share Link" }
                                     div { class: "flex gap-2 mt-1",
@@ -1314,9 +1257,7 @@ fn ShareDialog(
                                             class: "{NATIVE_INPUT} flex-1",
                                         }
                                         button {
-                                            class: "px-4 py-2 text-sm font-medium rounded-xl \
-                                                    bg-[#D67229] hover:bg-[#C66741] text-white \
-                                                    transition-colors duration-150",
+                                            class: "px-4 py-2 text-sm font-medium rounded-xl bg-[#D67229] hover:bg-[#C66741] text-white transition-colors duration-150",
                                             disabled: !*is_active_signal.read(),
                                             onclick: move |_| {},
                                             "Copy"
@@ -1326,29 +1267,23 @@ fn ShareDialog(
                             }
                         }
                     } else {
-                        // ── Config tab ────────────────────────────
                         div { class: "flex flex-col space-y-5",
-
-                            // Invitation text
                             div {
                                 label { class: "{LBL}", "Invitation Text" }
-                                InputMultirow {
-                                    place_holer: "Enter an invitation text...".to_string(),
+                                TextArea {
+                                    placeholder: Some("Enter an invitation text...".to_string()),
                                     value: share_config_signal.read().invite_text.clone(),
                                     is_error: false,
                                     oninput: move |data: Event<FormData>| {
                                         share_config_signal.write().invite_text =
-                                            data.value().trim().to_string();
+                                            data.value().to_string();
                                     },
                                 }
                             }
 
-                            // Settings toggles
                             div { class: "grid grid-cols-2 gap-3",
                                 label {
-                                    class: "flex items-center gap-2.5 px-3 py-2.5 rounded-xl \
-                                            border border-amber-100 bg-amber-50/30 \
-                                            hover:bg-amber-50/60 transition-colors cursor-pointer group",
+                                    class: "flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-amber-100 bg-amber-50/30 hover:bg-amber-50/60 transition-colors cursor-pointer group",
                                     title: "Teams must be logged in to join",
                                     input {
                                         r#type: "checkbox",
@@ -1364,9 +1299,7 @@ fn ShareDialog(
                                     }
                                 }
                                 label {
-                                    class: "flex items-center gap-2.5 px-3 py-2.5 rounded-xl \
-                                            border border-amber-100 bg-amber-50/30 \
-                                            hover:bg-amber-50/60 transition-colors cursor-pointer group",
+                                    class: "flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-amber-100 bg-amber-50/30 hover:bg-amber-50/60 transition-colors cursor-pointer group",
                                     title: "New teams require verification before participation",
                                     input {
                                         r#type: "checkbox",
@@ -1383,11 +1316,9 @@ fn ShareDialog(
                                 }
                             }
 
-                            // Required fields
                             div { class: "rounded-xl border border-amber-100 bg-amber-50/30 p-4",
                                 label { class: "{LBL} mb-3", "Required Fields" }
                                 div { class: "grid grid-cols-2 gap-2",
-
                                     label {
                                         class: "flex items-center gap-2 cursor-pointer group",
                                         title: "Teams must provide an email address",
@@ -1395,24 +1326,7 @@ fn ShareDialog(
                                             r#type: "checkbox",
                                             checked: share_config_signal.read().required_fields.contains(&storage::RequiredField::Mail),
                                             class: "accent-[#D67229] w-4 h-4 rounded cursor-pointer",
-                                            onclick: move |_| {
-                                                let pos = share_config_signal
-                                                    .read()
-                                                    .required_fields
-                                                    .iter()
-                                                    .position(|req| req.eq(&storage::RequiredField::Mail));
-                                                match pos {
-                                                    Some(index) => {
-                                                        share_config_signal.write().required_fields.remove(index);
-                                                    }
-                                                    None => {
-                                                        share_config_signal
-                                                            .write()
-                                                            .required_fields
-                                                            .push(storage::RequiredField::Mail);
-                                                    }
-                                                }
-                                            },
+                                            onclick: move |_| toggle_required_field(storage::RequiredField::Mail),
                                         }
                                         span { class: "text-[13px] text-zinc-600 group-hover:text-zinc-800 transition-colors",
                                             "Email"
@@ -1426,24 +1340,7 @@ fn ShareDialog(
                                             r#type: "checkbox",
                                             checked: share_config_signal.read().required_fields.contains(&storage::RequiredField::Phone),
                                             class: "accent-[#D67229] w-4 h-4 rounded cursor-pointer",
-                                            onclick: move |_| {
-                                                let pos = share_config_signal
-                                                    .read()
-                                                    .required_fields
-                                                    .iter()
-                                                    .position(|req| req.eq(&storage::RequiredField::Phone));
-                                                match pos {
-                                                    Some(index) => {
-                                                        share_config_signal.write().required_fields.remove(index);
-                                                    }
-                                                    None => {
-                                                        share_config_signal
-                                                            .write()
-                                                            .required_fields
-                                                            .push(storage::RequiredField::Phone);
-                                                    }
-                                                }
-                                            },
+                                            onclick: move |_| toggle_required_field(storage::RequiredField::Phone),
                                         }
                                         span { class: "text-[13px] text-zinc-600 group-hover:text-zinc-800 transition-colors",
                                             "Phone"
@@ -1460,24 +1357,7 @@ fn ShareDialog(
                                                 .required_fields
                                                 .contains(&storage::RequiredField::Members),
                                             class: "accent-[#D67229] w-4 h-4 rounded cursor-pointer",
-                                            onclick: move |_| {
-                                                let pos = share_config_signal
-                                                    .read()
-                                                    .required_fields
-                                                    .iter()
-                                                    .position(|req| req.eq(&storage::RequiredField::Members));
-                                                match pos {
-                                                    Some(index) => {
-                                                        share_config_signal.write().required_fields.remove(index);
-                                                    }
-                                                    None => {
-                                                        share_config_signal
-                                                            .write()
-                                                            .required_fields
-                                                            .push(storage::RequiredField::Members);
-                                                    }
-                                                }
-                                            },
+                                            onclick: move |_| toggle_required_field(storage::RequiredField::Members),
                                         }
                                         span { class: "text-[13px] text-zinc-600 group-hover:text-zinc-800 transition-colors",
                                             "Number of Members"
@@ -1491,24 +1371,7 @@ fn ShareDialog(
                                             r#type: "checkbox",
                                             checked: share_config_signal.read().required_fields.contains(&storage::RequiredField::Diets),
                                             class: "accent-[#D67229] w-4 h-4 rounded cursor-pointer",
-                                            onclick: move |_| {
-                                                let pos = share_config_signal
-                                                    .read()
-                                                    .required_fields
-                                                    .iter()
-                                                    .position(|req| req.eq(&storage::RequiredField::Diets));
-                                                match pos {
-                                                    Some(index) => {
-                                                        share_config_signal.write().required_fields.remove(index);
-                                                    }
-                                                    None => {
-                                                        share_config_signal
-                                                            .write()
-                                                            .required_fields
-                                                            .push(storage::RequiredField::Diets);
-                                                    }
-                                                }
-                                            },
+                                            onclick: move |_| toggle_required_field(storage::RequiredField::Diets),
                                         }
                                         span { class: "text-[13px] text-zinc-600 group-hover:text-zinc-800 transition-colors",
                                             "Dietary Requirements"
@@ -1517,12 +1380,11 @@ fn ShareDialog(
                                 }
                             }
 
-                            // Max teams + valid until
                             div { class: "grid grid-cols-2 gap-4",
                                 div { class: "cursor-help group relative",
                                     label { class: "{LBL}", "Max Teams" }
                                     InputNumber {
-                                        place_holer: Some("0 = unlimited".to_string()),
+                                        placeholder: Some("0 = unlimited".to_string()),
                                         value: share_config_signal
                                             .read()
                                             .max_teams
@@ -1544,9 +1406,7 @@ fn ShareDialog(
                                         input {
                                             r#type: "date",
                                             class: "{NATIVE_INPUT} flex-1",
-                                            value: share_config_date
-                                                                                            .read()
-                                                                                            .map_or_else(|| "".to_string(), |v| v.to_string()),
+                                            value: share_config_date.read().as_ref().map(|v| v.to_string()).unwrap_or_default(),
                                             onchange: move |e: Event<FormData>| {
                                                 let date_str = e.value();
                                                 if let Ok(date) = date_str.parse::<chrono::NaiveDate>() {
@@ -1559,9 +1419,7 @@ fn ShareDialog(
                                         input {
                                             r#type: "time",
                                             class: "{NATIVE_INPUT} flex-1",
-                                            value: share_config_time
-                                                                                            .read()
-                                                                                            .map_or_else(|| "".to_string(), |v| v.to_string()),
+                                            value: share_config_time.read().as_ref().map(|v| v.to_string()).unwrap_or_default(),
                                             onchange: move |e: Event<FormData>| {
                                                 let time_str = e.value();
                                                 if let Ok(time) = time_str.parse::<chrono::NaiveTime>() {
@@ -1597,7 +1455,7 @@ fn ShareDialog(
 }
 
 // ─────────────────────────────────────────────
-//  Validation helpers (signatures unchanged)
+//  Validation helpers
 // ─────────────────────────────────────────────
 
 fn check_all(
@@ -1623,12 +1481,11 @@ fn check_team_name(
     team_name_signal: Signal<String>,
     mut team_name_error_signal: Signal<String>,
 ) -> bool {
-    let team_name = team_name_signal.read();
-    if team_name.is_empty() {
+    if team_name_signal.read().trim().is_empty() {
         team_name_error_signal.set("Team name cannot be empty!".to_string());
         false
     } else {
-        team_name_error_signal.set("".to_string());
+        team_name_error_signal.set(String::new());
         true
     }
 }
@@ -1638,40 +1495,47 @@ fn check_team_email(
     mut team_email_error_signal: Signal<String>,
 ) -> bool {
     let team_email = team_email_signal.read();
-    if team_email.is_empty() {
-        team_email_error_signal.set("".to_string());
+    let trimmed = team_email.trim();
+    if trimmed.is_empty() {
+        team_email_error_signal.set(String::new());
         true
-    } else if !team_email.contains('@') || !team_email.contains('.') {
+    } else if !trimmed.contains('@') || !trimmed.contains('.') {
         team_email_error_signal.set("Please enter a valid email address!".to_string());
         false
     } else {
-        team_email_error_signal.set("".to_string());
+        team_email_error_signal.set(String::new());
         true
     }
 }
 
 fn check_team_tel(
-    team_tel_signal: Signal<String>,
+    _team_tel_signal: Signal<String>,
     mut team_tel_error_signal: Signal<String>,
 ) -> bool {
-    let team_tel = team_tel_signal.read();
-    team_tel_error_signal.set("".to_string());
+    team_tel_error_signal.set(String::new());
     true
 }
 
 fn check_members(members_signal: Signal<String>, mut members_error_signal: Signal<String>) -> bool {
     let members = members_signal.read();
-    if members.is_empty() {
-        members_error_signal.set("".to_string());
+    let trimmed = members.trim();
+    if trimmed.is_empty() {
+        members_error_signal.set(String::new());
         true
-    } else if members.parse::<u32>().is_err() {
-        members_error_signal.set("Please enter a valid number!".to_string());
-        false
-    } else if members.parse::<u32>().unwrap() == 0 {
-        members_error_signal.set("Number of Members must be greater than 0!".to_string());
-        false
     } else {
-        members_error_signal.set("".to_string());
-        true
+        match trimmed.parse::<u32>() {
+            Ok(0) => {
+                members_error_signal.set("Number of Members must be greater than 0!".to_string());
+                false
+            }
+            Ok(_) => {
+                members_error_signal.set(String::new());
+                true
+            }
+            Err(_) => {
+                members_error_signal.set("Please enter a valid number!".to_string());
+                false
+            }
+        }
     }
 }

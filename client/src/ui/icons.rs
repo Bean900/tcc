@@ -571,3 +571,152 @@ pub(crate) fn StartSVG() -> Element {
         }
     )
 }
+
+/// Address / Map Pin Icon
+#[component]
+pub fn AddressIcon(props: IconProps) -> Element {
+    let class = resolve_class(&props.class, "w-4 h-4 text-amber-700/70");
+    let sw = props.stroke_width.as_deref().unwrap_or("2");
+    rsx! {
+        svg {
+            xmlns: "http://www.w3.org/2000/svg",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke: "currentColor",
+            stroke_width: "{sw}",
+            class: "{class}",
+            path {
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                d: "M15 10.5a3 3 0 11-6 0 3 3 0 016 0z",
+            }
+            path {
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                d: "M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z",
+            }
+        }
+    }
+}
+
+#[component]
+pub(crate) fn ErrorIcon() -> Element {
+    rsx!(
+        svg {
+            class: "w-4 h-4 text-red-500 shrink-0",
+            xmlns: "http://www.w3.org/2000/svg",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke_width: "2",
+            stroke: "currentColor",
+            circle {
+                cx: "12",
+                cy: "12",
+                r: "10",
+                stroke: "currentColor",
+                stroke_width: "2",
+            }
+            line {
+                x1: "12",
+                y1: "8",
+                x2: "12",
+                y2: "12",
+                stroke: "currentColor",
+                stroke_width: "2",
+                stroke_linecap: "round",
+            }
+            line {
+                x1: "12",
+                y1: "16",
+                x2: "12",
+                y2: "16",
+                stroke: "currentColor",
+                stroke_width: "2",
+                stroke_linecap: "round",
+            }
+        }
+    )
+}
+
+#[component]
+pub fn SuccessIcon()->Element {
+    rsx! {
+        svg {
+            class: "w-8 h-8 text-green-600",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "2.5",
+            polyline { points: "20 6 9 17 4 12" }
+        }
+    }
+}
+
+/// Share Icon
+#[component]
+pub fn ShareIcon(props: IconProps) -> Element {
+    let class = resolve_class(&props.class, "w-5 h-5");
+    let sw = props.stroke_width.as_deref().unwrap_or("2");
+    rsx! {
+        svg {
+            xmlns: "http://www.w3.org/2000/svg",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke: "currentColor",
+            stroke_width: "{sw}",
+            class: "{class}",
+            circle { cx: "18", cy: "5", r: "3" }
+            circle { cx: "6", cy: "12", r: "3" }
+            circle { cx: "18", cy: "19", r: "3" }
+            line {
+                x1: "8.59",
+                y1: "13.51",
+                x2: "15.42",
+                y2: "17.49",
+            }
+            line {
+                x1: "15.41",
+                y1: "6.51",
+                x2: "8.59",
+                y2: "10.49",
+            }
+        }
+    }
+}
+
+
+
+#[component]
+pub fn DataIcon(props: IconProps) -> Element {
+    let class = resolve_class(&props.class, "w-5 h-5");
+    let sw = props.stroke_width.as_deref().unwrap_or("2");
+
+    rsx! {
+        svg {
+            xmlns: "http://www.w3.org/2000/svg",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke: "currentColor",
+            stroke_width: "{sw}",
+            class: "{class}",
+
+            // Profile / person
+            circle { cx: "12", cy: "8", r: "3" }
+
+            // Shoulders / body
+            path {
+                d: "M6 20c0-3.31 2.69-6 6-6s6 2.69 6 6",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+            }
+
+            // Small data/contact indicator
+            path { d: "M19 5h2", stroke_linecap: "round" }
+
+            path { d: "M19 8h2", stroke_linecap: "round" }
+
+            path { d: "M19 11h2", stroke_linecap: "round" }
+        }
+    }
+
+}

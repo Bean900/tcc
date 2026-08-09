@@ -238,16 +238,7 @@ pub fn Menu(cook_and_run_id: Uuid) -> Element {
                         }
                     }
                 }
-
-                // Footer
-                if !is_collapsed_val {
-                    div { class: "p-3 bg-amber-50/50 rounded-xl border border-amber-100/60 text-center",
-                        CaptionText {
-                            text: "Active Event".to_string(),
-                            class: Some("block font-semibold uppercase tracking-wider text-amber-800/80".to_string()),
-                        }
-                    }
-                }
+            
             }
 
             // ── Main Page Content Outlet ────────────────────────────

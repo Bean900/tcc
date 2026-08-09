@@ -1,4 +1,4 @@
-use chrono::{NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use uuid::Uuid;
 
 use super::{CookAndRunData, CookAndRunMetaData};
@@ -43,8 +43,8 @@ impl TeamCreate {
         TeamData {
             id: team_id,
             name: self.name.clone(),
-            created: Utc::now().naive_utc(),
-            edited: Utc::now().naive_utc(),
+            created: Utc::now(),
+            edited: Utc::now(),
             address: self.address.clone(),
             mail: self.mail.clone(),
             phone: self.phone.clone(),
@@ -57,12 +57,12 @@ impl TeamCreate {
 }
 
 impl TeamUpdate {
-    pub fn to_local(&self, team_id: Uuid, created: NaiveDateTime) -> TeamData {
+    pub fn to_local(&self, team_id: Uuid, created: DateTime<Utc>) -> TeamData {
         TeamData {
             id: team_id,
             name: self.name.clone(),
             created,
-            edited: Utc::now().naive_utc(),
+            edited: Utc::now(),
             address: self.address.clone(),
             mail: self.mail.clone(),
             phone: self.phone.clone(),

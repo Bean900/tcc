@@ -11,7 +11,7 @@
 //    Desktop  ≥ md  : Zweispaltig (Felder | Adresse), max-w-2xl, vertikal mittig
 // ─────────────────────────────────────────────
 
-use chrono::{Local, TimeZone, Utc};
+use chrono::{DateTime, Local, TimeZone, Utc};
 use dioxus::prelude::*;
 use uuid::Uuid;
 use web_sys::console;
@@ -21,8 +21,12 @@ use crate::keycloak::AuthState;
 use crate::side::details::address::{Address, AddressParam};
 use crate::side::details::{ErrorPage, LoadingPage};
 use crate::side::AsyncAction;
-use crate::side::{ConfirmButton, Input, InputError, InputNumber, InputPhoneNumber};
 use crate::storage::{RequiredField, ShareTeamConfig, StorageManager, TeamCreate};
+use crate::ui::buttons::ConfirmButton;
+use crate::ui::forms::{Input, InputError, InputNumber, InputPhoneNumber};
+use crate::ui::icons::{DataIcon, SuccessIcon, UserGroupIcon};
+use crate::ui::typography::Headline3;
+use crate::ui::Language;
 
 // ─────────────────────────────────────────────
 //  Design-Tokens  (identisch mit teams.rs)
@@ -53,19 +57,10 @@ fn map_u8(value: String) -> Option<u8> {
     }
 }
 
-// ─────────────────────────────────────────────
-//  Sprache
-// ─────────────────────────────────────────────
-
-#[derive(Clone, PartialEq, Debug)]
-enum Lang {
-    De,
-    En,
-}
-
 struct Txt {
     page_title: &'static str,
     form_title: &'static str,
+    data_titel: &'static str,
     lbl_name: &'static str,
     name_ph: &'static str,
     lbl_email: &'static str,
@@ -76,7 +71,6 @@ struct Txt {
     members_ph: &'static str,
     lbl_diets: &'static str,
     diets_ph: &'static str,
-    lbl_address: &'static str,
     deadline_until: &'static str,
     btn_submit: &'static str,
     err_name_empty: &'static str,
@@ -96,11 +90,12 @@ struct Txt {
     inactive_body: &'static str,
 }
 
-fn txt(lang: &Lang) -> Txt {
+fn txt(lang: &Language) -> Txt {
     match lang {
-        Lang::De => Txt {
+        Language::German => Txt {
             page_title:             "Team registrieren",
             form_title:             "Team-Daten",
+            data_titel:             "Allgemeine Daten",
             lbl_name:               "Teamname",
             name_ph:                "z.B. Die Chili-Chasers",
             lbl_email:              "E-Mail",
@@ -111,7 +106,6 @@ fn txt(lang: &Lang) -> Txt {
             members_ph:             "z.B. 2",
             lbl_diets:              "Ernährungsbesonderheiten",
             diets_ph:               "z.B. vegetarisch, Nussallergie, halal …",
-            lbl_address:            "Adresse",
             deadline_until:         "Anmeldung möglich bis",
             btn_submit:             "Team erstellen",
             err_name_empty:         "Teamname darf nicht leer sein!",
@@ -130,9 +124,10 @@ fn txt(lang: &Lang) -> Txt {
             inactive_title:         "Link nicht aktiv",
             inactive_body:          "Dieser Registrierungslink ist aktuell nicht aktiv.",
         },
-        Lang::En => Txt {
+        Language::English => Txt {
             page_title:             "Register team",
             form_title:             "Team data",
+            data_titel:             "General data",
             lbl_name:               "Team name",
             name_ph:                "e.g. The Chili Chasers",
             lbl_email:              "Email",
@@ -143,7 +138,6 @@ fn txt(lang: &Lang) -> Txt {
             members_ph:             "e.g. 2",
             lbl_diets:              "Dietary requirements",
             diets_ph:               "e.g. vegetarian, nut allergy, halal …",
-            lbl_address:            "Address",
             deadline_until:         "Registration open until",
             btn_submit:             "Create team",
             err_name_empty:         "Team name cannot be empty!",
@@ -241,31 +235,36 @@ pub fn ShareRegisterPage(cook_and_run_id: Uuid) -> Element {
         });
 
     match &*share_config.read_unchecked() {
-        None => rsx!(LoadingPage {}),
-        Some(Err(e)) => rsx!(ErrorPage {
-            error_text: "Could not load registration page.".to_string(),
-            error_details: e.clone(),
-        }),
+        None => rsx!(
+            LoadingPage {}
+        ),
+        Some(Err(e)) => rsx!(
+            ErrorPage {
+                error_text: "Could not load registration page.".to_string(),
+                error_details: e.clone(),
+            }
+        ),
         // Kein Config → Link inaktiv
         Some(Ok(None)) => {
-            let lang_signal = use_signal(|| Lang::De);
+            let lang_signal = use_signal(|| Language::German);
             rsx! {
                 PageLayout {
-                    header: rsx! { PageHeader { title: txt(&lang_signal.read()).inactive_title, lang_signal:lang_signal } },
+                    header: rsx! {
+                        PageHeader { title: txt(&lang_signal.read()).inactive_title, lang_signal }
+                    },
                     content: rsx! {
                         BlockedView {
-                            icon:  "lock",
+                            icon: "lock",
                             title: txt(&lang_signal.read()).inactive_title.to_string(),
-                            body:  txt(&lang_signal.read()).inactive_body.to_string(),
+                            body: txt(&lang_signal.read()).inactive_body.to_string(),
                         }
                     },
                 }
             }
         }
-        Some(Ok(Some(config))) => rsx!(RegisterPageShell {
-            cook_and_run_id,
-            share_config: config.clone(),
-        }),
+        Some(Ok(Some(config))) => rsx!(
+            RegisterPageShell { cook_and_run_id, share_config: config.clone() }
+        ),
     }
 }
 
@@ -306,10 +305,9 @@ fn PageLayout(header: Element, content: Element) -> Element {
 // ─────────────────────────────────────────────
 
 #[component]
-fn PageHeader(title: &'static str, lang_signal: Signal<Lang>) -> Element {
+fn PageHeader(title: &'static str, lang_signal: Signal<Language>) -> Element {
     rsx! {
-        header {
-            class: "sticky top-0 z-20 \
+        header { class: "sticky top-0 z-20 \
                     bg-white/95 backdrop-blur-sm border-b border-amber-100 \
                     sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-b-0 \
                     px-4 py-3 sm:px-0 sm:py-0 \
@@ -320,27 +318,27 @@ fn PageHeader(title: &'static str, lang_signal: Signal<Lang>) -> Element {
                 div { class: "w-8 h-8 sm:w-9 sm:h-9 rounded-xl \
                               bg-amber-100 flex items-center justify-center \
                               text-[#D67229] shrink-0",
-                    svg {
-                        class: "w-4 h-4 sm:w-5 sm:h-5",
-                        view_box: "0 0 24 24", fill: "none",
-                        stroke: "currentColor", stroke_width: "2",
-                        path { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }
-                        circle { cx: "9", cy: "7", r: "4" }
-                        path { d: "M23 21v-2a4 4 0 0 0-3-3.87" }
-                        path { d: "M16 3.13a4 4 0 0 1 0 7.75" }
-                    }
+                    UserGroupIcon {}
                 }
-                span { class: "text-base sm:text-lg font-semibold text-zinc-800",
-                    "{title}"
-                }
+                span { class: "text-base sm:text-lg font-semibold text-zinc-800", "{title}" }
             }
 
             // Sprach-Toggle
             div { class: "flex gap-1.5",
-                {lang_btn("DE", *lang_signal.read() == Lang::De,
-                    move |_| lang_signal.set(Lang::De))}
-                {lang_btn("EN", *lang_signal.read() == Lang::En,
-                    move |_| lang_signal.set(Lang::En))}
+                {
+                    lang_btn(
+                        "DE",
+                        *lang_signal.read() == Language::German,
+                        move |_| lang_signal.set(Language::German),
+                    )
+                }
+                {
+                    lang_btn(
+                        "EN",
+                        *lang_signal.read() == Language::English,
+                        move |_| lang_signal.set(Language::English),
+                    )
+                }
             }
         }
     }
@@ -355,27 +353,27 @@ fn RegisterPageShell(cook_and_run_id: Uuid, share_config: ShareTeamConfig) -> El
         _ => share_config.needs_login,
     };
 
-    let lang_signal: Signal<Lang> = use_signal(|| Lang::De);
+    let lang_signal: Signal<Language> = use_signal(|| Language::German);
 
     let deadline_passed = share_config
         .registration_deadline
-        .map_or(false, |dl| dl < Utc::now().naive_utc());
+        .map_or(false, |dl| dl < Utc::now());
 
-    let max_teams_reached = share_config.max_teams.map_or(false, |max| false);
+    let max_teams_reached = share_config.max_teams.map_or(false, |_max| false);
 
     let t_title = txt(&lang_signal.read()).page_title;
 
     rsx! {
         PageLayout {
-            header: rsx! { PageHeader { title: t_title, lang_signal } },
+            header: rsx! {
+                PageHeader { title: t_title, lang_signal }
+            },
             content: rsx! {
                 if !share_config.invite_text.is_empty() {
                     div { class: "mx-4 sm:mx-0 \
-                                  rounded-2xl border border-amber-200 bg-amber-50/70 \
-                                  px-4 py-3.5 sm:px-5 sm:py-4",
-                        p { class: "text-sm text-amber-900 leading-relaxed",
-                            "{share_config.invite_text}"
-                        }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                  rounded-2xl border border-amber-200 bg-amber-50/70 \
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                  px-4 py-3.5 sm:px-5 sm:py-4",
+                        p { class: "text-sm text-amber-900 leading-relaxed", "{share_config.invite_text}" }
                     }
                 }
 
@@ -388,9 +386,9 @@ fn RegisterPageShell(cook_and_run_id: Uuid, share_config: ShareTeamConfig) -> El
                     }
                 } else if max_teams_reached {
                     BlockedView {
-                        icon:  "users",
+                        icon: "users",
                         title: txt(&lang_signal.read()).max_teams_title.to_string(),
-                        body:  txt(&lang_signal.read()).max_teams_body.to_string(),
+                        body: txt(&lang_signal.read()).max_teams_body.to_string(),
                     }
                 } else {
                     RegisterFormView {
@@ -445,9 +443,7 @@ fn BlockedView(icon: &'static str, title: String, body: String) -> Element {
                               flex items-center justify-center text-[#D67229]",
                     {blocked_icon(icon)}
                 }
-                p { class: "text-sm text-zinc-500 max-w-xs leading-relaxed",
-                    "{body}"
-                }
+                p { class: "text-sm text-zinc-500 max-w-xs leading-relaxed", "{body}" }
             }
         }
     }
@@ -455,13 +451,13 @@ fn BlockedView(icon: &'static str, title: String, body: String) -> Element {
 
 /// Deadline abgelaufen – mit Zeitstempel-Pill
 #[component]
-fn DeadlinePassedView(lang: Lang, deadline: chrono::NaiveDateTime) -> Element {
+fn DeadlinePassedView(lang: Language, deadline: DateTime<Utc>) -> Element {
     let t = txt(&lang);
-    let formatted = Local
-        .from_local_datetime(&deadline)
-        .single()
-        .map(|dt| dt.format("%d.%m.%Y, %H:%M Uhr").to_string())
-        .unwrap_or_else(|| deadline.format("%d.%m.%Y %H:%M").to_string());
+
+    let formatted = deadline
+        .with_timezone(&Local)
+        .format("%d.%m.%Y, %H:%M Uhr")
+        .to_string();
 
     rsx! {
         div { class: "bg-white \
@@ -472,9 +468,7 @@ fn DeadlinePassedView(lang: Lang, deadline: chrono::NaiveDateTime) -> Element {
                           bg-amber-50/70 border-b border-amber-100 \
                           flex items-center gap-2.5",
                 div { class: "w-1.5 h-5 rounded-full bg-amber-400/70 shrink-0" }
-                span { class: "text-base font-semibold text-zinc-800",
-                    "{t.deadline_passed_title}"
-                }
+                span { class: "text-base font-semibold text-zinc-800", "{t.deadline_passed_title}" }
             }
 
             div { class: "px-4 py-10 sm:px-6 sm:py-12 \
@@ -493,8 +487,10 @@ fn DeadlinePassedView(lang: Lang, deadline: chrono::NaiveDateTime) -> Element {
                                text-xs font-semibold text-amber-700 mt-1",
                     svg {
                         class: "w-3.5 h-3.5 shrink-0",
-                        view_box: "0 0 24 24", fill: "none",
-                        stroke: "currentColor", stroke_width: "2",
+                        view_box: "0 0 24 24",
+                        fill: "none",
+                        stroke: "currentColor",
+                        stroke_width: "2",
                         circle { cx: "12", cy: "12", r: "10" }
                         polyline { points: "12 6 12 12 16 14" }
                     }
@@ -506,13 +502,13 @@ fn DeadlinePassedView(lang: Lang, deadline: chrono::NaiveDateTime) -> Element {
 }
 
 #[component]
-fn LoginRequiredView(lang: Lang) -> Element {
+fn LoginRequiredView(lang: Language) -> Element {
     let t = txt(&lang);
     rsx! {
         BlockedView {
-            icon:  "lock",
+            icon: "lock",
             title: t.login_required_title.to_string(),
-            body:  t.login_required_body.to_string(),
+            body: t.login_required_body.to_string(),
         }
     }
 }
@@ -534,8 +530,10 @@ fn LoginRequiredView(lang: Lang) -> Element {
 fn RegisterFormView(
     cook_and_run_id: Uuid,
     share_config: ShareTeamConfig,
-    lang: Signal<Lang>,
+    lang: Signal<Language>,
 ) -> Element {
+    let storage_signal = use_context::<Signal<StorageManager>>();
+
     let mut name_signal = use_signal(|| String::new());
     let name_err = use_signal(|| String::new());
     let mut email_signal = use_signal(|| String::new());
@@ -545,7 +543,9 @@ fn RegisterFormView(
     let mut members_signal = use_signal(|| String::new());
     let members_err = use_signal(|| String::new());
     let mut diets_signal = use_signal(|| String::new());
-    let address_param = AddressParam::default();
+
+    let address_param = AddressParam::default_with_language(lang);
+
     let mut submitted = use_signal(|| false);
 
     // Sichtbarkeit optionaler Felder
@@ -558,17 +558,17 @@ fn RegisterFormView(
 
     // Deadline-Anzeige
     let deadline_str: Option<String> = share_config.registration_deadline.map(|dl| {
-        Local
-            .from_local_datetime(&dl)
-            .single()
-            .map(|dt| dt.format("%d.%m.%Y, %H:%M Uhr").to_string())
-            .unwrap_or_else(|| dl.format("%d.%m.%Y %H:%M").to_string())
+        dl.with_timezone(&Local)
+            .format("%d.%m.%Y, %H:%M Uhr")
+            .to_string()
     });
 
     let default_needs_check = share_config.default_needs_check;
 
     if *submitted.read() {
-        return rsx! { SuccessView { lang: lang.read().clone() } };
+        return rsx! {
+            SuccessView { lang: lang.read().clone() }
+        };
     }
 
     let t = txt(&lang.read());
@@ -583,9 +583,7 @@ fn RegisterFormView(
                           bg-amber-50/70 border-b border-amber-100 \
                           flex items-center gap-2.5",
                 div { class: "w-1.5 h-5 rounded-full bg-amber-400/70 shrink-0" }
-                span { class: "text-base font-semibold text-zinc-800",
-                    "{t.form_title}"
-                }
+                span { class: "text-base font-semibold text-zinc-800", "{t.form_title}" }
             }
 
             div { class: "px-4 py-4 sm:px-6 sm:py-5 space-y-4 sm:space-y-5",
@@ -597,14 +595,14 @@ fn RegisterFormView(
                                   px-3.5 py-2.5",
                         svg {
                             class: "w-4 h-4 text-amber-600 shrink-0",
-                            view_box: "0 0 24 24", fill: "none",
-                            stroke: "currentColor", stroke_width: "2",
+                            view_box: "0 0 24 24",
+                            fill: "none",
+                            stroke: "currentColor",
+                            stroke_width: "2",
                             circle { cx: "12", cy: "12", r: "10" }
                             polyline { points: "12 6 12 12 16 14" }
                         }
-                        p { class: "text-xs font-semibold text-amber-700",
-                            "{t.deadline_until}: {dl}"
-                        }
+                        p { class: "text-xs font-semibold text-amber-700", "{t.deadline_until}: {dl}" }
                     }
                 }
 
@@ -619,11 +617,17 @@ fn RegisterFormView(
                                   md:border-b-0 md:pb-0 md:mb-0 \
                                   md:border-r md:pr-6 md:flex-1",
 
+                        // Section Header
+                        div { class: "flex items-center gap-2 text-amber-800",
+                            DataIcon {}
+                            Headline3 { headline: t.data_titel.to_string() }
+                        }
+
                         // Teamname (immer)
                         div {
                             label { class: "{LBL}", "{t.lbl_name}" }
                             Input {
-                                place_holer: Some(t.name_ph.to_string()),
+                                place_holer: t.name_ph.to_string(),
                                 is_error: !name_err.read().is_empty(),
                                 value: name_signal.clone(),
                                 oninput: move |e: Event<FormData>| {
@@ -656,7 +660,7 @@ fn RegisterFormView(
                             div {
                                 label { class: "{LBL}", "{t.lbl_phone}" }
                                 InputPhoneNumber {
-                                    place_holer: Some(t.phone_ph.to_string()),
+                                    placeholder: Some(t.phone_ph.to_string()),
                                     is_error: !phone_err.read().is_empty(),
                                     value: phone_signal.clone(),
                                     oninput: move |e: Event<FormData>| {
@@ -673,13 +677,12 @@ fn RegisterFormView(
                             div {
                                 label { class: "{LBL}", "{t.lbl_members}" }
                                 InputNumber {
-                                    place_holer: Some(t.members_ph.to_string()),
+                                    placeholder: Some(t.members_ph.to_string()),
                                     value: members_signal.clone(),
                                     is_error: !members_err.read().is_empty(),
                                     oninput: move |e: Event<FormData>| {
                                         members_signal.set(e.value());
-                                        check_members(members_signal, members_err,
-                                            &txt(&lang.read()));
+                                        check_members(members_signal, members_err, &txt(&lang.read()));
                                     },
                                 }
                                 InputError { error: members_err.read() }
@@ -704,64 +707,35 @@ fn RegisterFormView(
 
                     // ── Rechte Spalte: Adresse (immer) ────────────
                     div { class: "flex flex-col gap-2 md:flex-1",
-                        label { class: "{LBL}", "{t.lbl_address}" }
                         Address { param: address_param }
                     }
                 }
 
                 // ── Footer: Hinweis + Submit ───────────────────────
-                // Button: volle Breite auf Mobile, auto ab sm
                 div { class: "pt-1 border-t border-amber-100 \
                               flex flex-col sm:flex-row sm:items-center \
                               sm:justify-between gap-3",
                     div { class: "w-full sm:w-auto",
                         ConfirmButton {
                             text: t.btn_submit.to_string(),
-                            action: async_action!({
-                                let t = txt(&lang.read());
-
-                                let name_ok    = check_name(name_signal, name_err, &t);
-                                let phone_ok   = !show_phone
-                                    || check_phone(phone_signal, phone_err, &t);
-                                let email_ok   = !show_email
-                                    || check_email(email_signal, email_err, &t);
-                                let members_ok = !show_members
-                                    || check_members(members_signal, members_err, &t);
-                                let addr_ok    = address_param.check_address_data().is_ok();
-
-                                if !name_ok || !phone_ok || !email_ok || !members_ok || !addr_ok {
-                                    return;
-                                }
-
-                                let team = TeamCreate {
-                                    name: name_signal.read().trim().to_string(),
-                                    address: address_param
-                                        .get_address_data()
-                                        .expect("address validated above"),
-                                    mail:    show_email  .then(|| map_string(email_signal.read().clone()))  .flatten(),
-                                    phone:   show_phone  .then(|| map_string(phone_signal.read().clone()))  .flatten(),
-                                    members: show_members.then(|| map_u8(members_signal.read().clone()))    .flatten(),
-                                    diets:   show_diets  .then(|| map_string(diets_signal.read().clone()))  .flatten(),
-                                    needs_check: default_needs_check,
-                                };
-
-                                let mut storage_signal = use_context::<Signal<StorageManager>>();
-                                let result = storage_signal
-                                    .write()
-                                    .create_team_of_cook_and_run(
-                                        cook_and_run_id,
-                                        Uuid::new_v4(),
-                                        &team,
-                                    )
-                                    .await;
-
-                                match result {
-                                    Ok(_)  => submitted.set(true),
-                                    Err(e) => console::error_1(
-                                        &format!("Register error: {e}").into()
-                                    ),
-                                }
-                            }),
+                            action: async_action!(
+                                { let t = txt(& lang.read()); let name_ok = check_name(name_signal, name_err, &
+                                t); let phone_ok = ! show_phone || check_phone(phone_signal, phone_err, & t); let
+                                email_ok = ! show_email || check_email(email_signal, email_err, & t); let
+                                members_ok = ! show_members || check_members(members_signal, members_err, & t);
+                                let addr_ok = address_param.check_address_data().is_ok(); if ! name_ok || !
+                                phone_ok || ! email_ok || ! members_ok || ! addr_ok { return; } let team =
+                                TeamCreate { name : name_signal.read().trim().to_string(), address :
+                                address_param.get_address_data().expect("address validated above"), mail :
+                                show_email.then(|| map_string(email_signal.read().clone())).flatten(), phone :
+                                show_phone.then(|| map_string(phone_signal.read().clone())).flatten(), members :
+                                show_members.then(|| map_u8(members_signal.read().clone())).flatten(), diets :
+                                show_diets.then(|| map_string(diets_signal.read().clone())).flatten(),
+                                needs_check : default_needs_check, }; let mut storage = storage_signal.read()
+                                .clone(); let result = storage.create_team_of_cook_and_run(cook_and_run_id,
+                                Uuid::new_v4(), & team). await; match result { Ok(_) => submitted.set(true),
+                                Err(e) => console::error_1(& format!("Register error: {e}") .into()), } }
+                            ),
                         }
                     }
                 }
@@ -775,7 +749,7 @@ fn RegisterFormView(
 // ─────────────────────────────────────────────
 
 #[component]
-fn SuccessView(lang: Lang) -> Element {
+fn SuccessView(lang: Language) -> Element {
     let t = txt(&lang);
     rsx! {
         div { class: "bg-white \
@@ -786,25 +760,16 @@ fn SuccessView(lang: Lang) -> Element {
                           bg-green-50/70 border-b border-green-100 \
                           flex items-center gap-2.5",
                 div { class: "w-1.5 h-5 rounded-full bg-green-400/70 shrink-0" }
-                span { class: "text-base font-semibold text-zinc-800",
-                    "{t.success_title}"
-                }
+                span { class: "text-base font-semibold text-zinc-800", "{t.success_title}" }
             }
 
             div { class: "px-4 py-12 sm:px-6 sm:py-14 \
                           flex flex-col items-center gap-4 text-center",
                 div { class: "w-16 h-16 rounded-full bg-green-100 \
                               flex items-center justify-center",
-                    svg {
-                        class: "w-8 h-8 text-green-600",
-                        view_box: "0 0 24 24", fill: "none",
-                        stroke: "currentColor", stroke_width: "2.5",
-                        polyline { points: "20 6 9 17 4 12" }
-                    }
+                    SuccessIcon {}
                 }
-                p { class: "text-sm text-zinc-500 max-w-xs leading-relaxed",
-                    "{t.success_body}"
-                }
+                p { class: "text-sm text-zinc-500 max-w-xs leading-relaxed", "{t.success_body}" }
             }
         }
     }
@@ -819,8 +784,10 @@ fn blocked_icon(name: &str) -> Element {
         "clock" => rsx! {
             svg {
                 class: "w-7 h-7",
-                view_box: "0 0 24 24", fill: "none",
-                stroke: "currentColor", stroke_width: "2",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "2",
                 circle { cx: "12", cy: "12", r: "10" }
                 polyline { points: "12 6 12 12 16 14" }
             }
@@ -828,20 +795,31 @@ fn blocked_icon(name: &str) -> Element {
         "users" => rsx! {
             svg {
                 class: "w-7 h-7",
-                view_box: "0 0 24 24", fill: "none",
-                stroke: "currentColor", stroke_width: "2",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "2",
                 path { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }
                 circle { cx: "9", cy: "7", r: "4" }
                 path { d: "M23 21v-2a4 4 0 0 0-3-3.87" }
                 path { d: "M16 3.13a4 4 0 0 1 0 7.75" }
             }
         },
-        _ => rsx! {  // "lock" + Fallback
+        _ => rsx! {
             svg {
                 class: "w-7 h-7",
-                view_box: "0 0 24 24", fill: "none",
-                stroke: "currentColor", stroke_width: "2",
-                rect { x: "3", y: "11", width: "18", height: "11", rx: "2", ry: "2" }
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "2",
+                rect {
+                    x: "3",
+                    y: "11",
+                    width: "18",
+                    height: "11",
+                    rx: "2",
+                    ry: "2",
+                }
                 path { d: "M7 11V7a5 5 0 0 1 10 0v4" }
             }
         },

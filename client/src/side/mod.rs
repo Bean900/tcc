@@ -402,45 +402,8 @@ pub(crate) fn InputMultirow(
     }
 }
 
-#[component]
-pub(crate) fn InputNumber(
-    place_holer: Option<String>,
-    value: String,
-    is_error: Option<bool>,
-    oninput: EventHandler<dioxus::prelude::Event<FormData>>,
-) -> Element {
-    rsx! {
-        input {
-            class: if is_error.is_some_and(|e| e) { INPUT_ERROR } else { INPUT_NORMAL },
-            r#type: "number",
-            placeholder: if place_holer.is_some() { place_holer.expect("Expected placeholder") } else { "" },
-            value,
-            oninput: move |e| {
-                oninput.call(e);
-            },
-        }
-    }
-}
 
-#[component]
-pub(crate) fn InputPhoneNumber(
-    place_holer: Option<String>,
-    value: String,
-    is_error: Option<bool>,
-    oninput: EventHandler<dioxus::prelude::Event<FormData>>,
-) -> Element {
-    rsx! {
-        input {
-            class: if is_error.is_some_and(|e| e) { INPUT_ERROR } else { INPUT_NORMAL },
-            r#type: "tel",
-            placeholder: if place_holer.is_some() { place_holer.expect("Expected placeholder") } else { "" },
-            value,
-            oninput: move |e| {
-                oninput.call(e);
-            },
-        }
-    }
-}
+
 
 #[component]
 pub(crate) fn InputTime(

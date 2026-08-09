@@ -4,7 +4,8 @@ pub mod mapper;
 
 use std::{collections::HashMap, hash::Hash};
 
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Utc};
+use chrono::{DateTime, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
+use js_sys::Date;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -996,8 +997,8 @@ pub struct HostingData {
 pub struct TeamData {
     pub id: Uuid,
     pub name: String,
-    pub created: NaiveDateTime,
-    pub edited: NaiveDateTime,
+    pub created: DateTime<Utc>,
+    pub edited: DateTime<Utc>,
     pub address: AddressData,
     pub mail: Option<String>,
     pub phone: Option<String>,
@@ -1012,8 +1013,8 @@ impl Default for TeamData {
         Self {
             id: Uuid::new_v4(),
             name: "[Team Name]".to_string(),
-            created: Utc::now().naive_utc(),
-            edited: Utc::now().naive_utc(),
+            created: Utc::now(),
+            edited: Utc::now(),
             address: AddressData::default(),
             mail: Some("[mail address]".to_string()),
             phone: Some("[phone number]".to_string()),
@@ -1349,8 +1350,8 @@ pub struct ShareTeamConfig {
     pub default_needs_check: bool,
     pub required_fields: Vec<RequiredField>,
     pub max_teams: Option<u32>,
-    pub registration_deadline: Option<NaiveDateTime>,
-    pub created: NaiveDateTime,
+    pub registration_deadline: Option<DateTime<chrono::Utc>>,
+    pub created: DateTime<chrono::Utc>,
 }
 
 impl ShareTeamConfig {
@@ -1374,14 +1375,28 @@ impl Default for ShareTeamConfig {
             default_needs_check: true,
             required_fields: vec![RequiredField::Mail, RequiredField::Diets],
             max_teams: None,
-            registration_deadline: Utc::now()
-                .naive_utc()
-                .date()
-                .and_hms_opt(18, 0, 0)
-                .and_then(|dt| dt.checked_add_signed(chrono::Duration::days(28))),
-            created: Utc::now().naive_utc(),
+            registration_deadline :Some(get_future_utc_at_local_1800()),
+            created: Utc::now(),
         }
     }
+ 
+}
+
+fn get_future_utc_at_local_1800() -> DateTime<Utc> {
+    let now_local = Local::now();
+
+    let target_date = now_local.date_naive() + Duration::days(28);
+
+    let target_time = NaiveTime::from_hms_opt(18, 0, 0)
+        .expect("Ungültige Zeitangabe");
+    let target_naive = target_date.and_time(target_time);
+
+    let target_local = Local
+        .from_local_datetime(&target_naive)
+        .single()
+        .expect("Uhrzeit ist in der lokalen Zeitzone ungültig oder mehrdeutig");
+
+    target_local.with_timezone(&Utc)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -1391,5 +1406,5 @@ pub struct ShareTeamConfigCreate {
     pub default_needs_check: bool,
     pub required_fields: Vec<RequiredField>,
     pub max_teams: Option<u32>,
-    pub registration_deadline: Option<NaiveDateTime>,
+    pub registration_deadline: Option<DateTime<chrono::Utc>>,
 }
