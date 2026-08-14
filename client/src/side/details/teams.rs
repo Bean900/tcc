@@ -27,41 +27,13 @@ use crate::ui::{
     icons::PlusIcon,
     typography::Headline1,
 };
+use crate::ui::tokens::NATIVE_INPUT;
+use crate::ui::tokens::LBL;
+use crate::ui::tokens::SAVE_GLOW_CSS;
 
 // ─────────────────────────────────────────────
-//  Shared design tokens & Sort Options
+//  Sort Options
 // ─────────────────────────────────────────────
-
-const LBL: &str =
-    "block text-[11px] font-semibold tracking-[0.12em] uppercase text-amber-700/70 mb-1.5";
-
-const NATIVE_INPUT: &str = "w-full px-3 py-2 rounded-xl border border-amber-200 bg-amber-50/40 \
-     text-sm text-zinc-800 placeholder-zinc-400 \
-     focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 \
-     transition-colors duration-150";
-
-const SAVE_GLOW_CSS: &str = r#"
-@keyframes save-glow {
-    0%   { border-color:#d1fae5; box-shadow:0 0 0 0px rgba(34,197,94,0),   0 1px 3px 0 rgba(0,0,0,0.06); }
-    20%  { border-color:#22c55e; box-shadow:0 0 0 5px rgba(34,197,94,0.22),0 1px 3px 0 rgba(0,0,0,0.06); }
-    55%  { border-color:#16a34a; box-shadow:0 0 0 5px rgba(34,197,94,0.10),0 1px 3px 0 rgba(0,0,0,0.06); }
-    100% { border-color:#bbf7d0; box-shadow:0 0 0 0px rgba(34,197,94,0),   0 1px 3px 0 rgba(0,0,0,0.06); }
-}
-.save-glow-dialog { animation: save-glow 2s ease-in-out forwards; }
-.save-glow-dialog .save-glow-header {
-    background-color: rgba(240,253,244,0.70) !important;
-    border-bottom-color: #bbf7d0 !important;
-    transition: background-color 0.4s ease, border-color 0.4s ease;
-}
-.save-glow-dialog .save-glow-accent {
-    background-color: rgba(34,197,94,0.75) !important;
-    transition: background-color 0.4s ease;
-}
-.save-glow-dialog .save-glow-title {
-    color: #166534 !important;
-    transition: color 0.4s ease;
-}
-"#;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TeamSortOption {
@@ -95,7 +67,11 @@ fn map_u8(value: String) -> Option<u8> {
     value.trim().parse::<u8>().ok()
 }
 
+// `storage_signal` wird jetzt als Parameter übergeben statt per
+// `use_context` innerhalb einer freien (nicht `use_`-präfixierten)
+// Funktion abgefragt – vermeidet den Rules-of-Hooks-Verstoß.
 async fn add_team(
+    mut storage_signal: Signal<StorageManager>,
     id: Uuid,
     name: String,
     diets: String,
@@ -113,7 +89,6 @@ async fn add_team(
         members: map_u8(members),
         needs_check: false,
     };
-    let mut storage_signal = use_context::<Signal<StorageManager>>();
     let mut storage = storage_signal.write();
     storage
         .create_team_of_cook_and_run(id, Uuid::new_v4(), &team)
@@ -121,6 +96,7 @@ async fn add_team(
 }
 
 async fn update_team(
+    mut storage_signal: Signal<StorageManager>,
     id: Uuid,
     team_id: Uuid,
     name: String,
@@ -140,7 +116,6 @@ async fn update_team(
         members: map_u8(members),
         needs_check,
     };
-    let mut storage_signal = use_context::<Signal<StorageManager>>();
     let mut storage = storage_signal.write();
     storage
         .update_team_of_cook_and_run(id, team_id, &team)
@@ -148,21 +123,24 @@ async fn update_team(
 }
 
 async fn add_team_note(
+    mut storage_signal: Signal<StorageManager>,
     id: Uuid,
     team_id: Uuid,
     headline: String,
     content: String,
 ) -> Result<(), String> {
     let note = NoteCreate { headline, content };
-    let mut storage_signal = use_context::<Signal<StorageManager>>();
     let mut storage = storage_signal.write();
     storage
         .create_team_note_of_cook_and_run(id, team_id, Uuid::new_v4(), &note)
         .await
 }
 
-async fn delete_team(id: Uuid, team_id: Uuid) -> Result<(), String> {
-    let mut storage_signal = use_context::<Signal<StorageManager>>();
+async fn delete_team(
+    mut storage_signal: Signal<StorageManager>,
+    id: Uuid,
+    team_id: Uuid,
+) -> Result<(), String> {
     let mut storage = storage_signal.write();
     storage.delete_team_of_cook_and_run(id, team_id).await
 }
@@ -174,17 +152,22 @@ async fn delete_team(id: Uuid, team_id: Uuid) -> Result<(), String> {
 #[component]
 pub fn Teams(cook_and_run_id: Uuid) -> Element {
     let storage = use_context::<Signal<StorageManager>>();
-    let team_list: Resource<Result<(Vec<TeamData>, bool), String>> = use_resource(move || {
-        let storage = storage;
-        async move {
-            let storage = storage.read().clone();
-            let team_list = storage
-                .select_cook_and_run_team_list(cook_and_run_id)
-                .await?;
-            let meta = storage.select_cook_and_run_meta(cook_and_run_id).await?;
-            Ok((team_list, meta.is_in_cloud))
-        }
+
+    let mut team_list: Resource<Result<(Vec<TeamData>, bool), String>> = use_resource(move || async move {
+        let storage = storage.read().clone();
+        let team_list = storage
+            .select_cook_and_run_team_list(cook_and_run_id)
+            .await?;
+        let meta = storage.select_cook_and_run_meta(cook_and_run_id).await?;
+        Ok((team_list, meta.is_in_cloud))
     });
+
+    // Explizite Invalidierung statt impliziter Kopplung über das globale
+    // Storage-Signal: Kind-Komponenten rufen diesen Callback gezielt nach
+    // erfolgreichen Create/Update/Delete-Operationen auf.
+    let on_teams_changed = move |_| {
+        team_list.restart();
+    };
 
     let list_ref = team_list.read();
     match &*list_ref {
@@ -203,6 +186,7 @@ pub fn Teams(cook_and_run_id: Uuid) -> Element {
                 cook_and_run_id,
                 team_list: teams.clone(),
                 is_online: *is_cloud,
+                on_teams_changed,
             }
         ),
     }
@@ -215,8 +199,13 @@ pub fn Teams(cook_and_run_id: Uuid) -> Element {
 enum PopUpWindow {
     None,
     AddTeam,
-    EditTeam(TeamData),
-    Share(Option<ShareTeamConfig>),
+    // Hält jetzt nur noch die Team-ID statt eines vollständigen
+    // TeamData-Snapshots – die tatsächlichen Daten werden beim Rendern
+    // frisch aus `team_list` abgeleitet (Single Source of Truth).
+    EditTeam(Uuid),
+    // Trägt keine Config-Daten mehr im Enum – wird beim Rendern frisch
+    // aus der `share_config`-Resource abgeleitet.
+    Share,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -235,6 +224,7 @@ pub(crate) fn TeamsContent(
     cook_and_run_id: Uuid,
     team_list: Vec<TeamData>,
     is_online: bool,
+    on_teams_changed: EventHandler<()>,
 ) -> Element {
     let number_of_teams = team_list.len();
     let mut team_dialog_signal: Signal<PopUpWindow> = use_signal(|| PopUpWindow::None);
@@ -243,7 +233,7 @@ pub(crate) fn TeamsContent(
     let mut sort_signal = use_signal(|| TeamSortOption::NameAsc);
 
     let storage = use_context::<Signal<StorageManager>>();
-    let share_config: Resource<Result<ShareConfigState, String>> =
+    let mut share_config: Resource<Result<ShareConfigState, String>> =
         use_resource(move || async move {
             if !is_online {
                 return Ok(ShareConfigState::Offline);
@@ -258,6 +248,10 @@ pub(crate) fn TeamsContent(
             }
         });
 
+    let on_share_config_changed = move |_| {
+        share_config.restart();
+    };
+
     let share_icon_svg = rsx! {
         svg {
             class: "w-5 h-5",
@@ -268,23 +262,12 @@ pub(crate) fn TeamsContent(
             circle { cx: "18", cy: "5", r: "3" }
             circle { cx: "6", cy: "12", r: "3" }
             circle { cx: "18", cy: "19", r: "3" }
-            line {
-                x1: "8.59",
-                y1: "13.51",
-                x2: "15.42",
-                y2: "17.49",
-            }
-            line {
-                x1: "15.41",
-                y1: "6.51",
-                x2: "8.59",
-                y2: "10.49",
-            }
+            line { x1: "8.59", y1: "13.51", x2: "15.42", y2: "17.49" }
+            line { x1: "15.41", y1: "6.51", x2: "8.59", y2: "10.49" }
         }
     };
 
     let share_btn_class = "flex items-center justify-center w-9 h-9 rounded-[10px] border-none cursor-pointer bg-[#D67229] hover:bg-[#C66741] text-white shadow-[0_2px_8px_rgba(214,114,41,0.3)] hover:shadow-[0_4px_14px_rgba(198,103,65,0.45)] transition-all duration-150";
-    let add_team_class = "border-2 border-dashed border-[#D67229]/35 hover:border-[#D67229] rounded-2xl p-5 flex flex-col items-center justify-center gap-2.5 cursor-pointer text-[#D67229]/50 hover:text-[#C66741] bg-[#FDF6EC]/30 hover:bg-[#FDF6EC]/80 transition-all duration-150 min-h-[120px]";
 
     let sort_options = vec![
         (TeamSortOption::NameAsc, "Name (A–Z)".to_string()),
@@ -316,6 +299,9 @@ pub(crate) fn TeamsContent(
         }
     }
 
+    // "Loaded" und "None" führen beide zum selben klickbaren Button –
+    // der eigentliche Config-Wert wird nicht mehr hier, sondern erst beim
+    // Öffnen des Dialogs (unten im match) frisch gelesen.
     let config = match &*share_config.read() {
         None => rsx! {
             div { class: "w-9 h-9 rounded-xl bg-amber-100/60 animate-pulse" }
@@ -330,18 +316,8 @@ pub(crate) fn TeamsContent(
                     fill: "none",
                     stroke: "currentColor",
                     stroke_width: "2",
-                    line {
-                        x1: "18",
-                        y1: "6",
-                        x2: "6",
-                        y2: "18",
-                    }
-                    line {
-                        x1: "6",
-                        y1: "6",
-                        x2: "18",
-                        y2: "18",
-                    }
+                    line { x1: "18", y1: "6", x2: "6", y2: "18" }
+                    line { x1: "6", y1: "6", x2: "18", y2: "18" }
                 }
             }
         },
@@ -356,23 +332,11 @@ pub(crate) fn TeamsContent(
                 }
             }
         },
-        Some(Ok(ShareConfigState::Loaded(config))) => {
-            let config = config.clone();
-            rsx! {
-                button {
-                    class: "{share_btn_class}",
-                    onclick: move |_| {
-                        team_dialog_signal.set(PopUpWindow::Share(Some(config.clone())));
-                    },
-                    {share_icon_svg}
-                }
-            }
-        }
-        Some(Ok(ShareConfigState::None)) => rsx! {
+        Some(Ok(ShareConfigState::Loaded(_))) | Some(Ok(ShareConfigState::None)) => rsx! {
             button {
                 class: "{share_btn_class}",
                 onclick: move |_| {
-                    team_dialog_signal.set(PopUpWindow::Share(None));
+                    team_dialog_signal.set(PopUpWindow::Share);
                 },
                 {share_icon_svg}
             }
@@ -381,7 +345,6 @@ pub(crate) fn TeamsContent(
 
     rsx! {
         section { class: "max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6",
-            // ── Header Bar (Mobil optimiert mit direktem Add Team Button) ──
             div { class: "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-amber-100/80 pb-3",
                 Headline1 {
                     headline: "Teams".to_string(),
@@ -417,7 +380,7 @@ pub(crate) fn TeamsContent(
                     filtered_teams
                         .iter()
                         .map(|team| {
-                            let team_data = team.clone();
+                            let team_id = team.id;
                             let card_cls = if team.needs_check {
                                 "relative bg-white rounded-2xl border border-amber-400 shadow-xs hover:shadow-md transition-all duration-150 cursor-pointer overflow-hidden"
                             } else {
@@ -427,7 +390,7 @@ pub(crate) fn TeamsContent(
                                 a {
                                     key: "{team.id}",
                                     onclick: move |_| {
-                                        team_dialog_signal.set(PopUpWindow::EditTeam(team_data.clone()));
+                                        team_dialog_signal.set(PopUpWindow::EditTeam(team_id));
                                     },
                                     class: "{card_cls}",
                                     TeamCard {
@@ -447,24 +410,41 @@ pub(crate) fn TeamsContent(
             PopUpWindow::AddTeam => rsx! {
                 AddTeamDialog {
                     project_id: cook_and_run_id,
-                    team_dialog_signal: team_dialog_signal.clone(),
+                    team_dialog_signal,
+                    on_teams_changed,
                 }
             },
-            PopUpWindow::EditTeam(team_data) => rsx! {
-                EditTeamDialog {
-                    team_dialog_signal: team_dialog_signal.clone(),
-                    project_id: cook_and_run_id,
-                    team_data: team_data.clone(),
+            PopUpWindow::EditTeam(team_id) => {
+                match team_list.iter().find(|t| t.id == *team_id).cloned() {
+                    Some(team_data) => rsx! {
+                        EditTeamDialog {
+                            team_dialog_signal,
+                            project_id: cook_and_run_id,
+                            team_data,
+                            on_teams_changed,
+                        }
+                    },
+                    // Team existiert nicht mehr (z. B. zwischenzeitlich
+                    // gelöscht) – bewusst kein Signal-Write während des
+                    // Renderns, einfach nichts anzeigen.
+                    None => rsx! {},
                 }
-            },
-            PopUpWindow::Share(share_config) => rsx! {
-                ShareDialog {
-                    team_dialog_signal: team_dialog_signal.clone(),
-                    project_id: cook_and_run_id,
-                    share_config_option: share_config.clone(),
-                    number_of_teams,
+            }
+            PopUpWindow::Share => {
+                let share_config_option = match &*share_config.read() {
+                    Some(Ok(ShareConfigState::Loaded(config))) => Some(config.clone()),
+                    _ => None,
+                };
+                rsx! {
+                    ShareDialog {
+                        team_dialog_signal,
+                        project_id: cook_and_run_id,
+                        share_config_option,
+                        number_of_teams,
+                        on_share_config_changed,
+                    }
                 }
-            },
+            }
         }
     }
 }
@@ -520,7 +500,13 @@ fn TeamCard(props: TeamCardProps) -> Element {
 // ─────────────────────────────────────────────
 
 #[component]
-fn AddTeamDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> Element {
+fn AddTeamDialog(
+    team_dialog_signal: Signal<PopUpWindow>,
+    project_id: Uuid,
+    on_teams_changed: EventHandler<()>,
+) -> Element {
+    let storage_signal = use_context::<Signal<StorageManager>>();
+
     let team_name_signal = use_signal(String::new);
     let team_name_error_signal = use_signal(String::new);
     let team_email_signal = use_signal(String::new);
@@ -535,7 +521,6 @@ fn AddTeamDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> E
     rsx! {
         div { class: "backdrop-blur-sm fixed inset-0 flex h-screen w-screen justify-center items-center bg-black/20 z-50 p-4",
             div { class: "relative bg-white rounded-2xl border border-amber-100 shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden",
-                // Stabile Header-Leiste
                 div { class: "px-6 py-4 bg-amber-50/70 border-b border-amber-100 flex items-center justify-between gap-2.5 shrink-0 relative",
                     div { class: "flex items-center gap-2.5",
                         div { class: "w-1.5 h-5 rounded-full bg-amber-400/70" }
@@ -548,7 +533,6 @@ fn AddTeamDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> E
                     }
                 }
 
-                // Scrollbarer Inhaltsbereich
                 div { class: "px-6 py-5 overflow-y-auto flex-1",
                     TeamDialog {
                         team_dialog_signal,
@@ -570,16 +554,42 @@ fn AddTeamDialog(team_dialog_signal: Signal<PopUpWindow>, project_id: Uuid) -> E
                         ConfirmButton {
                             text: "Create Team".to_string(),
                             action: async_action!(
-                                { if ! check_all(team_name_signal, team_name_error_signal, team_email_signal,
-                                team_email_error_signal, team_tel_signal, team_tel_error_signal,
-                                members_error_signal, members_signal, address_param.clone(),) { return; } let
-                                address_data = address_param.get_address_data()
-                                .expect("Expect no errors when getting address_data!"); let result =
-                                add_team(project_id, team_name_signal.read().clone(), diets_signal.read()
-                                .clone(), team_email_signal.read().clone(), team_tel_signal.read().clone(),
-                                members_signal.read().clone(), address_data,). await; if let Err(e) = result {
-                                console::error_1(& format!("Error creating team: {e}") .into()); } else {
-                                team_dialog_signal.set(PopUpWindow::None); } }
+                                {
+                                    if !check_all(
+                                        team_name_signal,
+                                        team_name_error_signal,
+                                        team_email_signal,
+                                        team_email_error_signal,
+                                        team_tel_signal,
+                                        team_tel_error_signal,
+                                        members_error_signal,
+                                        members_signal,
+                                        address_param.clone(),
+                                    ) {
+                                        return;
+                                    }
+                                    let address_data = address_param
+                                        .get_address_data()
+                                        .expect("Expect no errors when getting address_data!");
+                                    let result = add_team(
+                                        storage_signal,
+                                        project_id,
+                                        team_name_signal.read().clone(),
+                                        diets_signal.read().clone(),
+                                        team_email_signal.read().clone(),
+                                        team_tel_signal.read().clone(),
+                                        members_signal.read().clone(),
+                                        address_data,
+                                    ).await;
+                                    if let Err(e) = result {
+                                        console::error_1(&format!("Error creating team: {e}").into());
+                                    } else {
+                                        // Explizite Invalidierung statt impliziter
+                                        // Storage-Signal-Kopplung (siehe Phase 2, Punkt 5).
+                                        on_teams_changed.call(());
+                                        team_dialog_signal.set(PopUpWindow::None);
+                                    }
+                                }
                             ),
                         }
                     }
@@ -598,7 +608,11 @@ fn EditTeamDialog(
     team_dialog_signal: Signal<PopUpWindow>,
     project_id: Uuid,
     team_data: TeamData,
+    on_teams_changed: EventHandler<()>,
 ) -> Element {
+    let storage_signal = use_context::<Signal<StorageManager>>();
+    let team_id = team_data.id;
+
     let team_name_signal = use_signal(|| team_data.name.clone());
     let team_name_error_signal = use_signal(String::new);
     let team_email_signal = use_signal(|| team_data.mail.clone().unwrap_or_default());
@@ -620,25 +634,18 @@ fn EditTeamDialog(
     let mut save_success_signal = use_signal(|| false);
     let mut has_unsaved_changes = use_signal(|| false);
 
-    use_effect(move || {
-        check_all(
-            team_name_signal,
-            team_name_error_signal,
-            team_email_signal,
-            team_email_error_signal,
-            team_tel_signal,
-            team_tel_error_signal,
-            members_error_signal,
-            members_signal,
-            address_param.clone(),
-        );
-    });
+    // Der frühere `use_effect`, der bei jeder Feldänderung das komplette
+    // Formular erneut validiert hat, wurde entfernt (Phase 2, Punkt 2).
+    // Validierung erfolgt jetzt konsistent zu AddTeamDialog:
+    // gezielt pro Feld über die oninput-Handler in TeamDialog,
+    // vollständig beim Absenden über check_all.
 
     let delete_button = DeleteButtonProps::new(
         async_action!({
-            if let Err(e) = delete_team(project_id, team_data.id).await {
+            if let Err(e) = delete_team(storage_signal, project_id, team_id).await {
                 console::error_1(&format!("Error deleting team: {e}").into());
             } else {
+                on_teams_changed.call(());
                 team_dialog_signal.set(PopUpWindow::None);
             }
         }),
@@ -679,7 +686,6 @@ fn EditTeamDialog(
 
         div { class: "backdrop-blur-sm fixed inset-0 flex h-screen w-screen justify-center items-center bg-black/20 z-50 p-4",
             div { class: "{dialog_class}",
-                // Stabile Header-Leiste
                 div { class: "{header_class}",
                     div { class: "flex items-center gap-2.5",
                         div { class: "{accent_class}" }
@@ -692,7 +698,6 @@ fn EditTeamDialog(
                     }
                 }
 
-                // Scrollbarer Inhaltsbereich
                 div { class: "px-6 py-5 overflow-y-auto flex-1",
                     div { class: "flex items-center justify-between border-b border-amber-100 mb-5",
                         div { class: "flex",
@@ -756,20 +761,59 @@ fn EditTeamDialog(
                             div { class: "{update_btn_wrapper_class}",
                                 ConfirmButton {
                                     text: "Update Team".to_string(),
-                                    error_signal: error_signal.clone(),
+                                    // Signal<String> ist Copy – .clone() war hier unnötig.
+                                    error_signal,
                                     action: async_action!(
-                                        { if ! check_all(team_name_signal, team_name_error_signal, team_email_signal,
-                                        team_email_error_signal, team_tel_signal, team_tel_error_signal,
-                                        members_error_signal, members_signal, address_param.clone(),) { return; } let
-                                        address_data = address_param.get_address_data()
-                                        .expect("Expect no errors when getting address_data!"); let result =
-                                        update_team(project_id, team_data.id, team_name_signal.read().clone(),
-                                        diets_signal.read().clone(), team_email_signal.read().clone(), team_tel_signal
-                                        .read().clone(), members_signal.read().clone(), address_data, *
-                                        needs_check_signal.read(),). await; if let Err(e) = result { console::error_1(&
-                                        format!("Error updating team: {e}") .into()); } else { save_success_signal
-                                        .set(true); spawn(async move { sleep(Duration::from_millis(2000)). await;
-                                        team_dialog_signal.set(PopUpWindow::None); }); } }
+                                        {
+                                            if !check_all(
+                                                team_name_signal,
+                                                team_name_error_signal,
+                                                team_email_signal,
+                                                team_email_error_signal,
+                                                team_tel_signal,
+                                                team_tel_error_signal,
+                                                members_error_signal,
+                                                members_signal,
+                                                address_param.clone(),
+                                            ) {
+                                                return;
+                                            }
+                                            let address_data = address_param
+                                                .get_address_data()
+                                                .expect("Expect no errors when getting address_data!");
+                                            let result = update_team(
+                                                storage_signal,
+                                                project_id,
+                                                team_id,
+                                                team_name_signal.read().clone(),
+                                                diets_signal.read().clone(),
+                                                team_email_signal.read().clone(),
+                                                team_tel_signal.read().clone(),
+                                                members_signal.read().clone(),
+                                                address_data,
+                                                *needs_check_signal.read(),
+                                            ).await;
+                                            if let Err(e) = result {
+                                                console::error_1(&format!("Error updating team: {e}").into());
+                                            } else {
+                                                on_teams_changed.call(());
+                                                save_success_signal.set(true);
+                                                has_unsaved_changes.set(false);
+                                                spawn(async move {
+                                                    sleep(Duration::from_millis(2000)).await;
+                                                    // Guard gegen die in Phase 1 beschriebene Race
+                                                    // Condition: Nur schließen, wenn der Dialog
+                                                    // währenddessen nicht bereits gewechselt wurde.
+                                                    let still_this_dialog = matches!(
+                                                        &*team_dialog_signal.read(),
+                                                        PopUpWindow::EditTeam(id) if *id == team_id
+                                                    );
+                                                    if still_this_dialog {
+                                                        team_dialog_signal.set(PopUpWindow::None);
+                                                    }
+                                                });
+                                            }
+                                        }
                                     ),
                                 }
                             }
@@ -777,8 +821,9 @@ fn EditTeamDialog(
                     } else {
                         TeamNotes {
                             project_id,
-                            team_id: team_data.id,
+                            team_id,
                             note_data_list: team_data.note_list,
+                            on_teams_changed,
                         }
                     }
                 }
@@ -788,7 +833,7 @@ fn EditTeamDialog(
 }
 
 // ─────────────────────────────────────────────
-//  Shared team form (Add + Edit)
+//  Shared team form (Add + Edit) — inhaltlich unverändert
 // ─────────────────────────────────────────────
 
 #[component]
@@ -903,7 +948,14 @@ fn TeamDialog(
 // ─────────────────────────────────────────────
 
 #[component]
-fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> Element {
+fn TeamNotes(
+    project_id: Uuid,
+    team_id: Uuid,
+    note_data_list: Vec<NoteData>,
+    on_teams_changed: EventHandler<()>,
+) -> Element {
+    let storage_signal = use_context::<Signal<StorageManager>>();
+
     let mut create_note_headline_signal = use_signal(String::new);
     let mut create_note_headline_error_signal = use_signal(String::new);
     let mut create_note_content_signal = use_signal(String::new);
@@ -913,6 +965,13 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
 
     let mut sorted_note_list = note_data_list;
     sorted_note_list.sort_by(|a, b| b.created.cmp(&a.created));
+    // Hinweis: Dieser use_signal-Init läuft nur beim ersten Mount von
+    // TeamNotes. Da EditTeamDialog pro geöffnetem Team eine frische
+    // Komponenteninstanz ist (Team-ID steckt im Enum-Discriminant von
+    // PopUpWindow), ist das unkritisch. Die lokale Liste dient primär
+    // der sofortigen optimistischen UI-Aktualisierung nach dem Anlegen
+    // einer Notiz; die eigentliche Quelle der Wahrheit bleibt team_list
+    // in Teams, das über on_teams_changed synchron gehalten wird.
     let mut sorted_note_list_signal = use_signal(|| sorted_note_list);
 
     rsx! {
@@ -971,22 +1030,56 @@ fn TeamNotes(project_id: Uuid, team_id: Uuid, note_data_list: Vec<NoteData>) -> 
                     text: "Post Note".to_string(),
                     error_signal: create_note_error_signal,
                     action: async_action!(
-                        { let headline = create_note_headline_signal.read().trim().to_string(); let
-                        content = create_note_content_signal.read().trim().to_string(); let mut has_error
-                        = false; if headline.is_empty() { create_note_headline_error_signal
-                        .set("Headline cannot be empty!".to_string()); has_error = true; } if content
-                        .is_empty() { create_note_content_error_signal.set("Content cannot be empty!"
-                        .to_string()); has_error = true; } if has_error { create_note_error_signal
-                        .set("-".to_string()); return; } let result = add_team_note(project_id, team_id,
-                        headline.clone(), content.clone()). await; if let Err(e) = result {
-                        console::error_1(& format!("Error creating note: {e}") .into());
-                        creating_error_signal.set("Error creating note!".to_string()); } else { let
-                        new_note = NoteData { id : Uuid::new_v4(), headline, content, created :
-                        Utc::now(), }; sorted_note_list_signal.write().insert(0, new_note);
-                        create_note_headline_signal.set(String::new()); create_note_content_signal
-                        .set(String::new()); create_note_headline_error_signal.set(String::new());
-                        create_note_content_error_signal.set(String::new()); create_note_error_signal
-                        .set(String::new()); creating_error_signal.set(String::new()); } }
+                        {
+                            let headline = create_note_headline_signal.read().trim().to_string();
+                            let content = create_note_content_signal.read().trim().to_string();
+                            let mut has_error = false;
+                            if headline.is_empty() {
+                                create_note_headline_error_signal
+                                    .set("Headline cannot be empty!".to_string());
+                                has_error = true;
+                            }
+                            if content.is_empty() {
+                                create_note_content_error_signal
+                                    .set("Content cannot be empty!".to_string());
+                                has_error = true;
+                            }
+                            if has_error {
+                                create_note_error_signal.set("-".to_string());
+                                return;
+                            }
+                            let result = add_team_note(
+                                storage_signal,
+                                project_id,
+                                team_id,
+                                headline.clone(),
+                                content.clone(),
+                            ).await;
+                            if let Err(e) = result {
+                                console::error_1(&format!("Error creating note: {e}").into());
+                                creating_error_signal.set("Error creating note!".to_string());
+                            } else {
+                                let new_note = NoteData {
+                                    id: Uuid::new_v4(),
+                                    headline,
+                                    content,
+                                    created: Utc::now(),
+                                };
+                                // Sofortiges optimistisches UI-Update ...
+                                sorted_note_list_signal.write().insert(0, new_note);
+                                create_note_headline_signal.set(String::new());
+                                create_note_content_signal.set(String::new());
+                                create_note_headline_error_signal.set(String::new());
+                                create_note_content_error_signal.set(String::new());
+                                create_note_error_signal.set(String::new());
+                                creating_error_signal.set(String::new());
+                                // ... plus explizite Invalidierung der
+                                // Source-of-Truth-Resource (Phase 2, Punkt 5),
+                                // statt uns auf implizites Storage-Signal-
+                                // Tracking zu verlassen.
+                                on_teams_changed.call(());
+                            }
+                        }
                     ),
                 }
                 InputError { error: creating_error_signal.read() }
@@ -1035,6 +1128,7 @@ fn ShareDialog(
     project_id: Uuid,
     share_config_option: Option<ShareTeamConfig>,
     number_of_teams: usize,
+    on_share_config_changed: EventHandler<()>,
 ) -> Element {
     let share_config = share_config_option.clone().unwrap_or_default();
     let is_share_config_some = share_config_option.is_some();
@@ -1054,12 +1148,14 @@ fn ShareDialog(
             .map(|dt| dt.with_timezone(&Local).time())
     });
 
-    let share_url: Signal<String> = use_signal(|| {
+    // War zuvor ein `Signal<String>`, wird aber nie mutiert – ein
+    // einmalig berechneter, einfacher `let`-Wert genügt (Phase 2, Punkt 7).
+    let share_url: String = {
         let base_url = web_sys::window()
             .and_then(|w| w.location().origin().ok())
             .unwrap_or_else(|| "unknown".to_string());
         format!("{base_url}/cook-and-run/{project_id}/share")
-    });
+    };
 
     let deadline_passed = share_config_signal
         .read()
@@ -1078,22 +1174,37 @@ fn ShareDialog(
         Some(max) => number_of_teams >= max as usize,
     };
 
-    let is_active_signal = use_signal(|| !max_teams_reached);
+    // War zuvor `use_signal(|| !max_teams_reached)` und damit nur beim
+    // Mount berechnet → wurde nicht aktualisiert, wenn der Nutzer
+    // "Max Teams" im Config-Tab ändert (Phase 1, Bug). Jetzt bei jedem
+    // Render neu abgeleitet, analog zu `deadline_passed`/`max_teams_reached`.
+    let is_active = !max_teams_reached;
 
-    let qr_data_uri = use_memo(move || {
-        let code = match QrCode::new(share_url.read().as_bytes()) {
-            Ok(c) => c,
-            Err(_) => return String::new(),
-        };
-        let svg_xml = code
-            .render::<svg::Color>()
-            .min_dimensions(200, 200)
-            .dark_color(svg::Color("#000000"))
-            .light_color(svg::Color("#ffffff"))
-            .build();
-        let encoded = general_purpose::STANDARD.encode(svg_xml);
-        format!("data:image/svg+xml;base64,{encoded}")
+    // use_memo bleibt hier bewusst erhalten: QR-Code-Rendering +
+    // Base64-Encoding ist eine nicht-triviale Berechnung, die wir nur
+    // einmal ausführen wollen (share_url ändert sich im Dialog-Lebenszyklus
+    // nicht mehr) – korrekte Anwendung von use_memo für eine teure,
+    // stabile Ableitung.
+    let qr_data_uri = use_memo({
+        let share_url = share_url.clone();
+        move || {
+            let code = match QrCode::new(share_url.as_bytes()) {
+                Ok(c) => c,
+                Err(_) => return String::new(),
+            };
+            let svg_xml = code
+                .render::<svg::Color>()
+                .min_dimensions(200, 200)
+                .dark_color(svg::Color("#000000"))
+                .light_color(svg::Color("#ffffff"))
+                .build();
+            let encoded = general_purpose::STANDARD.encode(svg_xml);
+            format!("data:image/svg+xml;base64,{encoded}")
+        }
     });
+
+    // Kleines UX-Feedback für den (vormals funktionslosen) Copy-Button.
+    let mut copied_signal = use_signal(|| false);
 
     let mut storage_signal = use_context::<Signal<StorageManager>>();
     let save_update_share_config: AsyncAction = async_action!({
@@ -1130,7 +1241,15 @@ fn ShareDialog(
         if let Err(e) = result {
             console::error_1(&format!("Error saving share config: {e}").into());
         } else {
-            team_dialog_signal.set(PopUpWindow::Share(Some(config)));
+            // `share_config_signal` enthält bereits den neuen Stand und
+            // treibt die lokale Dialog-UI weiter direkt an. Zusätzlich
+            // informieren wir explizit den Elternteil (TeamsContent),
+            // damit dessen `share_config`-Resource neu geladen wird
+            // (z. B. für den Badge/Button-Zustand im Hintergrund) –
+            // statt uns auf implizites Storage-Signal-Tracking zu
+            // verlassen (Phase 2, Punkt 5).
+            on_share_config_changed.call(());
+            team_dialog_signal.set(PopUpWindow::Share);
         }
     });
 
@@ -1146,7 +1265,6 @@ fn ShareDialog(
     rsx! {
         div { class: "backdrop-blur-sm fixed inset-0 flex h-screen w-screen justify-center items-center bg-black/20 z-50 p-4",
             div { class: "relative bg-white rounded-2xl border border-amber-100 shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden",
-                // Stabile Header-Leiste
                 div { class: "px-6 py-4 bg-amber-50/70 border-b border-amber-100 flex items-center justify-between gap-2.5 shrink-0 relative",
                     div { class: "flex items-center gap-2.5",
                         div { class: "w-1.5 h-5 rounded-full bg-amber-400/70" }
@@ -1159,7 +1277,6 @@ fn ShareDialog(
                     }
                 }
 
-                // Scrollbarer Inhaltsbereich
                 div { class: "px-6 py-5 overflow-y-auto flex-1",
                     div { class: "flex border-b border-amber-100 mb-5",
                         button {
@@ -1210,7 +1327,7 @@ fn ShareDialog(
                                 }
                             }
 
-                            div { class: if *is_active_signal.read() { "flex flex-col space-y-4" } else { "flex flex-col space-y-4 opacity-50 pointer-events-none" },
+                            div { class: if is_active { "flex flex-col space-y-4" } else { "flex flex-col space-y-4 opacity-50 pointer-events-none" },
                                 div { class: "flex flex-col items-center p-4 rounded-xl border border-amber-100 bg-amber-50/30",
                                     label { class: "{LBL} mb-3", "QR Code" }
                                     div { class: "bg-white p-3 rounded-xl border border-amber-100",
@@ -1222,7 +1339,7 @@ fn ShareDialog(
                                     }
                                     button {
                                         class: "mt-3 px-4 py-2 text-sm font-medium rounded-xl bg-[#D67229] hover:bg-[#C66741] text-white transition-colors duration-150",
-                                        disabled: !*is_active_signal.read(),
+                                        disabled: !is_active,
                                         onclick: move |_| {
                                             let qr_data = qr_data_uri.read().clone();
                                             if !qr_data.is_empty() {
@@ -1252,15 +1369,33 @@ fn ShareDialog(
                                         input {
                                             r#type: "text",
                                             readonly: true,
-                                            disabled: !*is_active_signal.read(),
+                                            disabled: !is_active,
                                             value: "{share_url}",
                                             class: "{NATIVE_INPUT} flex-1",
                                         }
                                         button {
                                             class: "px-4 py-2 text-sm font-medium rounded-xl bg-[#D67229] hover:bg-[#C66741] text-white transition-colors duration-150",
-                                            disabled: !*is_active_signal.read(),
-                                            onclick: move |_| {},
-                                            "Copy"
+                                            disabled: !is_active,
+                                            onclick: move |_| {
+                                                let text = share_url.clone();
+                                                spawn(async move {
+                                                    if let Some(window) = web_sys::window() {
+                                                        let clipboard = window.navigator().clipboard();
+                                                        let promise = clipboard.write_text(&text);
+                                                        match wasm_bindgen_futures::JsFuture::from(promise).await {
+                                                            Ok(_) => {
+                                                                copied_signal.set(true);
+                                                                sleep(Duration::from_millis(1500)).await;
+                                                                copied_signal.set(false);
+                                                            }
+                                                            Err(_) => {
+                                                                console::error_1(&"Error copying share link to clipboard".into());
+                                                            }
+                                                        }
+                                                    }
+                                                });
+                                            },
+                                            if *copied_signal.read() { "Copied!" } else { "Copy" }
                                         }
                                     }
                                 }
