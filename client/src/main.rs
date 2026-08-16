@@ -9,6 +9,7 @@ mod storage;
 use crate::config::Config;
 use crate::config::LegalConfig;
 use crate::footer::Footer;
+use crate::ui::icons::ServerOfflineIcon;
 use dioxus::prelude::*;
 use side::Calculate;
 use side::Callback;
@@ -35,7 +36,7 @@ use web_sys::window;
 pub use crate::keycloak::AuthState;
 use crate::side::Menu;
 use crate::state::ConsentState;
-use crate::storage::{ StorageManager};
+use crate::storage::{StorageManager};
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const PROFILE: Asset = asset!("/assets/profile.png");
@@ -47,7 +48,7 @@ fn main() {
 }
 
 // ─────────────────────────────────────────────
-//  Toast-Modell & Hilfsfunktion
+//  Toast Model & Helper
 // ─────────────────────────────────────────────
 
 #[derive(Clone, PartialEq)]
@@ -74,7 +75,7 @@ pub fn trigger_error_toast(mut toasts: Signal<Vec<ToastMessage>>, headline: &str
 #[derive(Routable, Clone, PartialEq)]
 #[rustfmt::skip]
 enum Route {
-    // ── Haupt-App (mit Header + Auth-Button + Footer) ──
+    // ── Main App (Header + Auth-Button + Footer) ──
     #[layout(Wrapper)]
         #[route("/")]
         Home {},
@@ -429,13 +430,19 @@ fn Wrapper() -> Element {
         };
     }
 
+    let storage_signal = use_context::<Signal<StorageManager>>();
+    let backend_available = storage_signal.read().is_backend_available();
+
     let mut auth_signal = use_context::<Signal<Option<AuthState>>>();
-    let login = match auth_signal.read().clone() {
+    let auth_state = auth_signal.read().clone();
+    let is_auth_not_available = matches!(auth_state, Some(AuthState::NotAvailable()));
+
+    let login_btn = match auth_state {
         None => rsx!(
             button {
                 class: "{AUTH_BTN} opacity-60 cursor-not-allowed",
                 disabled: true,
-                {spinner_svg}
+                {spinner_svg.clone()}
                 "Loading..."
             }
         ),
@@ -455,7 +462,7 @@ fn Wrapper() -> Element {
                         }
                     });
                 },
-                {spinner_svg}
+                {spinner_svg.clone()}
                 "Loading..."
             }
         },
@@ -517,30 +524,56 @@ fn Wrapper() -> Element {
                 "Login"
             }
         },
-        Some(AuthState::NotAvailable()) => rsx! {
-            button {
-                class: "{AUTH_BTN} opacity-60 cursor-not-allowed",
-                disabled: true,
-                svg {
-                    class: "w-3.5 h-3.5 text-red-400",
-                    view_box: "0 0 24 24",
-                    fill: "none",
-                    xmlns: "http://www.w3.org/2000/svg",
-                    stroke: "currentColor",
-                    stroke_width: "2",
-                    stroke_linecap: "round",
-                    stroke_linejoin: "round",
-                    path { d: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" }
-                    path { d: "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" }
-                    line {
-                        x1: "2",
-                        y1: "2",
-                        x2: "22",
-                        y2: "22",
-                    }
+        Some(AuthState::NotAvailable()) => rsx! {},
+    };
+
+    let status_and_auth = match (backend_available, is_auth_not_available) {
+        // Both Backend & Auth (Keycloak) are offline -> Render single compact unified badge
+        (false, true) => rsx! {
+            div {
+                class: "flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium \
+                        text-rose-700 bg-rose-50/90 border border-rose-200/80 shadow-2xs \
+                        transition-all duration-150 cursor-help",
+                title: "Backend and authentication server are currently offline.",
+                span { class: "relative flex h-2 w-2 shrink-0",
+                    span { class: "animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" }
+                    span { class: "relative inline-flex rounded-full h-2 w-2 bg-rose-500" }
                 }
-                "Not available"
+                ServerOfflineIcon {}
+                span { "Offline" }
             }
+        },
+        // Only Backend is offline -> Show compact backend badge + regular auth button
+        (false, false) => rsx! {
+            div { class: "flex items-center gap-2.5",
+                div {
+                    class: "flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium \
+                            text-rose-700 bg-rose-50/80 border border-rose-200/80 shadow-2xs \
+                            transition-all duration-150 cursor-help",
+                    title: "Backend server is currently offline.",
+                    span { class: "relative flex h-2 w-2 shrink-0",
+                        span { class: "animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" }
+                        span { class: "relative inline-flex rounded-full h-2 w-2 bg-rose-500" }
+                    }
+                    span { "Offline" }
+                }
+                {login_btn}
+            }
+        },
+        // Only Auth is offline (Backend is online) -> Show compact auth offline badge
+        (true, true) => rsx! {
+            div {
+                class: "flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium \
+                        text-rose-700 bg-rose-50/80 border border-rose-200/80 opacity-80 cursor-not-allowed \
+                        transition-colors duration-150",
+                title: "Authentication server is currently offline.",
+                ServerOfflineIcon {}
+                span { "Offline" }
+            }
+        },
+        // Both are online -> Show regular auth button
+        (true, false) => rsx! {
+            {login_btn}
         },
     };
 
@@ -564,7 +597,7 @@ fn Wrapper() -> Element {
                             class: "h-8 w-auto",
                         }
                     }
-                    div { class: "flex items-center gap-3", {login} }
+                    div { class: "flex items-center gap-2.5", {status_and_auth} }
                 }
             }
 
@@ -619,7 +652,7 @@ fn App() -> Element {
     });
 
     use_effect(move || {
-        // Diese Signale SOLLEN den Effekt auslösen:
+        // These signals trigger the effect:
         let auth = auth_signal.read().clone();
         let config = config_signal.read().clone();
 
@@ -628,7 +661,7 @@ fn App() -> Element {
                 spawn(async move {
                     console::debug_1(&format!("Loading cloud storage with auth state").into());
                     
-                    // WICHTIG: .peek() statt .read(), um keine Reaktivitäts-Schleife zu bauen!
+                    // .peek() instead of .read() to prevent infinite reactivity loop
                     let mut storage = storage_signal.peek().clone();
 
                     if let Err(e) = storage
@@ -636,9 +669,8 @@ fn App() -> Element {
                         .await
                     {
                         console::error_1(&format!("Error loading cloud storage: {}", e).into());
+                        storage_signal.set(storage);
                     } else {
-                        // Aktualisiert nur Komponenten, die auf das Signal hören, 
-                        // triggert aber DIESEN Effekt wegen .peek() nicht mehr neu.
                         storage_signal.set(storage);
                     }
                 });

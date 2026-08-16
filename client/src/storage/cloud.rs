@@ -57,7 +57,7 @@ impl CookAndRunCreateRequest {
     fn from(c_a_r: &CookAndRunCreate, user_id: String) -> Self {
         CookAndRunCreateRequest {
             name: c_a_r.name.clone(),
-            user_id: user_id,
+            user_id,
         }
     }
 }
@@ -102,7 +102,7 @@ struct CourseListResponse {
 
 impl CloudStorage {
     pub async fn new(auth_state: AuthState, base_url: String) -> Result<Self, String> {
-        let cloud_storage= CloudStorage {
+        let cloud_storage = CloudStorage {
             base_url,
             auth_state,
         };
@@ -118,18 +118,17 @@ impl CloudStorage {
     }
 
     async fn health_check(&self) -> Result<(), String> {
-        let session_data = match self.get_access_token() {
-            Ok(sd) => sd,
-            Err(_) => return Err("No auth data!".to_string()),
-        };
+        let session_data = self.get_access_token().ok();
 
         let url = format!("{}/health", self.base_url);
         let client = reqwest::Client::new();
-        let res = client
-            .get(&url)
-            .bearer_auth(session_data.access_token)
-            .send()
-            .await;
+        let mut request = client.get(&url);
+
+        if let Some(session) = session_data {
+            request = request.bearer_auth(session.access_token);
+        }
+
+        let res = request.send().await;
 
         match res {
             Ok(response) if response.status().is_success() => Ok(()),
@@ -430,24 +429,23 @@ impl Storage for CloudStorage {
         team_id: Uuid,
         team: &TeamCreate,
     ) -> Result<(), String> {
-        let session_data = match self.get_access_token() {
-            Ok(sd) => sd,
-            Err(_) => return Err("No auth data!".to_string()),
-        };
+        let session_data = self.get_access_token().ok();
+        let user_id = session_data.as_ref().map(|sd| sd.user.sub.clone());
 
-        let request_data = TeamCreateRequest::from(team, Some(session_data.user.sub));
+        let request_data = TeamCreateRequest::from(team, user_id);
 
         let url = format!(
             "{}/cook_and_run/{}/team/{}",
             self.base_url, cook_and_run_id, team_id
         );
         let client = reqwest::Client::new();
-        let res = client
-            .post(&url)
-            .bearer_auth(session_data.access_token)
-            .json(&request_data)
-            .send()
-            .await;
+        let mut request = client.post(&url).json(&request_data);
+
+        if let Some(session) = session_data {
+            request = request.bearer_auth(session.access_token);
+        }
+
+        let res = request.send().await;
 
         match res {
             Ok(response) if response.status().is_success() => Ok(()),
@@ -628,12 +626,11 @@ impl Storage for CloudStorage {
                 .send()
                 .await
         } else {
-            let res = client
+            client
                 .delete(&url)
                 .bearer_auth(session_data.access_token)
                 .send()
-                .await;
-            res
+                .await
         };
 
         match res {

@@ -20,6 +20,7 @@ use crate::{
 pub struct StorageManager {
     local: LocalStorage,
     cloud: Option<CloudStorage>,
+    backend_available: bool,
 }
 
 async fn transfere<T: Storage>(storage: &mut T, c_a_r: CookAndRunData) -> Result<Uuid, String> {
@@ -66,6 +67,7 @@ impl StorageManager {
         Ok(StorageManager {
             local: LocalStorage::new()?,
             cloud: None,
+            backend_available: false,
         })
     }
 
@@ -78,10 +80,12 @@ impl StorageManager {
         match cloud {
             Ok(cloud) => {
                 self.cloud = Some(cloud);
+                self.backend_available = true;
                 Ok(())
             }
             Err(e) => {
                 self.cloud = None;
+                self.backend_available = false;
                 Err(format!("Error while loading cloud connection: {}", e))
             }
         }
@@ -89,6 +93,14 @@ impl StorageManager {
 
     pub fn disconnect_cloud(&mut self) {
         self.cloud = None;
+    }
+
+    pub fn is_backend_available(&self) -> bool {
+        self.backend_available
+    }
+
+    pub fn is_cloud_available(&self) -> bool {
+        self.cloud.is_some()
     }
 
     fn get_cloud_mut(&mut self) -> Result<&mut CloudStorage, String> {

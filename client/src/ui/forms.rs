@@ -83,21 +83,6 @@ pub fn SearchInput(
 }
 
 #[component]
-pub fn InputDate(
-    value: String,
-    oninput: EventHandler<FormEvent>,
-) -> Element {
-    rsx! {
-        input {
-            r#type: "date",
-            class: "{NATIVE_INPUT} w-full block",
-            value: "{value}",
-            oninput: move |e| oninput.call(e),
-        }
-    }
-}
-
-#[component]
 pub(crate) fn InputPhoneNumber(
     placeholder: Option<String>,
     value: String,
@@ -204,6 +189,84 @@ pub fn InputTime(
         input {
             r#type: "time",
             class: "{NATIVE_INPUT} {custom_class}",
+            value: "{value}",
+            oninput: move |e| oninput.call(e),
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// BAUSTEIN 1/2: In client/src/ui/forms.rs einfügen (z. B. direkt nach InputTime).
+//
+// Ersetzt die bisher 7× im teams-Modul kopierte
+// `input[type=checkbox]` + `label`-Kombination durch eine einheitliche
+// Komponente mit zwei visuellen Varianten (Inline / Card).
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Visuelle Variante des `Checkbox`-Bausteins.
+#[derive(Clone, Copy, PartialEq, Default)]
+pub enum CheckboxVariant {
+    /// Kompakt, ohne Rahmen – für dicht stehende Options-Listen
+    /// (z. B. "Required Fields").
+    #[default]
+    Inline,
+    /// Eigene Karte mit Rahmen und Hover-Hintergrund – für einzeln
+    /// hervorgehobene Umschalter (z. B. "Login required").
+    Card,
+}
+
+/// Einheitliche Checkbox mit Label, in zwei Varianten (`Inline`/`Card`).
+#[component]
+pub fn Checkbox(
+    label: String,
+    checked: bool,
+    onclick: EventHandler<MouseEvent>,
+    #[props(default)] variant: CheckboxVariant,
+    #[props(default)] title: Option<String>,
+) -> Element {
+    let (wrapper_class, label_class) = match variant {
+        CheckboxVariant::Inline => (
+            "flex items-center gap-2 cursor-pointer group",
+            "text-[13px] text-zinc-600 group-hover:text-zinc-800 transition-colors",
+        ),
+        CheckboxVariant::Card => (
+            "flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-amber-100 bg-amber-50/30 hover:bg-amber-50/60 transition-colors cursor-pointer group",
+            "text-[13px] text-zinc-600 group-hover:text-zinc-800 transition-colors",
+        ),
+    };
+
+    rsx! {
+        label { class: wrapper_class, title: title.unwrap_or_default(),
+            input {
+                r#type: "checkbox",
+                checked,
+                class: "accent-[#D67229] w-4 h-4 rounded cursor-pointer",
+                onclick: move |e| onclick.call(e),
+            }
+            span { class: label_class, "{label}" }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// BAUSTEIN 2/2: bestehende `InputDate`-Funktion in client/src/ui/forms.rs
+// ERSETZEN durch diese Version (fügt einen optionalen `class`-Prop hinzu,
+// analog zu `InputTime`, das dieses Feature schon hat). Rückwärtskompatibel:
+// der einzige bestehende Call-Site (overview.rs) übergibt keine `class` und
+// verhält sich exakt wie zuvor.
+// ─────────────────────────────────────────────────────────────────────────
+
+#[component]
+pub fn InputDate(
+    value: String,
+    oninput: EventHandler<FormEvent>,
+    #[props(default)] class: Option<String>,
+) -> Element {
+    let custom_class = class.unwrap_or_default();
+    rsx! {
+        input {
+            r#type: "date",
+            class: "{NATIVE_INPUT} w-full block {custom_class}",
             value: "{value}",
             oninput: move |e| oninput.call(e),
         }

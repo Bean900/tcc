@@ -188,3 +188,28 @@ pub fn InfoCard(props: InfoCardProps) -> Element {
         }
     }
 }
+
+#[derive(Props, Clone, PartialEq)]
+pub struct StatBoxProps {
+    pub label: String,
+    pub value: String,
+    #[props(default)]
+    pub alert: bool,
+}
+
+#[component]
+pub fn StatBox(props: StatBoxProps) -> Element {
+    let wrapper_class = if props.alert {
+        "p-4 rounded-xl border border-red-200 bg-red-50"
+    } else {
+        "p-4 rounded-xl border border-amber-100 bg-amber-50/50"
+    };
+    rsx! {
+        div { class: wrapper_class,
+            p { class: "text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-400 mb-1",
+                "{props.label}"
+            }
+            p { class: "text-2xl font-bold text-[#C66741]", "{props.value}" }
+        }
+    }
+}

@@ -720,3 +720,70 @@ pub fn DataIcon(props: IconProps) -> Element {
     }
 
 }
+
+/// Server Offline Icon (WLAN ohne Internetverbindung)
+#[component]
+pub fn ServerOfflineIcon(props: IconProps) -> Element {
+    let class = resolve_class(&props.class, "w-5 h-5");
+    let sw = props.stroke_width.as_deref().unwrap_or("2");
+
+    rsx! {
+        svg {
+            xmlns: "http://www.w3.org/2000/svg",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke: "currentColor",
+            stroke_width: "{sw}",
+            class: "{class}",
+
+            // Outer WLAN signal arc
+            path {
+                d: "M2 8.5a15.5 15.5 0 0 1 15 -3.2",
+                stroke_linecap: "round",
+                opacity: "0.4",
+            }
+
+            // Middle WLAN signal arc
+            path {
+                d: "M5 12.5a10.5 10.5 0 0 1 8.5 -2.9",
+                stroke_linecap: "round",
+                opacity: "0.7",
+            }
+
+            // Inner WLAN signal arc
+            path { d: "M8.2 16a6 6 0 0 1 4.3 -1.6", stroke_linecap: "round" }
+
+            // WLAN center dot
+            circle {
+                cx: "7.5",
+                cy: "19.5",
+                r: "0.9",
+                fill: "currentColor",
+                stroke: "none",
+            }
+
+            // Background cutout so the alert badge sits cleanly on top
+            circle {
+                cx: "18",
+                cy: "18",
+                r: "5.5",
+                fill: "var(--icon-bg, white)",
+                stroke: "none",
+            }
+
+            // Alert badge outline
+            circle { cx: "18", cy: "18", r: "4.5" }
+
+            // Exclamation mark inside the badge ("keine Internetverbindung")
+            path { d: "M18 15.7v2.3", stroke_linecap: "round" }
+
+            circle {
+                cx: "18",
+                cy: "20.3",
+                r: "0.55",
+                fill: "currentColor",
+                stroke: "none",
+            }
+        }
+    }
+}
