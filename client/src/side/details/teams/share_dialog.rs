@@ -107,6 +107,12 @@ pub(super) fn ShareDialog(
     // Kleines UX-Feedback für den (vormals funktionslosen) Copy-Button.
     let mut copied_signal = use_signal(|| false);
 
+    // Analog zu EditTeamDialog: kurzer grüner "Gespeichert"-Glow nach
+    // erfolgreichem Speichern (Modal::glow, siehe tokens::SAVE_GLOW_CSS).
+    // Der Dialog bleibt hier bewusst offen (anders als beim Team-Edit) –
+    // die Config ist etwas, das man üblicherweise mehrfach nachjustiert.
+    let mut save_success_signal = use_signal(|| false);
+
     let mut storage_signal = use_context::<Signal<StorageManager>>();
     let save_update_share_config: AsyncAction = async_action!({
         if let Some(date) = *share_config_date.read() {
@@ -151,6 +157,11 @@ pub(super) fn ShareDialog(
             // verlassen (Phase 2, Punkt 5).
             on_share_config_changed.call(());
             team_dialog_signal.set(PopUpWindow::Share);
+            save_success_signal.set(true);
+            spawn(async move {
+                sleep(Duration::from_millis(2000)).await;
+                save_success_signal.set(false);
+            });
         }
     });
 
@@ -163,6 +174,8 @@ pub(super) fn ShareDialog(
         }
     };
 
+    let is_success = *save_success_signal.read();
+
     rsx! {
         Modal {
             title: "Share Configuration".to_string(),
@@ -170,6 +183,7 @@ pub(super) fn ShareDialog(
             accent: true,
             scrollable: true,
             close_on_backdrop_click: false,
+            glow: is_success,
             max_width: Some("max-w-4xl".to_string()),
             children: rsx! {
                     div { class: "flex border-b border-amber-100 mb-5",
